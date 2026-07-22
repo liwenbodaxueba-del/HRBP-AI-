@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HC Forecast Board · 管理后台（demo）</title>
+<style>
+:root{
+  --navy:#0A2E6E; --blue:#1D4ED8; --blue-l:#7FB0F0; --b100:#DBEAFE; --b50:#F3F8FF;
+  --page:#F5F8FD; --ink:#16233B; --ink2:#4A5A75; --ink3:#8194AE;
+  --green:#0E8A5F; --red:#C2410C; --gold:#FFF7E0;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--page);color:var(--ink);font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;font-size:13.5px;}
+.topbar{position:sticky;top:0;z-index:20;background:var(--navy);color:#fff;display:flex;align-items:center;gap:14px;padding:0 18px;height:52px;}
+.topbar .logo{font-weight:700;font-size:15px;}
+.topbar .logo small{font-weight:400;color:#9DBCF3;margin-left:8px;}
+.topbar .sp{flex:1;}
+.user{font-size:12px;color:#C7DAFB;}.user b{color:#fff;}
+.layout{display:flex;min-height:calc(100vh - 52px);}
+nav.side{width:172px;background:#fff;border-right:1px solid var(--b100);padding:14px 10px;flex-shrink:0;}
+nav.side a{display:block;padding:9px 12px;border-radius:8px;color:var(--ink2);text-decoration:none;font-size:13px;margin-bottom:4px;cursor:pointer;}
+nav.side a.on{background:var(--b50);color:var(--blue);font-weight:600;}
+nav.side .grp{font-size:11px;color:var(--ink3);margin:14px 6px 6px;}
+main{flex:1;padding:18px 22px;min-width:0;}
+.view{display:none;}.view.on{display:block;}
+h2.sec{font-size:15px;color:var(--navy);margin:2px 0 4px;}
+.hint{font-size:12px;color:var(--ink3);margin:8px 2px 12px;line-height:1.7;}
+.bar{display:flex;align-items:center;gap:12px;margin:6px 0 12px;flex-wrap:wrap;}
+.btn{background:var(--blue);border:none;color:#fff;border-radius:8px;padding:7px 15px;font-size:12.5px;cursor:pointer;font-family:inherit;}
+.btn.gray{background:#EEF2F8;color:var(--ink2);}
+.btn.danger{background:#fff;color:var(--red);border:1px solid #F3D0BC;}
+.tblwrap{overflow-x:auto;background:#fff;border:1px solid var(--b100);border-radius:12px;}
+table.adm{border-collapse:collapse;width:100%;font-size:13px;min-width:980px;}
+.adm th,.adm td{border-bottom:1px solid #EDF3FB;border-right:1px solid #F6F9FE;padding:9px 12px;text-align:left;white-space:nowrap;vertical-align:middle;}
+.adm th{background:var(--b50);color:var(--ink2);font-weight:600;position:sticky;top:0;}
+.adm tr.grp td{background:#F0F5FD;font-weight:700;color:var(--navy);}
+.adm td.c{text-align:center;}
+.adm input[type=text]{border:1px solid transparent;border-radius:6px;padding:4px 8px;font-size:13px;font-family:inherit;background:transparent;width:200px;}
+.adm input[type=text]:hover{border-color:var(--b100);background:#FDFEFF;}
+.adm input[type=text]:focus{border-color:var(--blue-l);background:#fff;outline:none;}
+.adm select{border:1px solid var(--b100);border-radius:6px;padding:4px 8px;font-size:12.5px;font-family:inherit;background:#fff;color:var(--ink);}
+.chip{display:inline-block;font-size:11px;border-radius:10px;padding:1px 10px;margin-right:4px;}
+.chip.ok{background:#E7F6EF;color:var(--green);}
+.chip.off{background:#EEF2F8;color:var(--ink3);}
+.chip.demo{background:var(--gold);color:#92400E;}
+.chip.src{background:var(--b100);color:var(--navy);}
+.chip.bp{background:#FEF3C7;color:#92400E;}
+.chip.calc{background:#EDE9FE;color:#5B21B6;}
+/* 开关 */
+.sw{position:relative;display:inline-block;width:38px;height:20px;vertical-align:middle;cursor:pointer;}
+.sw input{opacity:0;width:0;height:0;}
+.sw .tk{position:absolute;inset:0;background:#CBD8EA;border-radius:20px;transition:.15s;}
+.sw .tk::before{content:'';position:absolute;left:2px;top:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.15s;}
+.sw input:checked + .tk{background:var(--blue);}
+.sw input:checked + .tk::before{transform:translateX(18px);}
+.kbchk{display:inline-flex;gap:8px;}
+.kbchk label{display:inline-flex;align-items:center;gap:3px;font-size:12px;color:var(--ink2);cursor:pointer;}
+.rowdel{color:var(--red);cursor:pointer;font-size:12px;}
+.rowdel:hover{text-decoration:underline;}
+/* modal */
+.mask{display:none;position:fixed;inset:0;background:rgba(10,26,60,.35);z-index:60;align-items:center;justify-content:center;}
+.mask.on{display:flex;}
+.modal{background:#fff;border-radius:14px;padding:20px 22px;width:400px;box-shadow:0 10px 40px rgba(10,26,60,.3);}
+.modal h3{font-size:14.5px;color:var(--navy);margin-bottom:4px;}
+.modal .meta{font-size:12px;color:var(--ink3);margin-bottom:10px;line-height:1.6;}
+.modal label{display:block;font-size:12px;color:var(--ink2);margin:10px 0 4px;}
+.modal input[type=text],.modal select{width:100%;border:1px solid var(--b100);border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit;background:#fff;}
+.modal .row{display:flex;gap:10px;margin-top:16px;justify-content:flex-end;}
+.modal .swline{display:flex;align-items:center;justify-content:space-between;margin:10px 0 0;font-size:12.5px;color:var(--ink2);}
+.err{color:var(--red);font-size:11.5px;display:none;margin-top:4px;}
+.note{background:var(--b50);border:1px solid var(--b100);border-radius:10px;padding:10px 14px;font-size:12.5px;color:var(--ink2);margin-bottom:12px;line-height:1.7;}
+.note b{color:var(--navy);}
+footer{font-size:11px;color:var(--ink3);text-align:center;padding:16px;}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="logo">HC Forecast Board · 管理后台<small>demo · 配置即生效并留痕</small></div>
+  <div class="sp"></div>
+  <div class="user">iOA：<b>bonniewbli</b>（管理员）</div>
+</div>
+
+<div class="layout">
+<nav class="side">
+  <div class="grp">配置</div>
+  <a class="on" data-v="acct" onclick="go(this)">账号与权限</a>
+  <a data-v="proj" onclick="go(this)">项目配置</a>
+  <div class="grp">记录</div>
+  <a data-v="audit" onclick="go(this)">配置审计日志</a>
+</nav>
+
+<main>
+<!-- ================= 账号与权限 ================= -->
+<div class="view on" id="v-acct">
+  <h2 class="sec">账号与权限（iOA 统一登录）</h2>
+  <div class="note"><b>角色模型</b>：管理员 = 全部配置+全看板读写；HRBP·可编辑 = 本部门空间看板读写（调节录入/导入/导出）；领导·只读 = 本部门空间看板只读。
+  权限按<b>部门空间</b>隔离；看板0-3 可按账号单独勾选。带 <span class="chip demo">示例</span> 的为演示行，正式版从 iOA 组织架构同步。</div>
+  <div class="bar">
+    <button class="btn" onclick="openAcct()">＋ 添加账号</button>
+    <span class="hint" style="margin:0">正式版：输入 iOA 账号自动带出姓名/部门；此处为 demo 手输。</span>
+  </div>
+  <div class="tblwrap"><table class="adm" id="acctTbl"></table></div>
+</div>
+
+<!-- ================= 项目配置 ================= -->
+<div class="view" id="v-proj">
+  <h2 class="sec">项目配置（看板1 指标行）</h2>
+  <div class="note">
+    <b>项目名称</b>可直接点击修改（改名只改显示口径，不动取数逻辑）。
+    <b>可手动添加</b>：开 = 该项目下允许 BP「⊕ 新增分支」（自定义命名·选＋/−）；关 = 只读系统数。
+    <b>前期数据解绑</b>：<span style="color:#92400E">开 = 对该项目的定义变更（改名/换源/停用）<b>不回溯已发生月</b>——前期数据按原口径封存在历史快照；关 = 变更联动刷新全部历史</span>。
+    数据源未接入的项目取数为空（绝不编造）。
+  </div>
+  <div class="bar">
+    <button class="btn" onclick="openProj()">＋ 新增项目</button>
+    <span class="hint" style="margin:0">新增的项目会出现在看板1 对应分区，初始无数据（留空待接源/待 BP 录入）。</span>
+  </div>
+  <div class="tblwrap"><table class="adm" id="projTbl"></table></div>
+</div>
+
+<!-- ================= 审计 ================= -->
+<div class="view" id="v-audit">
+  <h2 class="sec">配置审计日志（长期保留）</h2>
+  <div class="tblwrap"><table class="adm"><thead><tr><th style="width:160px">时间</th><th style="width:120px">操作人</th><th style="width:140px">动作</th><th>明细</th></tr></thead><tbody id="auditBody"></tbody></table></div>
+</div>
+
+<footer>HC Forecast Board 管理后台 demo · 蓝白主题 · 单文件离线（配置存内存·刷新还原）· 正式版配置落库并即时下发看板端 · 内部请勿外传</footer>
+</main>
+</div>
+
+<!-- 添加账号 modal -->
+<div class="mask" id="maskAcct"><div class="modal">
+  <h3>添加账号</h3>
+  <div class="meta">正式版输入 iOA 账号自动带出姓名与部门；权限保存后即时生效并写审计。</div>
+  <label>iOA 账号</label><input type="text" id="aId" placeholder="如：alicewang">
+  <label>姓名</label><input type="text" id="aName" placeholder="如：王小艺">
+  <label>角色</label>
+  <select id="aRole"><option>HRBP·可编辑</option><option>领导·只读</option><option>管理员</option></select>
+  <label>部门空间</label>
+  <select id="aDept"><option>云产品五部</option><option>（示例）云产品四部</option><option>（示例）行业五部</option><option>全部（仅管理员）</option></select>
+  <div class="err" id="aErr">iOA 账号与姓名必填，且账号不能重复</div>
+  <div class="row"><button class="btn gray" onclick="closeAcct()">取消</button><button class="btn" onclick="saveAcct()">保存并生效</button></div>
+</div></div>
+
+<!-- 新增项目 modal -->
+<div class="mask" id="maskProj"><div class="modal">
+  <h3>新增项目</h3>
+  <div class="meta">出现在看板1 对应分区；初始数据为空（待接数据源或 BP 手动录入，<b>不编造</b>）。</div>
+  <label>项目名称</label><input type="text" id="pName" placeholder="如：已流出/待流出 · 长期病假预估">
+  <label>所属分区</label>
+  <select id="pSec"><option>总流出（−）</option><option>总流入（＋）</option><option>校招∇ 分列</option><option>预算阶段</option></select>
+  <label>数据源</label>
+  <select id="pSrc"><option>BP 手填</option><option>HR数仓（待接）</option><option>招聘系统（待接）</option><option>KPI系统 zhaopin（待接）</option><option>运算派生</option></select>
+  <div class="swline">可手动添加（允许 ⊕ 分支）<label class="sw"><input type="checkbox" id="pAdd" checked><span class="tk"></span></label></div>
+  <div class="swline">前期数据解绑（变更不回溯已发生月）<label class="sw"><input type="checkbox" id="pUnb" checked><span class="tk"></span></label></div>
+  <div class="err" id="pErr">项目名称必填且不能重复</div>
+  <div class="row"><button class="btn gray" onclick="closeProj()">取消</button><button class="btn" onclick="saveProj()">保存并生效</button></div>
+</div></div>
+
+<script>
+function esc(s){return String(s).replace(/[<>&"']/g,function(c){return{'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c];});}
+/* ===== 数据（demo·内存） ===== */
+var accts=[
+  {id:'bonniewbli',name:'李文博',role:'管理员',dept:'云产品五部',kb:[1,1,1,1],on:true,demo:false},
+  {id:'demo-hrbp',name:'（示例）HRBP账号',role:'HRBP·可编辑',dept:'云产品五部',kb:[1,1,1,1],on:true,demo:true},
+  {id:'demo-lead',name:'（示例）领导账号',role:'领导·只读',dept:'云产品五部',kb:[1,1,1,0],on:true,demo:true}
+];
+var projs=[
+  {sec:'预算阶段',name:'预算当量',src:'看板2 间接取数',srcCls:'calc',add:false,unbind:false,on:true,sys:true},
+  {sec:'预算阶段',name:'月末实际在岗',src:'KPI系统 zhaopin（待接）',srcCls:'src',add:false,unbind:false,on:true,sys:true},
+  {sec:'总流出（−）',name:'已流出/待流出 · 系统明确',src:'HR数仓（待接）',srcCls:'src',add:false,unbind:true,on:true,sys:true},
+  {sec:'总流出（−）',name:'已流出/待流出 · 自然流失预估',src:'运算派生',srcCls:'calc',add:false,unbind:true,on:true,sys:true},
+  {sec:'总流出（−）',name:'已流出/待流出 · 已明确非系统（BP）',src:'BP 手填',srcCls:'bp',add:true,unbind:true,on:true,sys:true},
+  {sec:'总流出（−）',name:'已流出/待流出 · 主动动作（BP）（调节项）',src:'BP 手填',srcCls:'bp',add:true,unbind:true,on:true,sys:true},
+  {sec:'总流入（＋）',name:'已流入/待流入 · 社招',src:'招聘系统（待接）',srcCls:'src',add:false,unbind:true,on:true,sys:true},
+  {sec:'总流入（＋）',name:'已流入/待流入 · 校招∇',src:'分列求和',srcCls:'calc',add:true,unbind:true,on:true,sys:true},
+  {sec:'校招∇ 分列',name:'校招· 预约入职',src:'HR数仓（待接）',srcCls:'src',add:false,unbind:true,on:true,sys:true},
+  {sec:'校招∇ 分列',name:'校招· 毕业生转聘',src:'HR数仓（待接）',srcCls:'src',add:false,unbind:true,on:true,sys:true},
+  {sec:'校招∇ 分列',name:'校招· 非系统（BP）',src:'BP 手填',srcCls:'bp',add:true,unbind:true,on:true,sys:true},
+  {sec:'总流入（＋）',name:'已流入/待流入 · 增量需求（BP）（调节项）',src:'BP 手填',srcCls:'bp',add:true,unbind:true,on:true,sys:true},
+  {sec:'结论',name:'期末在岗预估',src:'运算派生（链）',srcCls:'calc',add:false,unbind:false,on:true,sys:true}
+];
+var audit=[['—','system','初始化','载入默认账号 1 + 示例 2；项目 13 项（口径同看板1 · 260721 PRD）']];
+/* ===== 审计 ===== */
+function log(act,detail){
+  var t=new Date(),ts=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0')+' '+String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0')+':'+String(t.getSeconds()).padStart(2,'0');
+  audit.unshift([ts,'bonniewbli',act,detail]);renderAudit();
+}
+function renderAudit(){document.getElementById('auditBody').innerHTML=audit.map(function(r){return '<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td><td>'+r[3]+'</td></tr>';}).join('');}
+/* ===== 账号 ===== */
+var KB=['看板0','看板1','看板2','看板3'];
+function renderAccts(){
+  var h='<thead><tr><th>iOA 账号</th><th>姓名</th><th style="width:140px">角色</th><th style="width:170px">部门空间</th><th>看板访问</th><th class="c">启用</th><th class="c">操作</th></tr></thead><tbody>';
+  accts.forEach(function(a,i){
+    var kb=KB.map(function(k,j){return '<label><input type="checkbox" '+(a.kb[j]?'checked':'')+' onchange="accKb('+i+','+j+',this.checked)">'+k+'</label>';}).join('');
+    h+='<tr><td>'+esc(a.id)+(a.demo?' <span class="chip demo">示例</span>':'')+'</td><td>'+esc(a.name)+'</td>'
+      +'<td><select onchange="accRole('+i+',this.value)"><option'+(a.role==='管理员'?' selected':'')+'>管理员</option><option'+(a.role==='HRBP·可编辑'?' selected':'')+'>HRBP·可编辑</option><option'+(a.role==='领导·只读'?' selected':'')+'>领导·只读</option></select></td>'
+      +'<td>'+esc(a.dept)+'</td><td><span class="kbchk">'+kb+'</span></td>'
+      +'<td class="c"><label class="sw"><input type="checkbox" '+(a.on?'checked':'')+' onchange="accOn('+i+',this.checked)"><span class="tk"></span></label></td>'
+      +'<td class="c">'+(a.id==='bonniewbli'?'<span class="chip ok">当前账号</span>':'<span class="rowdel" onclick="accDel('+i+')">移除</span>')+'</td></tr>';
+  });
+  document.getElementById('acctTbl').innerHTML=h+'</tbody>';
+}
+function accRole(i,v){var o=accts[i].role;accts[i].role=v;log('改角色',accts[i].id+'：'+o+' → '+v);renderAccts();}
+function accKb(i,j,v){accts[i].kb[j]=v?1:0;log('改看板权限',accts[i].id+'：'+KB[j]+' → '+(v?'允许':'禁止'));}
+function accOn(i,v){accts[i].on=v;log(v?'启用账号':'停用账号',accts[i].id);}
+function accDel(i){var a=accts[i];accts.splice(i,1);log('移除账号',a.id+'（'+a.name+'）');renderAccts();}
+function openAcct(){document.getElementById('aId').value='';document.getElementById('aName').value='';document.getElementById('aErr').style.display='none';document.getElementById('maskAcct').classList.add('on');}
+function closeAcct(){document.getElementById('maskAcct').classList.remove('on');}
+function saveAcct(){
+  var id=document.getElementById('aId').value.trim(),name=document.getElementById('aName').value.trim();
+  if(!id||!name||accts.some(function(a){return a.id===id;})){document.getElementById('aErr').style.display='block';return;}
+  accts.push({id:id,name:name,role:document.getElementById('aRole').value,dept:document.getElementById('aDept').value,kb:[1,1,1,1],on:true,demo:false});
+  log('添加账号',id+'（'+name+'）· '+document.getElementById('aRole').value+' · '+document.getElementById('aDept').value);
+  closeAcct();renderAccts();
+}
+/* ===== 项目 ===== */
+var SECS=['预算阶段','总流出（−）','总流入（＋）','校招∇ 分列','结论'];
+function renderProjs(){
+  var h='<thead><tr><th>项目名称（点击可改）</th><th style="width:150px">数据源</th><th class="c" style="width:120px">可手动添加<br><span style="font-weight:400;font-size:11px">（⊕分支）</span></th><th class="c" style="width:130px">前期数据解绑<br><span style="font-weight:400;font-size:11px">（变更不回溯）</span></th><th class="c" style="width:70px">启用</th><th class="c" style="width:70px">操作</th></tr></thead><tbody>';
+  SECS.forEach(function(sec){
+    var rows=projs.filter(function(p){return p.sec===sec;});
+    if(!rows.length)return;
+    h+='<tr class="grp"><td colspan="6">'+sec+'</td></tr>';
+    rows.forEach(function(p){
+      var i=projs.indexOf(p);
+      h+='<tr><td><input type="text" value="'+esc(p.name)+'" onchange="pjName('+i+',this.value)">'+(p.sys?'':' <span class="chip demo">自增</span>')+'</td>'
+        +'<td><span class="chip '+p.srcCls+'">'+esc(p.src)+'</span></td>'
+        +'<td class="c"><label class="sw"><input type="checkbox" '+(p.add?'checked':'')+' onchange="pjAdd('+i+',this.checked)"><span class="tk"></span></label></td>'
+        +'<td class="c"><label class="sw"><input type="checkbox" '+(p.unbind?'checked':'')+' onchange="pjUnb('+i+',this.checked)"><span class="tk"></span></label></td>'
+        +'<td class="c"><label class="sw"><input type="checkbox" '+(p.on?'checked':'')+' onchange="pjOn('+i+',this.checked)"><span class="tk"></span></label></td>'
+        +'<td class="c">'+(p.sys?'<span class="chip off">内置</span>':'<span class="rowdel" onclick="pjDel('+i+')">删除</span>')+'</td></tr>';
+    });
+  });
+  document.getElementById('projTbl').innerHTML=h+'</tbody>';
+}
+function pjName(i,v){var o=projs[i].name;v=v.trim();if(!v){renderProjs();return;}projs[i].name=v;log('改项目名称','「'+o+'」→「'+v+'」'+(projs[i].unbind?'（已解绑：不回溯已发生月，历史快照保持原口径）':'（联动刷新历史）'));}
+function pjAdd(i,v){projs[i].add=v;log('改可手动添加','「'+projs[i].name+'」→ '+(v?'允许 ⊕ 分支':'禁止手动添加'));}
+function pjUnb(i,v){projs[i].unbind=v;log('改前期数据解绑','「'+projs[i].name+'」→ '+(v?'解绑（变更不回溯已发生月）':'联动（变更刷新全部历史）'));}
+function pjOn(i,v){projs[i].on=v;log(v?'启用项目':'停用项目','「'+projs[i].name+'」'+(v?'':(projs[i].unbind?'（前期数据封存于历史快照）':'（含历史一并隐藏）')));}
+function pjDel(i){var p=projs[i];projs.splice(i,1);log('删除项目','「'+p.name+'」'+(p.unbind?'（前期数据封存）':''));renderProjs();}
+function openProj(){document.getElementById('pName').value='';document.getElementById('pErr').style.display='none';document.getElementById('pAdd').checked=true;document.getElementById('pUnb').checked=true;document.getElementById('maskProj').classList.add('on');}
+function closeProj(){document.getElementById('maskProj').classList.remove('on');}
+function saveProj(){
+  var name=document.getElementById('pName').value.trim();
+  if(!name||projs.some(function(p){return p.name===name;})){document.getElementById('pErr').style.display='block';return;}
+  var src=document.getElementById('pSrc').value;
+  var cls=src.indexOf('BP')>-1?'bp':(src.indexOf('运算')>-1?'calc':'src');
+  projs.push({sec:document.getElementById('pSec').value,name:name,src:src,srcCls:cls,
+    add:document.getElementById('pAdd').checked,unbind:document.getElementById('pUnb').checked,on:true,sys:false});
+  log('新增项目','「'+name+'」· '+document.getElementById('pSec').value+' · '+src+' · 初始数据为空（待接源/待录入，不编造）');
+  closeProj();renderProjs();
+}
+/* ===== 导航 ===== */
+function go(a){
+  document.querySelectorAll('nav.side a').forEach(function(x){x.classList.remove('on');});a.classList.add('on');
+  document.querySelectorAll('.view').forEach(function(v){v.classList.remove('on');});
+  document.getElementById('v-'+a.getAttribute('data-v')).classList.add('on');
+}
+renderAccts();renderProjs();renderAudit();
+</script>
+</body>
+</html>
