@@ -218,6 +218,13 @@ nav.side a{padding:11px 12px;}
 .helpdrawer dl{font-size:12.5px;color:var(--ink2);line-height:1.8;}
 .helpdrawer dt{font-weight:600;color:var(--ink);margin-top:10px;}
 kbd{background:var(--b50);border:1px solid var(--b100);border-bottom-width:2px;border-radius:5px;padding:1px 6px;font-size:11px;font-family:inherit;color:var(--navy);}
+
+/* ===== 侧栏收放 ===== */
+nav.side{transition:width .15s ease,padding .15s ease;}
+body.navfold nav.side{width:0 !important;flex-basis:0 !important;min-width:0 !important;padding:0 !important;border-right:none !important;overflow:hidden !important;}
+.navtg{position:fixed;top:62px;left:160px;z-index:35;width:24px;height:24px;border-radius:50%;background:#fff;border:1px solid var(--b100);color:var(--ink3);font-size:12px;line-height:22px;text-align:center;cursor:pointer;box-shadow:0 2px 6px rgba(10,46,110,.12);transition:left .15s ease;user-select:none;}
+.navtg:hover{color:var(--blue);border-color:var(--blue-l);}
+body.navfold .navtg{left:8px;}
 </style>
 </head>
 <body>
@@ -918,6 +925,145 @@ function cfgRefresh(){cfgLoad();RO=isRO();renderAll();cfgTag();}
 window.addEventListener('storage',function(e){if(e.key==='hcfb_admin_cfg')cfgRefresh();});
 document.addEventListener('visibilitychange',function(){if(!document.hidden)cfgRefresh();});
 bindYear();renderYearTabs();renderAll();renderAudit();renderKb3();renderCoverage();renderAI();refreshKb0();cfgTag();
+</script>
+<script>
+/* ===== API 适配层（V1 后端·同源探测；不可用自动回退本地空态模式） ===== */
+(function(){
+var ORIG={saveCell:saveCell,clearCell:clearCell,saveRowDef:saveRowDef,delRowFromDef:delRowFromDef,saveYear:saveYear,setYear:setYear,renderAudit:renderAudit,exportCSV:exportCSV};
+window.USE_API=false;var API_USER='bonniewbli';
+function api(m,p,b){return fetch(p,{method:m,headers:{'Content-Type':'application/json','X-User':API_USER},body:b?JSON.stringify(b):undefined}).then(function(r){return r.json().then(function(j){if(!r.ok)throw j;return j;});});}
+var SEC2FRONT={'总流出（−）':'out','总流入（＋）':'inn','校招∇ 分列':'camp'};
+var FRONT2SEC={out:'总流出（−）',inn:'总流入（＋）',camp:'校招∇ 分列'};
+function nn(v){return (v===null||v===undefined)?'':v;}
+function applyBoard(b){
+  var y=b.year,d=DATA[y]||(DATA[y]=mkEmpty(b.status,b.lock));
+  d.status=b.status;d.lock=b.lock;
+  ['budget','actual','o_sys','o_nat','o_bp','o_act','i_soc','i_yy','i_bs','i_cbp','i_incr'].forEach(function(k){
+    d[k]=((b.metrics[k]||{}).vals||[]).map(nn);while(d[k].length<12)d[k].push('');
+  });
+  MEMOS[y]={};
+  Object.keys(b.metrics).forEach(function(k){var ns=b.metrics[k].notes||{};Object.keys(ns).forEach(function(m){MEMOS[y][k+'_'+(m-1)]=ns[m];});});
+  var cu=emptyCustom();
+  (b.branches||[]).forEach(function(br){
+    var fk=SEC2FRONT[br.sec];if(!fk)return;
+    cu[fk].push({id:br.id,name:br.name,sign:br.sign,vals:br.vals.map(nn),api:true});
+    Object.keys(br.notes||{}).forEach(function(m){MEMOS[y]['C'+br.id+'_'+(m-1)]=br.notes[m];});
+  });
+  CUSTOM[y]=cu;
+  if(y===YEAR){bindYear();renderYearTabs();renderAll();renderKb3();}
+}
+function loadYear(y){return api('GET','/api/board/'+y).then(applyBoard);}
+function loadYears(){return api('GET','/api/years').then(function(ys){
+  YEARS.length=0;
+  ys.forEach(function(r){YEARS.push(r.year);
+    if(!DATA[r.year])DATA[r.year]=mkEmpty(r.status,r.lock_month);
+    DATA[r.year].status=r.status;DATA[r.year].lock=r.lock_month;
+    if(!MEMOS[r.year])MEMOS[r.year]={};if(!CUSTOM[r.year])CUSTOM[r.year]=emptyCustom();});
+});}
+function loadCfg(){return api('GET','/api/config').then(function(cfg){CFG=cfg;RO=isRO();});}
+function apiErr(e){var d=e&&e.detail;alert('后端拒绝：'+(typeof d==='string'?d:JSON.stringify(d||e)));}
+function renderAuditApi(){
+  api('GET','/api/audit').then(function(rows){
+    var el=document.getElementById('auditBody');if(!el)return;
+    el.innerHTML=rows.map(function(r){return '<tr><td>'+r.ts+'</td><td>'+r.user+'</td><td>'+r.action+'</td><td>'+r.detail+'</td></tr>';}).join('');
+  });
+}
+saveCell=function(){
+  if(!USE_API)return ORIG.saveCell();
+  var vRaw=document.getElementById('mVal').value,note=document.getElementById('mNote').value.trim();
+  if(!note){document.getElementById('mErr').style.display='block';return;}
+  var k=cur.key,metric=(k&&k[0]==='C'&&cmap[k])?('branch:'+cmap[k].row.id):k;
+  api('POST','/api/board/'+YEAR+'/cell',{metric:metric,month:cur.m+1,value:vRaw===''?null:(parseFloat(vRaw)||0),note:note})
+    .then(function(b){closeModal();applyBoard(b);renderAuditApi();if(typeof toast==='function')toast('已保存并写入服务端（审计留痕）');})
+    .catch(apiErr);
+};
+clearCell=function(){
+  if(!USE_API)return ORIG.clearCell();
+  var k=cur.key,metric=(k&&k[0]==='C'&&cmap[k])?('branch:'+cmap[k].row.id):k;
+  api('POST','/api/board/'+YEAR+'/cell',{metric:metric,month:cur.m+1,value:null,note:'清零还原'})
+    .then(function(b){closeModal();applyBoard(b);renderAuditApi();}).catch(apiErr);
+};
+saveRowDef=function(){
+  if(!USE_API)return ORIG.saveRowDef();
+  var name=document.getElementById('dName').value.trim(),sel=document.querySelector('input[name=dsign]:checked'),sign=sel?sel.value:'';
+  if(!name||!sign){document.getElementById('dErr').style.display='block';return;}
+  if(curDef.key){alert('API 模式下改分支定义请到管理后台（或删除重建）');return;}
+  var sec=FRONT2SEC[curDef.sec];
+  if(!sec)return ORIG.saveRowDef();
+  api('POST','/api/board/'+YEAR+'/branch',{sec:sec,name:name,sign:sign})
+    .then(function(b){closeDef();if(!open_[curDef.sec])open_[curDef.sec]=true;applyBoard(b);renderAuditApi();}).catch(apiErr);
+};
+delRowFromDef=function(){
+  if(!USE_API)return ORIG.delRowFromDef();
+  var key=curDef.key;if(!key||!cmap[key])return;
+  var r=cmap[key].row;
+  if(!r.api)return ORIG.delRowFromDef();
+  fetch('/api/board/'+YEAR+'/branch/'+r.id,{method:'DELETE',headers:{'X-User':API_USER}})
+    .then(function(res){return res.json().then(function(j){if(!res.ok)throw j;return j;});})
+    .then(function(b){closeDef();applyBoard(b);renderAuditApi();}).catch(apiErr);
+};
+saveYear=function(){
+  if(!USE_API)return ORIG.saveYear();
+  var y=parseInt(document.getElementById('yVal').value,10);
+  if(!y||y<2000||y>2100||YEARS.indexOf(y)>-1){document.getElementById('yErr').style.display='block';return;}
+  api('POST','/api/years',{year:y})
+    .then(function(){closeYear();return loadYears();})
+    .then(function(){YEAR=y;return loadYear(y);})
+    .then(function(){refreshKb0();renderAuditApi();}).catch(apiErr);
+};
+setYear=function(y){
+  if(!USE_API)return ORIG.setYear(y);
+  YEAR=y;loadYear(y).then(function(){refreshKb0();}).catch(apiErr);
+};
+renderAudit=function(){if(!USE_API)return ORIG.renderAudit();renderAuditApi();};
+if(typeof cfgRefresh==='function'){ORIG.cfgRefresh=cfgRefresh;
+  cfgRefresh=function(){if(!USE_API)return ORIG.cfgRefresh();loadCfg().then(function(){renderAll();apiTag();}).catch(function(){});};}
+if(typeof cfgTag==='function'){ORIG.cfgTag=cfgTag;cfgTag=function(){if(!USE_API)return ORIG.cfgTag();apiTag();};}
+function apiTag(){var el=document.getElementById('freshTag');if(el)el.textContent='已连接后端 API · 库中无数据留空不编造'+(RO?'（当前账号只读）':'');}
+exportCSV=function(){if(!USE_API)return ORIG.exportCSV();window.open('/api/export/'+YEAR+'.csv');};
+function addImportBtn(){
+  var bar=document.querySelector('.topbar');if(!bar||document.getElementById('impSnapBtn'))return;
+  var b=document.createElement('button');b.id='impSnapBtn';b.className='tbi';b.textContent='⬆ 导入快照CSV';b.title='上传兜底：metric,month,value；校验闸不合格整批拒绝';
+  var inp=document.createElement('input');inp.type='file';inp.accept='.csv';inp.style.display='none';
+  inp.onchange=function(){var f=inp.files[0];if(!f)return;var fd=new FormData();fd.append('file',f);
+    fetch('/api/import/'+YEAR,{method:'POST',headers:{'X-User':API_USER},body:fd})
+      .then(function(r){return r.json().then(function(j){if(!r.ok)throw j;return j;});})
+      .then(function(r){alert('校验闸通过：批次#'+r.snapshot+'，入库 '+r.rows+' 格');return loadYear(YEAR);})
+      .then(function(){renderAuditApi();})
+      .catch(function(e){var d=e&&e.detail;alert('整批拒绝入库：'+(d&&d.errors?'\n'+d.errors.join('\n'):JSON.stringify(d||e)));});
+    inp.value='';};
+  b.onclick=function(){inp.click();};
+  var firstBtn=bar.querySelector('.btn');
+  if(firstBtn)bar.insertBefore(b,firstBtn);else bar.appendChild(b);
+  bar.appendChild(inp);
+}
+fetch('/api/health').then(function(r){return r.json();}).then(function(h){
+  if(!h.ok)throw 0;
+  USE_API=true;
+  apiTag();
+  addImportBtn();
+  return loadCfg().then(loadYears).then(function(){return loadYear(YEAR);}).then(function(){renderAuditApi();});
+}).catch(function(){/* 无后端：本地空态模式 */});
+})();
+</script>
+<script>
+/* ===== 侧栏收放 ===== */
+function navFold(f){
+  var b=document.body,to=(f===undefined)?!b.classList.contains('navfold'):f;
+  b.classList.toggle('navfold',to);
+  try{localStorage.setItem('hcfb_navfold',to?'1':'0');}catch(e){}
+  var n=document.querySelector('nav.side');
+  if(n){if(to){n.style.cssText='width:0;flex:0 0 0px;min-width:0;padding:0;border-right:none;overflow:hidden;';}else{n.style.cssText='';}}
+  var t=document.getElementById('navTg');
+  if(t){t.textContent=to?'☰':'⟨';t.title=to?'展开目录':'收起目录';t.style.left=to?'8px':'160px';}
+}
+(function(){
+  var btn=document.createElement('div');btn.id='navTg';btn.className='navtg';
+  btn.onclick=function(){navFold();};
+  document.body.appendChild(btn);
+  var f=false;try{f=localStorage.getItem('hcfb_navfold')==='1';}catch(e){}
+  navFold(f);
+})();
 </script>
 </body>
 </html>

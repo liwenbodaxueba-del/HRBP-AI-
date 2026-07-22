@@ -82,6 +82,13 @@ table.adm{border-collapse:collapse;width:100%;font-size:13px;min-width:980px;}
 .note{background:var(--b50);border:1px solid var(--b100);border-radius:10px;padding:10px 14px;font-size:12.5px;color:var(--ink2);margin-bottom:12px;line-height:1.7;}
 .note b{color:var(--navy);}
 footer{font-size:11px;color:var(--ink3);text-align:center;padding:16px;}
+
+/* ===== 侧栏收放 ===== */
+nav.side{transition:width .15s ease,padding .15s ease;}
+body.navfold nav.side{width:0 !important;flex-basis:0 !important;min-width:0 !important;padding:0 !important;border-right:none !important;overflow:hidden !important;}
+.navtg{position:fixed;top:62px;left:160px;z-index:35;width:24px;height:24px;border-radius:50%;background:#fff;border:1px solid var(--b100);color:var(--ink3);font-size:12px;line-height:22px;text-align:center;cursor:pointer;box-shadow:0 2px 6px rgba(10,46,110,.12);transition:left .15s ease;user-select:none;}
+.navtg:hover{color:var(--blue);border-color:var(--blue-l);}
+body.navfold .navtg{left:8px;}
 </style>
 </head>
 <body>
@@ -298,6 +305,54 @@ function goV(v){var a=document.querySelector('nav.side a[data-v="'+v+'"]');if(a)
 function tbToggle(id){document.querySelectorAll('.tbdrop').forEach(function(d){d.classList.toggle('on',!!(id&&d.id===id&&!d.classList.contains('on')));});}
 document.addEventListener('click',function(e){if(!e.target.closest('.tbmenu'))tbToggle();});
 renderAccts();renderProjs();renderAudit();
+</script>
+<script>
+/* ===== API 适配层（配置落库·审计走服务端；无后端回退本机暂存） ===== */
+(function(){
+var ORIG={saveCfg:saveCfg,renderAudit:renderAudit,resetCfg:resetCfg};
+window.USE_API=false;var API_USER='bonniewbli';
+function api(m,p,b){return fetch(p,{method:m,headers:{'Content-Type':'application/json','X-User':API_USER},body:b?JSON.stringify(b):undefined}).then(function(r){return r.json().then(function(j){if(!r.ok)throw j;return j;});});}
+saveCfg=function(){
+  if(!USE_API)return ORIG.saveCfg();
+  api('PUT','/api/config',{projs:projs,accts:accts}).catch(function(e){alert('配置下发失败：'+JSON.stringify(e&&e.detail||e));});
+};
+renderAudit=function(){
+  if(!USE_API)return ORIG.renderAudit();
+  api('GET','/api/audit').then(function(rows){
+    document.getElementById('auditBody').innerHTML=rows.map(function(r){return '<tr><td>'+r.ts+'</td><td>'+r.user+'</td><td>'+r.action+'</td><td>'+r.detail+'</td></tr>';}).join('');
+  });
+};
+resetCfg=function(){
+  if(!USE_API)return ORIG.resetCfg();
+  if(window.confirm('从服务端重新加载配置？'))location.reload();
+};
+fetch('/api/health').then(function(r){return r.json();}).then(function(h){
+  if(!h.ok)throw 0;
+  USE_API=true;
+  var el=document.querySelector('.topbar .fresh');if(el)el.textContent='已连接后端 API · 配置落库并即时下发（'+h.storage+'）';
+  return api('GET','/api/config');
+}).then(function(cfg){accts=cfg.accts;projs=cfg.projs;renderAccts();renderProjs();renderAudit();})
+.catch(function(){/* 无后端：本机暂存模式 */});
+})();
+</script>
+<script>
+/* ===== 侧栏收放 ===== */
+function navFold(f){
+  var b=document.body,to=(f===undefined)?!b.classList.contains('navfold'):f;
+  b.classList.toggle('navfold',to);
+  try{localStorage.setItem('hcfb_navfold',to?'1':'0');}catch(e){}
+  var n=document.querySelector('nav.side');
+  if(n){if(to){n.style.cssText='width:0;flex:0 0 0px;min-width:0;padding:0;border-right:none;overflow:hidden;';}else{n.style.cssText='';}}
+  var t=document.getElementById('navTg');
+  if(t){t.textContent=to?'☰':'⟨';t.title=to?'展开目录':'收起目录';t.style.left=to?'8px':'160px';}
+}
+(function(){
+  var btn=document.createElement('div');btn.id='navTg';btn.className='navtg';
+  btn.onclick=function(){navFold();};
+  document.body.appendChild(btn);
+  var f=false;try{f=localStorage.getItem('hcfb_navfold')==='1';}catch(e){}
+  navFold(f);
+})();
 </script>
 </body>
 </html>
