@@ -894,7 +894,7 @@ function kb3Import(inp){var f=inp.files[0];if(!f)return;document.getElementById(
 /* ===== 导航 ===== */
 function goView(v){document.querySelectorAll('nav.side a').forEach(function(x){x.classList.toggle('on',x.getAttribute('data-v')===v);});document.querySelectorAll('.view').forEach(function(w){w.classList.remove('on');});var el=document.getElementById('v-'+v);if(el){el.classList.add('on');window.scrollTo(0,0);}}
 function go(a){goView(a.getAttribute('data-v'));}
-function tbToggle(id){document.querySelectorAll('.tbdrop').forEach(function(d){d.classList.toggle('on',id&&d.id===id&&!d.classList.contains('on'));});}
+function tbToggle(id){document.querySelectorAll('.tbdrop').forEach(function(d){d.classList.toggle('on',!!(id&&d.id===id&&!d.classList.contains('on')));});}
 document.addEventListener('click',function(e){if(!e.target.closest('.tbmenu'))tbToggle();});
 /* ===== V2 UX layer ===== */
 var toastT=null,toastUndoFn=null;

@@ -295,7 +295,7 @@ function go(a){
   document.getElementById('v-'+a.getAttribute('data-v')).classList.add('on');
 }
 function goV(v){var a=document.querySelector('nav.side a[data-v="'+v+'"]');if(a)go(a);}
-function tbToggle(id){document.querySelectorAll('.tbdrop').forEach(function(d){d.classList.toggle('on',id&&d.id===id&&!d.classList.contains('on'));});}
+function tbToggle(id){document.querySelectorAll('.tbdrop').forEach(function(d){d.classList.toggle('on',!!(id&&d.id===id&&!d.classList.contains('on')));});}
 document.addEventListener('click',function(e){if(!e.target.closest('.tbmenu'))tbToggle();});
 renderAccts();renderProjs();renderAudit();
 </script>
