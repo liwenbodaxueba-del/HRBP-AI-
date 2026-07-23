@@ -812,8 +812,8 @@ function kb3cat(st){var f=KB3CATS.find(function(x){return x.st===st;});return f?
 function kb3mo(r){if(r.st==='Hold'||r.st==='取消')return '';var d=(r.st==='已入职'?r.join:r.eta);return d?d.slice(0,7):'';}
 function moLbl(ym){if(!ym)return '';var mm=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return mm[+ym.slice(5,7)-1]+'-'+ym.slice(2,4);}
 function renderKb3(){
-  var g='<thead><tr class="grp"><th class="g1" colspan="10">需求信息</th><th class="g2" colspan="3">进展阶段</th><th class="g3" colspan="4">入选与入职</th><th class="g4" colspan="5">系统派生（勿改）</th></tr>'
-    +'<tr class="col"><th>部门</th><th>中心</th><th>业务负责人</th><th>HC来源备注</th><th>招聘岗位</th><th>分类(国内/海外)</th><th>地点</th><th>需求提出时间</th><th>招聘数量</th><th>目标到岗时间(初始固定)</th>'
+  var g='<thead><tr class="grp"><th class="g1" colspan="9">需求信息</th><th class="g2" colspan="3">进展阶段</th><th class="g3" colspan="4">入选与入职</th><th class="g4" colspan="5">系统派生（勿改）</th></tr>'
+    +'<tr class="col"><th>部门</th><th>中心</th><th>业务负责人</th><th>HC来源备注</th><th>招聘岗位</th><th>分类(国内/海外)</th><th>地点</th><th>需求提出时间</th><th>招聘数量</th>'
     +'<th>进展(当前状态)</th><th>预计到岗时间</th><th>备注(变更原因/卡点)</th>'
     +'<th>offer人选</th><th>人选职级</th><th>实际入职时间</th><th>备注</th>'
     +'<th>归月(自动)</th><th>计入看板1(自动)</th><th>周期·天(自动)</th><th>超期(自动)</th><th>一句话备注(自动)</th></tr></thead><tbody>';
@@ -822,12 +822,12 @@ function renderKb3(){
     var days=(r.st==='已入职'&&r.join)?Math.round((new Date(r.join)-new Date(r.ask))/864e5):'';
     var one=r.who+'·'+r.job+'('+r.loc+')·'+(r.st==='已入职'?r.join+'已入职':'预计'+r.eta+'到岗'+(r.memo?'·'+r.memo:''));
     var catChip=cat==='不计入'?'na':(r.st==='已入职'?'ok':'todo');
-    g+='<tr><td>示例部门</td><td>'+r.c+'</td><td>'+r.own+'</td><td>'+r.src+'</td><td>'+r.job+'</td><td>'+r.cls+'</td><td>'+r.loc+'</td><td>'+r.ask+'</td><td class="num">'+r.num+'</td><td>'+r.tgt+'</td>'
+    g+='<tr><td>'+(r.dept||'—')+'</td><td>'+r.c+'</td><td>'+r.own+'</td><td>'+r.src+'</td><td>'+r.job+'</td><td>'+r.cls+'</td><td>'+r.loc+'</td><td>'+r.ask+'</td><td class="num">'+r.num+'</td>'
       +'<td>'+r.st+'</td><td>'+r.eta+'</td><td>'+r.memo+'</td>'
       +'<td>'+r.offer+'</td><td>'+r.lvl+'</td><td>'+r.join+'</td><td>'+r.jmemo+'</td>'
       +'<td>'+(moLbl(mo)||'—')+'</td><td><span class="chip '+catChip+'">'+cat+'</span></td><td class="num">'+(days||'')+'</td><td>'+(over?'⚠超期':'')+'</td><td>'+one+'</td></tr>';
   });
-  if(!D.kb3rows.length)g+='<tr><td colspan="22" style="text-align:center;color:#8194AE;padding:22px">'+YEAR+' 年（'+D.status+'）暂无台账数据 · 点上方「导入台账文档」或接数据源</td></tr>';
+  if(!D.kb3rows.length)g+='<tr><td colspan="21" style="text-align:center;color:#8194AE;padding:22px">'+YEAR+' 年（'+D.status+'）暂无台账数据 · 点上方「导入台账文档」或接数据源</td></tr>';
   document.getElementById('kb3Tbl').innerHTML=g+'</tbody>';
   // 3.2 汇总
   var mat={};KB3CATS.forEach(function(c){mat[c.key]=Array(12).fill(0);});
