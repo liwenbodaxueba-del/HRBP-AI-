@@ -95,6 +95,18 @@ def init_db():
                 c.execute(f"ALTER TABLE ledger_rows ADD COLUMN {col} TEXT DEFAULT ''")
             except sqlite3.OperationalError:
                 pass  # 列已存在
+        # ---- 260723 台账日期列自动归一（历史脏数据一次性清洗，幂等：归一函数对已归一值不变）----
+        from kb3_ledger import _norm_date as _nd  # 函数级导入避免模块环
+        for r in c.execute("SELECT id,ask,tgt,eta,prev_eta,join_dt FROM ledger_rows").fetchall():
+            upd = {}
+            for colname in ("ask", "tgt", "eta", "prev_eta", "join_dt"):
+                ov = r[colname] or ""
+                nv = _nd(ov) if ov else ""
+                if nv != ov:
+                    upd[colname] = nv
+            if upd:
+                c.execute("UPDATE ledger_rows SET " + ",".join(f"{k}=?" for k in upd) + " WHERE id=?",
+                          (*upd.values(), r["id"]))
         # ---- 260723 口径迁移（幂等）----
         # ① 链行并入实际行：项目表改名 actual、删除 chain 行（computed.chain 仍在响应里）
         c.execute("UPDATE projects SET name='月末实际在岗/期末在岗预估', src='已发生月=KPI系统 zhaopin（待接）；未发生月=运算链' WHERE key='actual' AND name='月末实际在岗'")

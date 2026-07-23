@@ -225,6 +225,24 @@ def add_branch(year: int, b: BranchNew, x_user: str = Header("bonniewbli")):
     return get_board(year)
 
 
+class BranchRename(BaseModel):
+    name: str
+
+
+@app.put("/api/board/{year}/branch/{bid}")
+def rename_branch(year: int, bid: int, b: BranchRename, x_user: str = Header("bonniewbli")):
+    if not b.name.strip():
+        raise HTTPException(422, "分支名称必填")
+    with db() as c:
+        require_writer(c, x_user)
+        row = c.execute("SELECT * FROM branches WHERE id=? AND year=?", (bid, year)).fetchone()
+        if not row:
+            raise HTTPException(404, "分支不存在")
+        c.execute("UPDATE branches SET name=? WHERE id=?", (b.name.strip(), bid))
+        _audit(c, x_user, "改分支定义", f"{year} {row['sec']} · 「{row['name']}」→「{b.name.strip()}」")
+    return get_board(year)
+
+
 @app.delete("/api/board/{year}/branch/{bid}")
 def del_branch(year: int, bid: int, x_user: str = Header("bonniewbli")):
     with db() as c:
@@ -834,17 +852,26 @@ def ledger_template():
     wb = Workbook()
     ws = wb.active
     ws.title = "台账"
-    groups = [("需求信息", 12), ("进展&状态机", 5), ("入选与入职", 4), ("系统派生（自动·勿填）", 5)]
-    headers = ["部门", "中心", "业务负责人", "HC来源备注", "招聘岗位", "职级", "分类", "国内/海外", "城市",
-               "需求提出时间", "招聘数量", "目标到岗时间(初始固定)",
-               "当前状态", "预计到岗时间", "上次预计到岗(参考)", "变更原因/卡点备注", "面试中人选(可多条)",
-               "offer人选", "人选职级", "实际入职时间", "入职备注",
-               "归月(自动)", "计入看板1(自动)", "招聘周期·天(自动)", "超期(自动)", "一句话备注(自动)"]
-    hints = ["必填", "必填", "必填", "离职补录/新增投入等", "必填", "如T9", "如研发/产品", "下拉:国内/海外", "如深圳",
-             "日期 2026-03-15", "必须为1(多名额另起一行)", "立项时定,永不改",
-             "下拉(必填)", "日期;变更须填变更原因", "系统自动记录,勿填", "eta变更时必填", "可多条",
-             "", "", "日期", "",
-             "勿填", "勿填", "勿填", "勿填", "勿填"]
+    groups = [("需求信息", 9), ("进展阶段", 3), ("入职阶段", 4)]  # 系统派生列不进模板（网页自动算）
+    headers = ["部门", "中心", "业务负责人", "HC来源备注", "招聘岗位", "分类（国内/海外）", "地点",
+               "需求提出时间", "招聘数量",
+               "进展（当前状态）", "预计到岗时间", "备注（变更原因/招聘卡点）",
+               "offer人选", "人选职级", "实际入职时间", "备注"]
+    hints = ["", "", "总监/leader", "离职补录/新增投入/转岗等", "", "下拉", "", "", "必须为1(多名额另起一行)",
+             "下拉;变更即留痕(网页版)", "改动须填变更原因", "到岗变化原因/招聘卡点",
+             "", "", "入职后填,状态改已入职", "如:活水/base城市"]
+    demo_rows = [
+        ["示例部门", "中心A", "张三", "离职补录", "后台开发工程师", "国内", "深圳", "2026-05-10", 1,
+         "简历&面试中", "2026-08-01", "候选人初筛中", "", "", "", ""],
+        ["示例部门", "中心B", "李四", "新增投入", "产品经理(海外增长)", "海外", "新加坡", "2026-04-20", 1,
+         "已offer待入职", "2026-08-15", "签证办理中,到岗顺延", "陈某", "P11", "", ""],
+        ["示例部门", "中心A", "张三", "已报备HC", "SRE工程师", "国内", "深圳", "2026-03-01", 1,
+         "已入职", "2026-06-01", "", "刘某", "T8", "2026-06-03", "活水调入"],
+        ["示例部门", "中心C", "王五", "暂缓岗位", "算法工程师", "国内", "上海", "2026-02-15", 1,
+         "Hold", "2026-09-01", "业务方向调整,暂缓", "", "", "", ""],
+        ["示例部门", "中心B", "李四", "离职补录", "解决方案架构师", "海外", "北美", "2026-01-20", 1,
+         "简历&面试中", "2026-06-30", "区域重新定位", "", "", "", ""],
+    ]
     col = 1
     for gname, span in groups:
         ws.cell(1, col, gname)
@@ -852,6 +879,8 @@ def ledger_template():
         col += span
     ws.append(headers)
     ws.append(hints)
+    for dr in demo_rows:  # 示例行（部门=「示例部门」，导入时自动跳过不入库）
+        ws.append(dr)
     for cell in ws[1]:
         cell.font = Font(name="微软雅黑", bold=True, color="FFFFFF")
         cell.fill = PatternFill("solid", fgColor="0A2E6E")
@@ -870,12 +899,12 @@ def ledger_template():
     ws.add_data_validation(dv_cls)
     ws.add_data_validation(dv_st)
     ws.add_data_validation(dv_num)
-    dv_cls.add("H4:H500")
-    dv_st.add("M4:M500")
-    dv_num.add("K4:K500")
-    widths = [10, 10, 12, 14, 18, 7, 9, 11, 8, 13, 12, 16, 13, 13, 14, 16, 16, 12, 9, 13, 10, 10, 14, 12, 9, 22]
+    dv_cls.add("F4:F500")   # 分类（国内/海外）
+    dv_st.add("J4:J500")    # 进展（当前状态）
+    dv_num.add("I4:I500")   # 招聘数量=1
+    widths = [10, 10, 12, 16, 18, 13, 9, 13, 10, 15, 13, 20, 12, 9, 13, 14]
     for i, w in enumerate(widths):
-        ws.column_dimensions[chr(65 + i) if i < 26 else "A" + chr(65 + i - 26)].width = w
+        ws.column_dimensions[chr(65 + i)].width = w
     ws.freeze_panes = "F4"  # 冻结：部门~招聘岗位（A-E）+ 三行表头
     buf = io.BytesIO()
     wb.save(buf)

@@ -22,10 +22,9 @@ LEDGER_SYN = [
     ("owner", ["业务负责人", "负责人"]),
     ("src", ["HC来源", "hc来源"]),
     ("job", ["招聘岗位"]),
-    ("olvl", ["人选职级"]),          # 须在 lvl 之前：S列「人选职级」勿被「职级」抢占
+    ("olvl", ["人选职级"]),          # 须在 lvl 之前：「人选职级」勿被「职级」抢占
     ("lvl", ["职级"]),
-    ("cls", ["国内/海外", "国内海外"]),  # 须在 fam 之前：H列「国内/海外」；旧模板「分类(国内/海外)」也归此
-    ("fam", ["分类"]),               # G列 分类（研发/产品等）
+    ("cls", ["分类", "国内/海外", "国内海外"]),  # 分类（国内/海外）
     ("loc", ["地点", "城市"]),
     ("ask", ["需求提出"]),
     ("num", ["招聘数量", "数量"]),
@@ -55,6 +54,8 @@ def _col_idx(ref):
 
 
 def _norm_date(v):
+    """自动识别为标准 date 字符：Excel序列/2026-08-29/26.8.29/2026年8月29日/20260829/202608 → ISO；
+    月/日越界（如 2023-00）自动降级到能确定的粒度；完全识别不了保留原文（不猜不编，由校验闸拦）"""
     if isinstance(v, (int, float)) and 20000 < v < 60000:
         return (_dt(1899, 12, 30) + _td(days=int(v))).strftime("%Y-%m-%d")
     s = str(v).strip()
@@ -62,15 +63,31 @@ def _norm_date(v):
         return ""
     t = s.replace("年", ".").replace("月", ".").replace("日", "").replace("/", ".").replace("-", ".")
     parts = [p for p in _re.split(r"[.\s]+", t) if p.isdigit()]
-    if parts and len(parts[0]) == 2 and 20 <= int(parts[0]) <= 39:  # 两位年 25.6.30 → 2025-06-30
-        parts[0] = "20" + parts[0]
+    if not parts:
+        return s
+    p0 = parts[0]
+    if len(p0) == 8 and p0[:2] in ("19", "20"):  # 紧凑 20260829
+        y, mo, d = p0[:4], int(p0[4:6]), int(p0[6:8])
+        if 1 <= mo <= 12 and 1 <= d <= 31:
+            return "%s-%02d-%02d" % (y, mo, d)
+        if 1 <= mo <= 12:
+            return "%s-%02d" % (y, mo)
+        return y
+    if len(p0) == 6 and p0[:2] in ("19", "20"):  # 紧凑 202608
+        y, mo = p0[:4], int(p0[4:6])
+        return "%s-%02d" % (y, mo) if 1 <= mo <= 12 else y
+    if len(p0) == 2 and 20 <= int(p0) <= 39:  # 两位年 25.6.30 → 2025-06-30
+        parts[0] = "20" + p0
     if len(parts) >= 3 and len(parts[0]) == 4:
-        try:
-            return "%s-%02d-%02d" % (parts[0], int(parts[1]), int(parts[2]))
-        except ValueError:
-            return s
+        mo, d = int(parts[1]), int(parts[2])
+        if 1 <= mo <= 12 and 1 <= d <= 31:
+            return "%s-%02d-%02d" % (parts[0], mo, d)
+        if 1 <= mo <= 12:
+            return "%s-%02d" % (parts[0], mo)  # 日无效 → 降级年月
+        return parts[0]  # 月无效 → 降级年
     if len(parts) == 2 and len(parts[0]) == 4:
-        return "%s-%02d" % (parts[0], int(parts[1]))
+        mo = int(parts[1])
+        return "%s-%02d" % (parts[0], mo) if 1 <= mo <= 12 else parts[0]  # 2023-00 → 2023
     if len(parts) == 1 and len(parts[0]) == 4:
         return parts[0]
     return s  # 解析不了保留原文（不猜不编）
@@ -196,7 +213,7 @@ def parse_ledger(raw, filename):
             continue
         vals = {f: g(cells, f) for f, _ in LEDGER_SYN}
         joined = "".join(str(x) for x in cells.values())
-        if "填写说明" in joined or str(vals.get("owner", "")).strip() == "总监/leader" or "下拉" in str(vals.get("cls", "")):
+        if "填写说明" in joined or str(vals.get("owner", "")).strip() == "总监/leader" or "下拉" in str(vals.get("cls", "")) or str(vals.get("dept", "")).strip() == "示例部门":
             skipped += 1
             continue
         st = _norm_status(vals.get("st", ""))

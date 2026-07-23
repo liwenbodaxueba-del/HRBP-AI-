@@ -139,8 +139,8 @@ th.sortable:hover{filter:brightness(1.08);}
 .bsc td .memo{position:absolute;top:0;right:0;width:0;height:0;border-top:7px solid #5B21B6;border-left:7px solid transparent;pointer-events:none;}
 .bsc td.adj{position:relative;}
 .bsc td.hasnote{position:relative;}
-.bsc td.hasnote:hover::after{content:attr(data-note);position:absolute;left:50%;bottom:calc(100% + 8px);transform:translateX(-50%);z-index:55;background:#5B21B6;color:#fff;font-size:11.5px;line-height:1.5;padding:7px 11px;border-radius:10px;white-space:pre-line;width:max-content;max-width:220px;text-align:left;box-shadow:0 4px 14px rgba(91,33,182,.3);pointer-events:none;}
-.bsc td.hasnote:hover::before{content:'';position:absolute;left:50%;bottom:calc(100% + 2px);transform:translateX(-50%);z-index:55;border:6px solid transparent;border-top-color:#5B21B6;border-bottom:none;pointer-events:none;}
+#noteTip{display:none;position:fixed;z-index:96;background:#5B21B6;color:#fff;font-size:11.5px;line-height:1.5;padding:7px 11px;white-space:pre-line;max-width:240px;text-align:left;box-shadow:0 4px 14px rgba(91,33,182,.35);pointer-events:none;}
+#noteTip .nt-h{font-weight:700;margin-bottom:2px;font-size:11px;opacity:.85;}
 .bsc td.neg{color:var(--gray);}
 .bsc tr[data-drill]{cursor:pointer;}
 .bsc tr[data-drill]:hover td:first-child{color:var(--blue);}
@@ -294,8 +294,7 @@ body.navfold .navtg{left:8px;}
 <nav class="side" data-comment-anchor="7b4846ef92-nav">
   <div class="brand">HC Forecast Board<small>人力预估看板 · V2 UIUX 版</small></div>
   <div class="grp">看板</div>
-  <a data-v="kb0" onclick="go(this)">看板0 · 人力管理要求</a>
-  <a class="on" data-v="kb1" onclick="go(this)">看板1 · 部门集成表</a>
+  <a class="on" data-v="kb1" onclick="go(this)">看板1 · 部门人力预估表【集团】</a>
   <a data-v="kb2" onclick="go(this)">看板2 · 预算看板</a>
   <a data-v="kb3" onclick="go(this)">看板3 · 社招滚动台账</a>
   <div class="user" data-comment-anchor="b9591073d3-div">iOA：<b>bonniewbli</b><br>（HRBP·可编辑）</div>
@@ -330,19 +329,6 @@ body.navfold .navtg{left:8px;}
 </div>
 
 <main>
-<!-- 看板0 -->
-<div class="view" id="v-kb0">
-  <div class="yeartabs"></div>
-  <h2 class="sec">看板0 · 当年人力管理要求</h2>
-  <div class="hint">导入当年《人力编制预算启动会》PDF，<b>直接内嵌呈现原文</b>（不做提取/加工）。导入后保留在页面，其他用户同步可见（正式版此操作需权限）。</div>
-  <div class="imp-bar">
-    <label class="imp-btn">＋ 导入 PDF<input type="file" accept="application/pdf,.pdf" style="display:none" onchange="kb0Load(this)"></label>
-    <span id="kb0Name" class="imp-name">未导入 · 请选择本地 PDF</span>
-    <button class="btn ghost2" id="kb0Clear" style="display:none" onclick="kb0Clear()">移除</button>
-  </div>
-  <div id="kb0Viewer" class="pdf-viewer"><div class="pdf-empty">📄 导入 PDF 后，将在此处直接呈现原文档（浏览器内置阅读器）</div></div>
-</div>
-
 <!-- 看板1 -->
 <div class="view on" id="v-kb1">
   <div class="banner" id="demoBanner" style="background:#FDECEC;border-color:#F3B4B4;color:#8C2B2B">
@@ -369,7 +355,7 @@ body.navfold .navtg{left:8px;}
 <!-- 看板2 -->
 <div class="view" id="v-kb2">
   <h2 class="sec">看板2 · 预算看板（逐月：期初 vs 现行）</h2>
-  <div class="hint"><b>法定HC</b> 与 <b>预算当量</b> 各为可展开父行：<b>当月 = 上月 + 本月调整</b>（累计滚动，首月锚定期初）。点 ▾ 收起（父行仍=合计）；点 <b>＋ 新增其中分支</b> 自定义命名、选 <b>＋加项/−减项</b>、逐月录入（备注必填）——即 PRD「⊕ +/−（人工手动加分支）」。看板1 的「预算当量」行双击进入本页。</div>
+  <div class="hint"><b>法定HC</b> 与 <b>预算当量</b> 各为可展开父行：<b>法定HC 当月 = 上月 + 本月调整</b>（累计滚动，期初锚定）；<b>预算当量 = 当月「其中」求和</b>。点 ▾ 收起（父行仍=合计）；点 <b>＋ 新增其中分支</b> 自定义命名、选 <b>＋加项/−减项</b>、逐月录入（备注必填）——即 PRD「⊕ +/−（人工手动加分支）」。看板1 的「预算当量」行双击进入本页。</div>
   <div class="yeartabs"></div>
   <div class="fltbar"><input id="kb2Flt" placeholder="🔍 筛选行名（其中分支）" oninput="kb2Filter()"><span class="hint" style="margin:0">只过滤「其中」明细行显示；父行合计不受影响</span></div>
   <div class="tblwrap"><table class="bsc" id="kb2Tbl"></table></div>
@@ -505,7 +491,7 @@ body.navfold .navtg{left:8px;}
   <span class="x" onclick="helpToggle(false)">✕</span>
   <h3>帮助与快捷键</h3>
   <dl>
-    <dt>快捷键</dt><dd><kbd>1</kbd>–<kbd>4</kbd> 切换看板0-3　<kbd>?</kbd> 打开帮助　<kbd>Esc</kbd> 关闭弹窗</dd>
+    <dt>快捷键</dt><dd><kbd>1</kbd>–<kbd>3</kbd> 切换看板1-3　<kbd>?</kbd> 打开帮助　<kbd>Esc</kbd> 关闭弹窗</dd>
     <dt>录入</dt><dd>虚线格点击录入，备注必填并写入审计日志；保存后可在底部提示中一键撤销。</dd>
     <dt>下钻</dt><dd>带 ⤤ 的行双击进入对应看板。</dd>
     <dt>数据口径</dt><dd>灰底=已发生月（锁定）；悬停数字查看来源与取数时间；紫角格有备注，悬停显示气泡。</dd>
@@ -536,7 +522,7 @@ body.navfold .navtg{left:8px;}
 <!-- 新增年份 modal -->
 <div class="mask" id="maskYear"><div class="modal">
   <h3>新增年份页签</h3>
-  <div class="meta">生成该年份全套空模板（看板0-3 · 独立数据空间），随后<b>读取系统数</b>：已接入的数据源自动取数入库；未接入的<b>单元格留空</b>，绝不编造。</div>
+  <div class="meta">生成该年份全套空模板（看板1-3 · 独立数据空间），随后<b>读取系统数</b>：已接入的数据源自动取数入库；未接入的<b>单元格留空</b>，绝不编造。</div>
   <label>年份</label><input type="number" id="yVal" min="2000" max="2100">
   <div class="err" id="yErr">年份无效或页签已存在</div>
   <div class="row"><button class="btn gray" onclick="closeYear()">取消</button><button class="btn" onclick="saveYear()">生成模板并读取系统数</button></div>
@@ -544,6 +530,9 @@ body.navfold .navtg{left:8px;}
 
 <!-- 台账列筛选面板（Excel式·点列头▼弹出） -->
 <div class="fltpanel" id="kb3FltPanel"></div>
+
+<!-- 备注独立悬浮气泡（悬停紫角标格显示；与来源信息卡分离，后者未来可整体移除） -->
+<div id="noteTip"></div>
 
 <!-- BP/分支格右键备注浮层（260723 Excel式直填配套） -->
 <div id="notePop" style="display:none;position:fixed;z-index:95;width:280px;background:#fff;border:1px solid var(--b100);box-shadow:0 10px 30px rgba(10,26,60,.25);padding:12px 14px;">
@@ -595,7 +584,7 @@ function bindYear(){
   D=DATA[YEAR]; memos=MEMOS[YEAR]; custom=CUSTOM[YEAR]; LOCK=D.lock;
   kb2base={hc:{name:'期初法定HC',vals:Array(12).fill(D.faHC)},quota:{name:'期初预算当量',vals:D.q_init.slice()}};
 }
-function setYear(y){YEAR=y;bindYear();renderYearTabs();renderAll();renderKb3();refreshKb0();log('bonniewbli','切换年份','当前年份 → '+y+'（'+DATA[y].status+'）');}
+function setYear(y){YEAR=y;bindYear();renderYearTabs();renderAll();renderKb3();log('bonniewbli','切换年份','当前年份 → '+y+'（'+DATA[y].status+'）');}
 function renderYearTabs(){
   document.querySelectorAll('.yeartabs').forEach(function(box){
     box.innerHTML='<span class="ytscroll">'+YEARS.map(function(y){
@@ -614,7 +603,7 @@ function openYearAdd(){
 function closeYear(){document.getElementById('maskYear').classList.remove('on');}
 function delYear(y){
   if(BASEYEARS.indexOf(y)>=0)return;
-  if(!confirm('删除 '+y+' 年页签？该年份看板0-3的数据将一并移除（操作写入审计日志）'))return;
+  if(!confirm('删除 '+y+' 年页签？该年份看板1-3的数据将一并移除（操作写入审计日志）'))return;
   delete DATA[y];delete MEMOS[y];delete CUSTOM[y];
   YEARS=YEARS.filter(function(x){return x!==y;});
   log('bonniewbli','删除年份',y+'：移除该年份全套模板及数据空间');
@@ -627,7 +616,7 @@ function saveYear(){
   MEMOS[y]={};CUSTOM[y]=emptyCustom();
   YEARS.push(y);YEARS.sort();
   closeYear();
-  log('bonniewbli','新增年份',y+'：生成全套空模板（看板0-3 · 独立数据空间）');
+  log('bonniewbli','新增年份',y+'：生成全套空模板（看板1-3 · 独立数据空间）');
   log('system','读取系统数',y+'：各数据源 API 未接入 → 单元格留空待取数（不编造）');
   setYear(y);
 }
@@ -644,7 +633,7 @@ var srcMap={
   i_yy:['HR数仓','校招·预约入职','snap'], i_bs:['HR数仓','校招·毕业生转聘','snap'], i_cbp:['BP 手填','校招·非系统','bp'],
   i_incr:['BP 手填','增量需求调节 · 12月预估<上年时补','bp'],
   camp:['分列求和','校招=预约入职+毕业生转聘+非系统','calc'],
-  custom:['BP 自定义','命名行·纯计人头(负数=调减)·右键加备注','bp'], kb2base:['BP 手填','预算过程基线·父行=期初+逐月累计调整','bp']
+  custom:['BP 自定义','命名行·纯计人头(负数=调减)·右键加备注','bp'], kb2hc:['运算','法定HC：当月 = 上月 + 本月调整（累计滚动·期初锚定）','calc'], kb2quota:['运算','预算当量：当月 = 期初 + 当月「其中」调整求和','calc'], kb2base:['BP 手填','预算过程基线·HC父行=期初+累计调整；预算当量父行=同月其中求和','bp']
 };
 /* ===== 运算（识空：无源数据留空，绝不当0编造） ===== */
 function isN(x){return typeof x==='number';}
@@ -684,11 +673,11 @@ function tr(cls,label,arr,opt){
     var v=(arr&&arr[m]!==undefined&&arr[m]!==null)?arr[m]:'';
     var editable=opt.edit&&m>=lock&&!RO;
     var cl=(m<lock&&opt.lockShade?'lock ':'')+(editable?'edit adj ':'')+(opt.neg&&v<0?'neg ':'');
-    var disp=(v===''||(v===0&&opt.hideZero))?(editable?'＋':''):(opt.negRow&&v!==0?'−'+v:(opt.plus&&v>0?'+'+v:v));
+    var disp=(v===''||(v===0&&opt.hideZero))?'':(opt.negRow&&v!==0?'−'+v:(opt.plus&&v>0?'+'+v:v));
     var noteTxt=memos[(opt.key||'')+'_'+m];
-    var noteAttr=noteTxt?' data-note="备注：'+esc(noteTxt).replace(/"/g,'&quot;')+'\n右键格子改备注/清零"':'';
+    var noteAttr=noteTxt?' data-note="'+esc(noteTxt).replace(/"/g,'&quot;')+'"':'';
     var memo=noteTxt?'<span class="memo"></span>':'';
-    t+='<td class="'+cl+(noteTxt?' hasnote':'')+'"'+noteAttr+' data-src="'+(opt.src||'')+'" '+(editable?'data-edit="'+opt.key+'" data-m="'+m+'"':'')+'>'+disp+memo+'</td>';
+    t+='<td class="'+cl+(noteTxt?' hasnote':'')+'"'+noteAttr+' data-src="'+(opt.src||'')+'" data-m="'+m+'"'+(opt.key?' data-k="'+opt.key+'"':'')+(editable?' data-edit="'+opt.key+'"':'')+'>'+disp+memo+'</td>';
   }
   t+='<td class="'+(opt.avgCls||'')+'">'+(opt.avg!==undefined?opt.avg:'')+'</td>'+(opt.noTot?'':'<td>'+(opt.tot!==undefined?opt.tot:'')+'</td>')+'</tr>';
   return t;
@@ -854,9 +843,10 @@ function kb1Filter(){rowNameFilter('bscTbl','kb1Flt');}
 function kb2Filter(){rowNameFilter('kb2Tbl','kb2Flt');}
 function renderAll(){cmap={};render();renderKb2();bindCells();renderProg();colResizable('bscTbl');colResizable('kb2Tbl');kb1Filter();kb2Filter();}
 /* ===== 看板2 ===== （kb2base 由 bindYear 按年份重建） */
-/* 260723 口径修正：当月 = 上月 + 本月调整（累计滚动），首月锚定期初；无锚时退化为同月求和（识空） */
-function kb2Total(sec){var t=[];for(var m=0;m<12;m++){
+/* 260723 口径：法定HC=累计滚动（当月=上月+本月调整，期初锚定）；预算当量=当月子项求和（期初+当月调整） */
+function kb2Total(sec,cum){var t=[];for(var m=0;m<12;m++){
   var base=kb2base[sec].vals[m],adj=cSum(sec,m);
+  if(!cum){t[m]=agg([base,adj]);continue;}
   var prev=(m>0&&isN(t[m-1]))?t[m-1]:null;
   var anchor=(prev!==null)?prev:(isN(base)?base:null);
   t[m]=(anchor===null)?agg([base,adj]):anchor+(isN(adj)?adj:0);
@@ -864,9 +854,9 @@ function kb2Total(sec){var t=[];for(var m=0;m<12;m++){
 function renderKb2(){
   var yy=String(YEAR).slice(2);var h='<tr><th>项目</th>';for(var m=0;m<12;m++)h+='<th>'+yy+String(m+1).padStart(2,'0')+'</th>';h+='<th>'+yy+'年均</th></tr>';
   function block(sec,name,isHC){
-    var tot=kb2Total(sec);
+    var tot=kb2Total(sec,isHC);  // HC=累计滚动；预算当量=同月求和
     var tgl=' <span class="rowtool" onclick="tg(\''+sec+'\')">'+(open_[sec]?'▾':'▸')+'</span>';
-    var s=tr('key',name+tgl+' <span class="badge calc">期初+累计调整</span>',tot,{avg:isHC?'—':f2(avg12(tot)),lock:0,noTot:true});
+    var s=tr('key',name+tgl+' <span class="badge calc">'+(isHC?'期初+累计调整':'其中求和')+'</span>',tot,{src:isHC?'kb2hc':'kb2quota',avg:isHC?'—':f2(avg12(tot)),lock:0,noTot:true});
     if(open_[sec]){
       s+=tr('sub',kb2base[sec].name,kb2base[sec].vals,{src:'kb2base',avg:isHC?'—':f2(avg12(kb2base[sec].vals)),lock:0,noTot:true});
       s+=customRows(sec,{lock:0,noTot:true,avgMode:isHC?'dash':'calc'});
@@ -922,13 +912,25 @@ function bindCells(){
   document.querySelectorAll('#bscTbl td[data-src],#kb2Tbl td[data-src]').forEach(function(td){
     var key=td.getAttribute('data-src');if(!key||!srcMap[key])return;
     td.addEventListener('mousemove',function(e){
-      var s=srcMap[key],ek=td.getAttribute('data-edit'),m=td.getAttribute('data-m');
-      var mo=ek&&memos[ek+'_'+m]?'<div class="s2">备注：'+memos[ek+'_'+m]+'</div>':'';
+      var s=srcMap[key];
       var fxh=fxFor(key,td.cellIndex-1);
-      tip.innerHTML='<div class="s1">'+s[0]+'</div><div class="s2">'+s[1]+'</div>'+(fxh?'<div class="s3">'+fxh+'</div>':'')+mo;
+      tip.innerHTML='<div class="s1">'+s[0]+'</div><div class="s2">'+s[1]+'</div>'+(fxh?'<div class="s3">'+fxh+'</div>':'');
       tip.style.display='block';tip.style.left=Math.min(e.clientX+14,window.innerWidth-320)+'px';tip.style.top=(e.clientY+14)+'px';
     });
     td.addEventListener('mouseleave',function(){tip.style.display='none';});
+  });
+  var nt=document.getElementById('noteTip');
+  document.querySelectorAll('#bscTbl td.hasnote,#kb2Tbl td.hasnote').forEach(function(td){
+    td.addEventListener('mouseenter',function(){
+      var txt=td.getAttribute('data-note');if(!txt||!nt)return;
+      nt.innerHTML='<div class="nt-h">备注（右键格子可改）</div>'+esc(txt);
+      nt.style.display='block';
+      var rc=td.getBoundingClientRect();
+      nt.style.left=Math.max(8,Math.min(rc.left+rc.width/2-120,window.innerWidth-260))+'px';
+      var top=rc.top-nt.offsetHeight-8;
+      nt.style.top=(top>4?top:rc.bottom+8)+'px';
+    });
+    td.addEventListener('mouseleave',function(){if(nt)nt.style.display='none';});
   });
   document.querySelectorAll('#bscTbl td[data-edit],#kb2Tbl td[data-edit]').forEach(function(td){
     td.addEventListener('click',function(){inlineCell(td);});  // 260723：Excel 式直填（不再逐格弹窗）
@@ -1038,11 +1040,11 @@ function saveKb3Add(){alert('连接后端后可添加行（当前为本地演示
 /* 台账添加行弹窗：必填标★，前端先校验，后端 422 再兜底 */
 var KB3_FIELDS=[
   {f:'dept',l:'部门',req:1},{f:'c',l:'中心',req:1},{f:'own',l:'业务负责人',req:1},{f:'src',l:'HC来源备注'},
-  {f:'job',l:'招聘岗位',req:1},{f:'jlvl',l:'职级'},{f:'fam',l:'分类'},{f:'cls',l:'国内/海外',sel:['国内','海外']},{f:'loc',l:'城市'},
-  {f:'ask',l:'需求提出时间',date:1},{f:'num',l:'招聘数量（必须为1）',num:1,def:'1'},{f:'tgt',l:'目标到岗时间(初始固定)',date:1},
-  {f:'st',l:'当前状态',req:1,sel:['需求确认','简历&面试中','已offer待入职','已入职','Hold','取消']},
-  {f:'eta',l:'预计到岗时间',date:1},{f:'memo',l:'变更原因/卡点备注'},{f:'who',l:'面试中人选(可多条)'},
-  {f:'offer',l:'offer人选'},{f:'lvl',l:'人选职级'},{f:'join',l:'实际入职时间',date:1},{f:'jmemo',l:'入职备注'}];
+  {f:'job',l:'招聘岗位',req:1},{f:'cls',l:'分类（国内/海外）',sel:['国内','海外']},{f:'loc',l:'地点'},
+  {f:'ask',l:'需求提出时间',date:1},{f:'num',l:'招聘数量（必须为1）',num:1,def:'1'},
+  {f:'st',l:'进展（当前状态）',req:1,sel:['需求确认','简历&面试中','已offer待入职','已入职','Hold','取消']},
+  {f:'eta',l:'预计到岗时间',date:1},{f:'memo',l:'备注（变更原因/招聘卡点）'},
+  {f:'offer',l:'offer人选'},{f:'lvl',l:'人选职级'},{f:'join',l:'实际入职时间',date:1},{f:'jmemo',l:'备注（如:活水/base城市）'}];
 function openKb3Add(){
   var g=document.getElementById('kb3FormGrid');
   g.innerHTML=KB3_FIELDS.map(function(d){
@@ -1060,13 +1062,12 @@ function kb3cat(st){var f=KB3CATS.find(function(x){return x.st===st;});return f?
 function kb3mo(r){if(r.st==='Hold'||r.st==='取消')return '';var d=(r.st==='已入职'?r.join:r.eta);return d?d.slice(0,7):'';}
 function moLbl(ym){if(!ym)return '';var mm=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return mm[+ym.slice(5,7)-1]+'-'+ym.slice(2,4);}
 /* 3.1 排序+逐列筛选（Excel式，仅影响显示；3.2 矩阵与喂看板1口径始终按全量台账） */
-/* 260723 对齐线下模板 v2（26列）：jlvl=职级F列 / fam=分类G列 / cls=国内海外H列 / peta=上次预计到岗(系统维护·只读) */
+/* 260723晚 列名定版（Bonnie 定 21 列）：需求信息9 + 进展阶段3 + 入职阶段4 + 系统派生5 */
 var KB3COLS=[
   {f:'dept',l:'部门'},{f:'c',l:'中心'},{f:'own',l:'业务负责人'},{f:'src',l:'HC来源备注'},{f:'job',l:'招聘岗位'},
-  {f:'jlvl',l:'职级'},{f:'fam',l:'分类'},{f:'cls',l:'国内/海外'},{f:'loc',l:'城市'},
-  {f:'ask',l:'需求提出时间'},{f:'num',l:'招聘数量'},{f:'tgt',l:'目标到岗时间(初始固定)'},
-  {f:'st',l:'当前状态'},{f:'eta',l:'预计到岗时间'},{f:'peta',l:'上次预计到岗(参考)',auto:1},{f:'memo',l:'变更原因/卡点备注'},{f:'who',l:'面试中人选(可多条)'},
-  {f:'offer',l:'offer人选'},{f:'lvl',l:'人选职级'},{f:'join',l:'实际入职时间'},{f:'jmemo',l:'入职备注'},
+  {f:'cls',l:'分类（国内/海外）'},{f:'loc',l:'地点'},{f:'ask',l:'需求提出时间'},{f:'num',l:'招聘数量'},
+  {f:'st',l:'进展（当前状态）'},{f:'eta',l:'预计到岗时间'},{f:'memo',l:'备注（变更原因/招聘卡点）'},
+  {f:'offer',l:'offer人选'},{f:'lvl',l:'人选职级'},{f:'join',l:'实际入职时间'},{f:'jmemo',l:'备注'},
   {f:'_mo',l:'归月(自动)'},{f:'_cat',l:'计入看板1(自动)'},{f:'_days',l:'招聘周期·天(自动)'},{f:'_over',l:'超期(自动)'},{f:'_one',l:'一句话备注(自动)'}
 ];
 var KB3_ST_OPTS=['需求确认','简历&面试中','已offer待入职','已入职','Hold','取消'];
@@ -1173,7 +1174,7 @@ function renderKb3(){
       if(!isNaN(nx)&&!isNaN(ny)&&/^-?[\d.]+$/.test(x)&&/^-?[\d.]+$/.test(y))return (nx-ny)*dir;
       return String(x).localeCompare(String(y),'zh')*dir;});
   }
-  var g='<thead><tr class="grp"><th class="g1" colspan="12">需求信息</th><th class="g2" colspan="5">进展&状态机</th><th class="g3" colspan="4">入选与入职</th><th class="g4" colspan="5">系统派生（勿改）</th><th class="g2" colspan="1"></th></tr>'
+  var g='<thead><tr class="grp"><th class="g1" colspan="9">需求信息</th><th class="g2" colspan="3">进展阶段</th><th class="g3" colspan="4">入职阶段</th><th class="g4" colspan="5">系统派生（勿改）</th><th class="g2" colspan="1"></th></tr>'
     +'<tr class="col">'+KB3COLS.map(function(cdef){
       var arr=KB3SORT.f===cdef.f?('<span class="sortarr">'+(KB3SORT.dir===-1?'▼':'▲')+'</span>'):'';
       var flt=KB3FON?('<span class="fltarr'+(KB3F[cdef.f]?' on':'')+'" onclick="kb3FltOpen(event,\''+cdef.f+'\')" title="筛选此列（Excel式值勾选）">▼</span>'):'';
@@ -1184,15 +1185,13 @@ function renderKb3(){
     var r=it.r,v=it.v;
     var catChip=v._cat==='不计入'?'na':(r.st==='已入职'?'ok':'todo');
     g+='<tr data-rid="'+(r.id||'')+'">'+ec(r,'dept')+ec(r,'c')+ec(r,'own')+ec(r,'src')+ec(r,'job')
-      +ec(r,'jlvl')+ec(r,'fam')+ec(r,'cls')+ec(r,'loc')+ec(r,'ask')+ec(r,'num','num')+ec(r,'tgt')
-      +ec(r,'st')+ec(r,'eta')
-      +'<td title="系统自动记录：预计到岗变更时留旧值作参考">'+esc(r.peta||'')+'</td>'
-      +ec(r,'memo')+ec(r,'who')
+      +ec(r,'cls')+ec(r,'loc')+ec(r,'ask')+ec(r,'num','num')
+      +ec(r,'st')+ec(r,'eta')+ec(r,'memo')
       +ec(r,'offer')+ec(r,'lvl')+ec(r,'join')+ec(r,'jmemo')
       +'<td>'+(v._mo||'—')+'</td><td><span class="chip '+catChip+'">'+v._cat+'</span></td><td class="num">'+v._days+'</td><td>'+v._over+'</td><td>'+esc(v._one)+'</td>'
       +'<td class="c" style="text-align:center;white-space:nowrap">'+(r.id?'<span class="rowtool" onclick="kb3EditRow('+r.id+')" title="编辑此行（手动列整行进入编辑态）">✎</span> <span class="rowtool del" onclick="kb3DelRow('+r.id+')" title="删除此行（审计留痕）">✕</span>':'')+'</td></tr>';
   });
-  if(!items.length)g+='<tr><td colspan="27" style="text-align:center;color:#8194AE;padding:22px">'+(totalN?'当前筛选无匹配行 · 点「✕清」清除筛选':'暂无台账数据（全局一份·跨年滚动） · 点上方「导入台账文档」或接数据源')+'</td></tr>';
+  if(!items.length)g+='<tr><td colspan="22" style="text-align:center;color:#8194AE;padding:22px">'+(totalN?'当前筛选无匹配行 · 点「✕清」清除筛选':'暂无台账数据（全局一份·跨年滚动） · 点上方「导入台账文档」或接数据源')+'</td></tr>';
   document.getElementById('kb3Tbl').innerHTML=g+'</tbody>';
   kb3FreezeApply();
   var fi=document.getElementById('kb3FltInfo'),fActive=Object.keys(KB3F).length>0;
@@ -1228,7 +1227,7 @@ function exportCSV(){var c=chain(),lines=[['项目'].concat(M).concat([String(YE
   pu('总流出',o,undefined,sum(o));pu('总流入',i2,undefined,sum(i2));
   pu('期末在岗预估',c,f2(avg(c)));
   var blob=new Blob(['﻿'+lines.join('\n')],{type:'text/csv;charset=utf-8'});
-  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='看板1-部门集成表.csv';a.click();
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='看板1-部门人力预估表【集团】.csv';a.click();
   log('bonniewbli','导出','看板1 导出 CSV');}
 /* ===== 审计 ===== */
 var audit=[
@@ -1240,8 +1239,7 @@ function renderAudit(){document.getElementById('auditBody').innerHTML=audit.map(
 function renderCoverage(){
   var rows=[
    ['grp','看板'],
-   ['✅','看板0 · 导入 PDF 直接内嵌呈现原文（不做提取）'],
-   ['✅','看板1 · 部门集成表：heads(项目+1-12月+年均+总数)、key(预算当量/期末在岗预估)、已流出入分列、校招∇可展开、⊕加分支、行双击下钻、超标红灯、趋势图+瀑布'],
+   ['✅','看板1 · 部门人力预估表【集团】：heads(项目+1-12月+年均+总数)、key(预算当量/期末在岗预估)、已流出入分列、校招∇可展开、⊕加分支、行双击下钻、超标红灯、趋势图+瀑布'],
    ['✅','看板2 · 预算看板：法定HC/预算当量=其中求和+⊕分支+收起'],
    ['✅','看板3 · 台账4列组(需求/进展/入选入职/系统派生)+3.2待流入-社招面板(归月自动派生)+导入+添加行弹窗(必填★)+行级编辑保存/取消'],
    ['grp','核心功能'],
@@ -1298,14 +1296,6 @@ function aiSend(text,inputId){var q=(typeof text==='string'&&text)?text:(inputId
 function aiToggle(force){var p=document.getElementById('aiPop'),show=(force===undefined)?!p.classList.contains('on'):force;p.classList.toggle('on',show);if(show){var i=document.getElementById('aiPopInput');if(i)i.focus();}}
 function aiDraftGo(k,m){aiToggle(false);goView('kb1');openModal(k,m);}
 /* ===== 文档导入（PDF 按年份存储） ===== */
-function kb0Load(inp){var f=inp.files[0];if(!f)return;D.pdfUrl=URL.createObjectURL(f);D.pdfName=f.name+' · '+(f.size/1048576).toFixed(1)+'MB';
-  refreshKb0();log('bonniewbli','导入文档',YEAR+' 看板0 导入 PDF：'+f.name);}
-function kb0Clear(){D.pdfUrl=null;D.pdfName='';refreshKb0();}
-function refreshKb0(){
-  var v=document.getElementById('kb0Viewer'),n=document.getElementById('kb0Name'),cb=document.getElementById('kb0Clear');
-  if(D.pdfUrl){v.innerHTML='<iframe src="'+D.pdfUrl+'" style="width:100%;height:100%;border:0"></iframe>';n.textContent=YEAR+'年 · '+D.pdfName+' · 已内嵌';cb.style.display='inline-block';}
-  else{v.innerHTML='<div class="pdf-empty">📄 '+YEAR+' 年（'+D.status+'）尚未导入 PDF · 点上方「导入 PDF」直接内嵌呈现原文</div>';n.textContent='未导入 · 请选择本地 PDF';cb.style.display='none';}
-}
 function kb3Import(inp){var f=inp.files[0];if(!f)return;document.getElementById('kb3ImpName').textContent=f.name+' · '+(f.size/1024).toFixed(0)+'KB';log('bonniewbli','导入文档','看板3 导入台账：'+f.name);
   var ext=(f.name.split('.').pop()||'').toLowerCase(),view=document.getElementById('kb3ImpView');
   if(ext==='pdf'){var url=URL.createObjectURL(f);view.innerHTML='<div class="pdf-viewer" style="margin:10px 0"><iframe src="'+url+'" style="width:100%;height:100%;border:0"></iframe></div>';return;}
@@ -1330,7 +1320,7 @@ function renderProg(){var el=document.getElementById('progLine');if(!el)return;v
 document.addEventListener('keydown',function(e){
   var tag=(e.target.tagName||'').toLowerCase();
   if(tag==='input'||tag==='textarea'||tag==='select')return;
-  if(e.key>='1'&&e.key<='4'){goView('kb'+(e.key-1));toast('已切换到 看板'+(e.key-1));}
+  if(e.key>='1'&&e.key<='3'){goView('kb'+e.key);toast('已切换到 看板'+e.key);}
   if(e.key==='?')helpToggle();
   if(e.key==='Escape'){helpToggle(false);toastHide();closeModal();closeDef();closeYear();closeKb3Add();closeNatParam();if(typeof kb3FltClose==='function')kb3FltClose();if(typeof aiToggle==='function')aiToggle(false);}
 });
@@ -1339,7 +1329,7 @@ function cfgTag(){var el=document.getElementById('freshTag');if(!el)return;var b
 function cfgRefresh(){cfgLoad();RO=isRO();renderAll();cfgTag();}
 window.addEventListener('storage',function(e){if(e.key==='hcfb_admin_cfg')cfgRefresh();});
 document.addEventListener('visibilitychange',function(){if(!document.hidden)cfgRefresh();});
-bindYear();renderYearTabs();renderAll();renderAudit();renderKb3();renderCoverage();renderAI();refreshKb0();cfgTag();
+bindYear();renderYearTabs();renderAll();renderAudit();renderKb3();renderCoverage();renderAI();cfgTag();
 </script>
 <script>
 /* ===== API 适配层（V1 后端·同源探测；不可用自动回退本地空态模式） ===== */
@@ -1417,7 +1407,13 @@ saveRowDef=function(){
   if(!USE_API)return ORIG.saveRowDef();
   var name=document.getElementById('dName').value.trim();
   if(!name){document.getElementById('dErr').style.display='block';return;}
-  if(curDef.key){alert('API 模式下改分支定义请到管理后台（或删除重建）');return;}
+  if(curDef.key){
+    var r=cmap[curDef.key].row;
+    if(!r.api)return ORIG.saveRowDef();  // 本地分支走本地改名
+    api('PUT','/api/board/'+YEAR+'/branch/'+r.id,{name:name})
+      .then(function(b){closeDef();applyBoard(b);renderAuditApi();if(typeof toast==='function')toast('分支已改名（审计留痕）');}).catch(apiErr);
+    return;
+  }
   var sec=FRONT2SEC[curDef.sec];
   if(!sec)return ORIG.saveRowDef();
   api('POST','/api/board/'+YEAR+'/branch',{sec:sec,name:name,sign:'+'})
@@ -1439,11 +1435,11 @@ saveYear=function(){
   api('POST','/api/years',{year:y})
     .then(function(){closeYear();return loadYears();})
     .then(function(){YEAR=y;return loadYear(y);})
-    .then(function(){refreshKb0();renderAuditApi();}).catch(apiErr);
+    .then(function(){renderAuditApi();}).catch(apiErr);
 };
 setYear=function(y){
   if(!USE_API)return ORIG.setYear(y);
-  YEAR=y;loadYear(y).then(function(){refreshKb0();}).catch(apiErr);
+  YEAR=y;loadYear(y).catch(apiErr);
 };
 renderAudit=function(){if(!USE_API)return ORIG.renderAudit();renderAuditApi();};
 demoLoad=function(){
@@ -1704,25 +1700,6 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
   }
   var _r=renderKb3;renderKb3=function(){_r();kb3ApplyClamp();};kb3ApplyClamp();
   var _gv=goView;goView=function(v){_gv(v);if(v==='kb3'){kb3ApplyClamp();if(typeof kb3FreezeApply==='function')kb3FreezeApply();}};
-})();
-</script>
-<script>
-/* ===== 看板0 PDF 查看器：高度可拖拽调整（记忆）+ 页底留白 15cm ===== */
-(function(){
-  var v=document.getElementById('kb0Viewer');if(!v)return;
-  var h=0;try{h=parseInt(localStorage.getItem('hcfb_pdf_h')||'0',10);}catch(e){}
-  if(h>=300)v.style.height=h+'px';
-  var d=document.createElement('div');d.id='kb0Drag';d.title='拖拽调整 PDF 查看器高度';
-  d.style.cssText='height:12px;margin:2px 0 0;cursor:ns-resize;display:flex;align-items:center;justify-content:center;user-select:none;';
-  d.innerHTML='<span style="width:44px;height:4px;background:#C9D6EA;display:block"></span>';
-  d.onmouseenter=function(){d.firstChild.style.background='#7FB0F0';};
-  d.onmouseleave=function(){d.firstChild.style.background='#C9D6EA';};
-  v.parentNode.insertBefore(d,v.nextSibling);
-  var sy=0,sh=0,dragging=false;
-  d.addEventListener('mousedown',function(e){dragging=true;sy=e.clientY;sh=v.offsetHeight;e.preventDefault();document.body.style.cursor='ns-resize';});
-  document.addEventListener('mousemove',function(e){if(!dragging)return;var nh=Math.max(300,sh+(e.clientY-sy));v.style.height=nh+'px';v.style.minHeight='0';});
-  document.addEventListener('mouseup',function(){if(dragging){dragging=false;document.body.style.cursor='';try{localStorage.setItem('hcfb_pdf_h',String(v.offsetHeight));}catch(e){}}});
-  var view0=document.getElementById('v-kb0');if(view0)view0.style.paddingBottom='15cm';
 })();
 </script>
 </body>

@@ -123,6 +123,12 @@ check("只读账号拒改台账", client.put(f"/api/ledger/row/{rid}", json={"fi
 r = client.delete(f"/api/ledger/row/{rid}", headers=H)
 check("台账删行", len(j(r)["rows"]) == 2)
 
+# ========== 分支改名（260723 补接口） ==========
+r = client.put(f"/api/board/2026/branch/{bid}", json={"name": "组织架构腾挪·改"}, headers=H)
+check("分支改名200", r.status_code == 200 and any(x["name"] == "组织架构腾挪·改" for x in j(r)["branches"]))
+client.put(f"/api/board/2026/branch/{bid}", json={"name": "组织架构腾挪"}, headers=H)  # 还原
+check("分支改名空名422", client.put(f"/api/board/2026/branch/{bid}", json={"name": " "}, headers=H).status_code == 422)
+
 # ========== 看板2 计划类分支：已发生月豁免锁定（260723） ==========
 r = client.post("/api/board/2026/branch", json={"sec": "法定HC·其中", "name": "编制调整", "sign": "+"}, headers=H)
 bhc = [x for x in j(r)["branches"] if x["name"] == "编制调整"][0]["id"]
@@ -133,19 +139,27 @@ client.delete(f"/api/board/2026/branch/{bhc}", headers=H)  # 清场
 # ========== 台账模板/列性质闸（260723 对齐线下模板v2） ==========
 r = client.get("/api/ledger/template.xlsx")
 check("模板下载xlsx", r.status_code == 200 and "spreadsheetml" in r.headers["content-type"])
-hdr = "部门,中心,业务负责人,招聘岗位,职级,分类,国内/海外,城市,招聘数量,当前状态,预计到岗时间\n"
-r = client.post("/api/ledger/import", files={"file": ("t.csv", hdr + "云五,中心A,alice,后台开发,T9,研发,国内,深圳,2,简历&面试中,2026-08-01\n", "text/csv")}, headers=H)
+hdr = "部门,中心,业务负责人,招聘岗位,分类（国内/海外）,地点,需求提出时间,招聘数量,进展（当前状态）,预计到岗时间\n"
+r = client.post("/api/ledger/import", files={"file": ("t.csv", hdr + "云五,中心A,alice,后台开发,国内,深圳,2026-05-01,2,简历&面试中,2026-08-01\n", "text/csv")}, headers=H)
 check("数量≠1整批拒绝(另起一行)", r.status_code == 422 and any("另起一行" in x for x in j(r)["detail"]["errors"]), str(j(r)["detail"]))
-r = client.post("/api/ledger/import", files={"file": ("t.csv", hdr + "云五,中心A,alice,后台开发,T9,研发,国内,深圳,1,在途,2026-08-01\n", "text/csv")}, headers=H)
+r = client.post("/api/ledger/import", files={"file": ("t.csv", hdr + "云五,中心A,alice,后台开发,国内,深圳,2026-05-01,1,在途,2026-08-01\n", "text/csv")}, headers=H)
 check("状态非枚举整批拒绝", r.status_code == 422 and any("下拉枚举" in x for x in j(r)["detail"]["errors"]))
-r = client.post("/api/ledger/import", files={"file": ("t.csv", hdr + "云五,中心A,alice,后台开发,T9,研发,美国,深圳,1,已入职,2026-08-01\n", "text/csv")}, headers=H)
+r = client.post("/api/ledger/import", files={"file": ("t.csv", hdr + "云五,中心A,alice,后台开发,美国,深圳,2026-05-01,1,已入职,2026-08-01\n", "text/csv")}, headers=H)
 check("国内海外枚举闸", r.status_code == 422 and any("国内 或 海外" in x for x in j(r)["detail"]["errors"]))
-r = client.post("/api/ledger/import", files={"file": ("t.csv", hdr + "云五,中心A,alice,后台开发,T9,研发,国内,深圳,1,简历&面试中,1999-08-01\n", "text/csv")}, headers=H)
+r = client.post("/api/ledger/import", files={"file": ("t.csv", hdr + "云五,中心A,alice,后台开发,国内,深圳,2026-05-01,1,简历&面试中,1999-08-01\n", "text/csv")}, headers=H)
 check("日期年份limit闸", r.status_code == 422 and any("2000-2100" in x for x in j(r)["detail"]["errors"]))
-r = client.post("/api/ledger/import", files={"file": ("t.csv", hdr + "云五,中心A,alice,后台开发,T9,研发,国内,深圳,1,需求确认,2026-08-01\n", "text/csv")}, headers=H)
-check("合格导入(含新状态需求确认/新列)", r.status_code == 200 and j(r)["report"]["rows"] == 1, str(j(r).get("detail", "")))
+r = client.post("/api/ledger/import", files={"file": ("t.csv", hdr + "云五,中心A,alice,后台开发,国内,深圳,2026-05-01,1,需求确认,2026-08-01\n示例部门,中心A,张三,后台开发,国内,深圳,2026-05-10,1,简历&面试中,2026-08-01\n", "text/csv")}, headers=H)
+check("合格导入(需求确认状态·示例行跳过)", r.status_code == 200 and j(r)["report"]["rows"] == 1 and j(r)["report"]["skipped"] >= 1, str(j(r).get("detail", j(r).get("report", ""))))
 lrow = j(client.get("/api/ledger"))["rows"][0]
-check("新列jlvl/fam/cls映射", lrow["jlvl"] == "T9" and lrow["fam"] == "研发" and lrow["cls"] == "国内" and lrow["num"] == "1")
+check("列映射(分类/数量)", lrow["cls"] == "国内" and lrow["num"] == "1" and lrow["loc"] == "深圳")
+# 日期自动识别：紧凑8位/6位、月00降级、两位年
+from kb3_ledger import _norm_date
+check("日期归一(20260829→2026-08-29)", _norm_date("20260829") == "2026-08-29")
+check("日期归一(202608→2026-08)", _norm_date("202608") == "2026-08")
+check("日期归一(2023-00→2023)", _norm_date("2023-00") == "2023")
+check("日期归一(2026-05-99→2026-05)", _norm_date("2026-05-99") == "2026-05")
+check("日期归一(26.8.29→2026-08-29)", _norm_date("26.8.29") == "2026-08-29")
+check("日期归一(乱文保留原文)", _norm_date("待定Q3") == "待定Q3")
 lid = lrow["id"]
 check("eta变更缺原因422", client.put(f"/api/ledger/row/{lid}", json={"fields": {"eta": "2026-09-01"}}, headers=H).status_code == 422)
 r = client.put(f"/api/ledger/row/{lid}", json={"fields": {"eta": "2026-09-01", "memo": "候选人延期"}}, headers=H)
