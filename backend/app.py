@@ -21,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "hcfb.db")
+DB_PATH = os.environ.get("HCFB_DB") or os.path.join(os.path.dirname(__file__), "hcfb.db")
 FRONT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # 仓库根（index.html/admin.html）
 
 app = FastAPI(title="HC Forecast Board API", version="0.1.0")
@@ -48,8 +48,13 @@ OUT_KEYS = ["o_sys", "o_nat", "o_bp", "o_act"]
 CAMP_KEYS = ["i_yy", "i_bs", "i_cbp"]
 IN_DIRECT_KEYS = ["i_soc", "i_incr"]  # + campTot + 流入分支
 BP_EDITABLE = {"o_bp", "o_act", "i_cbp", "i_incr"}  # 叶子级 BP 录入位（可被 config.add 关闭）
-IMPORTABLE = {"budget", "actual", "o_sys", "o_nat", "i_soc", "i_yy", "i_bs"}  # 上传兜底可写的系统数指标
+IMPORTABLE = {"budget", "actual", "o_sys", "o_nat", "i_soc", "i_yy", "i_bs", "fa_hc", "q_init"}  # 上传兜底可写
 VALUE_ABS_MAX = 100000  # 量级异常闸
+PLAN_METRICS = {"budget", "fa_hc", "q_init"}  # 计划/预算类：不受"已发生月锁定"约束（预算是规划数据）
+EXTRA_METRICS = {  # 看板2 预算过程基线（不在看板1 行内，但可存取/编辑/导入）
+    "fa_hc": "其中：期初法定HC（看板2）",
+    "q_init": "其中：期初预算当量（看板2）",
+}
 
 
 # ---------------- DB ----------------
@@ -97,6 +102,13 @@ def init_db():
               dept TEXT, center TEXT, owner TEXT, src TEXT, job TEXT, lvl TEXT, cls TEXT, loc TEXT,
               ask TEXT, num TEXT, tgt TEXT, st TEXT, eta TEXT, memo TEXT,
               offer TEXT, olvl TEXT, join_dt TEXT, jmemo TEXT, who TEXT);
+            CREATE TABLE IF NOT EXISTS cells_history(
+              id INTEGER PRIMARY KEY AUTOINCREMENT, year INTEGER, metric TEXT, month INTEGER,
+              old_value REAL, new_value REAL, source TEXT, changed_by TEXT, changed_at TEXT, note TEXT);
+            CREATE TABLE IF NOT EXISTS pending_diffs(
+              id INTEGER PRIMARY KEY AUTOINCREMENT, year INTEGER, metric TEXT, month INTEGER,
+              cur_value REAL, src_value REAL, source TEXT, status TEXT DEFAULT 'open',
+              created_at TEXT, resolved_by TEXT, resolved_at TEXT);
             CREATE TABLE IF NOT EXISTS ledger_snapshots(
               id INTEGER PRIMARY KEY AUTOINCREMENT, year INTEGER, filename TEXT, sheet TEXT,
               rows_n INTEGER, created_by TEXT, created_at TEXT);
@@ -126,6 +138,23 @@ def now() -> str:
 
 def _audit(c, user, action, detail):
     c.execute("INSERT INTO audit(ts,user,action,detail) VALUES(?,?,?,?)", (now(), user, action, detail))
+
+
+def _write_cell(c, year, metric, month, value, note, source, user):
+    """统一写格：任何变更留 cells_history（口径可复现——上周汇报的数字这周还能查到）"""
+    old = c.execute("SELECT value FROM cells WHERE year=? AND metric=? AND month=?", (year, metric, month)).fetchone()
+    oldv = old["value"] if old else None
+    c.execute(
+        "INSERT INTO cells(year,metric,month,value,note,source,updated_by,updated_at) VALUES(?,?,?,?,?,?,?,?) "
+        "ON CONFLICT(year,metric,month) DO UPDATE SET value=excluded.value,note=excluded.note,"
+        "source=excluded.source,updated_by=excluded.updated_by,updated_at=excluded.updated_at",
+        (year, metric, month, value, note, source, user, now()),
+    )
+    if oldv != value:
+        c.execute(
+            "INSERT INTO cells_history(year,metric,month,old_value,new_value,source,changed_by,changed_at,note) VALUES(?,?,?,?,?,?,?,?,?)",
+            (year, metric, month, oldv, value, source, user, now(), note),
+        )
 
 
 def get_account(c, user_id):
@@ -329,7 +358,8 @@ def edit_cell(year: int, e: CellEdit, x_user: str = Header("bonniewbli")):
             raise HTTPException(404, "年份不存在")
         if not (1 <= e.month <= 12):
             raise HTTPException(422, "月份须为 1-12")
-        if e.month <= yr["lock_month"]:
+        base_metric = e.metric.split(":", 1)[0] if e.metric.startswith("branch") else e.metric
+        if base_metric not in PLAN_METRICS and e.month <= yr["lock_month"]:
             raise HTTPException(423, f"{e.month}月为已发生月（已锁定），改动须走「采纳修正」流程")
         if not e.note.strip():
             raise HTTPException(422, "备注必填（写入审计日志）")
@@ -347,6 +377,9 @@ def edit_cell(year: int, e: CellEdit, x_user: str = Header("bonniewbli")):
                 (bid, e.month, e.value, e.note.strip(), x_user, now()),
             )
             _audit(c, x_user, "调节录入", f"{year} 分支「{b['name']}」 {e.month}月 → {e.value}（{e.note.strip()}）")
+        elif e.metric in EXTRA_METRICS:
+            _write_cell(c, year, e.metric, e.month, e.value, e.note.strip(), "bp", x_user)
+            _audit(c, x_user, "调节录入", f"{year}「{EXTRA_METRICS[e.metric]}」 {e.month}月 → {e.value}（{e.note.strip()}）")
         else:
             p = c.execute("SELECT * FROM projects WHERE key=?", (e.metric,)).fetchone()
             if not p:
@@ -355,12 +388,7 @@ def edit_cell(year: int, e: CellEdit, x_user: str = Header("bonniewbli")):
                 raise HTTPException(403, f"「{p['name']}」为系统数指标，不可手工录入（走数据源/上传兜底）")
             if not p["add_ok"]:
                 raise HTTPException(403, f"「{p['name']}」已在管理后台关闭手动录入")
-            c.execute(
-                "INSERT INTO cells(year,metric,month,value,note,source,updated_by,updated_at) VALUES(?,?,?,?,?,?,?,?) "
-                "ON CONFLICT(year,metric,month) DO UPDATE SET value=excluded.value,note=excluded.note,"
-                "source=excluded.source,updated_by=excluded.updated_by,updated_at=excluded.updated_at",
-                (year, e.metric, e.month, e.value, e.note.strip(), "bp", x_user, now()),
-            )
+            _write_cell(c, year, e.metric, e.month, e.value, e.note.strip(), "bp", x_user)
             _audit(c, x_user, "调节录入", f"{year}「{p['name']}」 {e.month}月 → {e.value}（{e.note.strip()}）")
     return get_board(year)
 
@@ -445,20 +473,39 @@ async def import_csv(year: int, file: UploadFile = File(...), x_user: str = Head
         raise HTTPException(422, "文件无有效数据行")
     with db() as c:
         require_writer(c, x_user)
+        yr = c.execute("SELECT * FROM years WHERE year=?", (year,)).fetchone()
+        lock = yr["lock_month"]
         c.execute(
             "INSERT INTO snapshots(year,filename,rows_n,created_by,created_at) VALUES(?,?,?,?,?)",
             (year, file.filename, len(rows), x_user, now()),
         )
         snap_id = c.execute("SELECT last_insert_rowid() AS i").fetchone()["i"]
+        applied, diffs = 0, 0
         for metric, month, value in rows:
-            c.execute(
-                "INSERT INTO cells(year,metric,month,value,note,source,updated_by,updated_at) VALUES(?,?,?,?,?,?,?,?) "
-                "ON CONFLICT(year,metric,month) DO UPDATE SET value=excluded.value,"
-                "source=excluded.source,updated_by=excluded.updated_by,updated_at=excluded.updated_at",
-                (year, metric, month, value, None, f"import#{snap_id}", x_user, now()),
-            )
-        _audit(c, x_user, "导入快照", f"{year} 批次#{snap_id}「{file.filename}」{len(rows)} 格，校验闸通过入库")
-    return {"ok": True, "snapshot": snap_id, "rows": len(rows)}
+            cur = c.execute("SELECT value FROM cells WHERE year=? AND metric=? AND month=?", (year, metric, month)).fetchone()
+            curv = cur["value"] if cur else None
+            confirmed = metric not in PLAN_METRICS and month <= lock and curv is not None
+            if confirmed and curv != value:
+                # 迟到数据：已确认月不自动改——留差异，待「采纳修正/维持口径」
+                ex = c.execute(
+                    "SELECT id FROM pending_diffs WHERE year=? AND metric=? AND month=? AND status='open'",
+                    (year, metric, month)).fetchone()
+                if ex:
+                    c.execute("UPDATE pending_diffs SET src_value=?, source=?, created_at=? WHERE id=?",
+                              (value, f"import#{snap_id}", now(), ex["id"]))
+                else:
+                    c.execute(
+                        "INSERT INTO pending_diffs(year,metric,month,cur_value,src_value,source,status,created_at) "
+                        "VALUES(?,?,?,?,?,?,'open',?)",
+                        (year, metric, month, curv, value, f"import#{snap_id}", now()))
+                diffs += 1
+            else:
+                _write_cell(c, year, metric, month, value, None, f"import#{snap_id}", x_user)
+                applied += 1
+        _audit(c, x_user, "导入快照",
+               f"{year} 批次#{snap_id}「{file.filename}」采纳 {applied} 格" +
+               (f"；已确认月差异 {diffs} 格待处理（源数据已变化）" if diffs else "，校验闸通过入库"))
+    return {"ok": True, "snapshot": snap_id, "rows": len(rows), "applied": applied, "diffs": diffs}
 
 
 # ---------------- 审计 / 导出 ----------------
@@ -485,6 +532,129 @@ def export_csv(year: int):
     with db() as c:
         _audit(c, "system", "导出", f"{year} 看板1 导出 CSV")
     return PlainTextResponse("﻿" + buf.getvalue(), media_type="text/csv; charset=utf-8")
+
+
+# ---------------- 迟到数据差异：采纳修正 / 维持口径 ----------------
+def _metric_name(c, key):
+    if key in EXTRA_METRICS:
+        return EXTRA_METRICS[key]
+    p = c.execute("SELECT name FROM projects WHERE key=?", (key,)).fetchone()
+    return p["name"] if p else key
+
+
+@app.get("/api/diffs/{year}")
+def get_diffs(year: int):
+    with db() as c:
+        out = []
+        for r in c.execute("SELECT * FROM pending_diffs WHERE year=? AND status='open' ORDER BY month,metric", (year,)):
+            d = dict(r)
+            d["metric_name"] = _metric_name(c, d["metric"])
+            out.append(d)
+        return {"year": year, "diffs": out}
+
+
+@app.post("/api/diffs/{did}/accept")
+def diff_accept(did: int, x_user: str = Header("bonniewbli")):
+    with db() as c:
+        require_writer(c, x_user)
+        d = c.execute("SELECT * FROM pending_diffs WHERE id=? AND status='open'", (did,)).fetchone()
+        if not d:
+            raise HTTPException(404, "差异不存在或已处理")
+        _write_cell(c, d["year"], d["metric"], d["month"], d["src_value"], "采纳修正（迟到数据）", d["source"], x_user)
+        c.execute("UPDATE pending_diffs SET status='accepted', resolved_by=?, resolved_at=? WHERE id=?", (x_user, now(), did))
+        _audit(c, x_user, "采纳修正",
+               f"{d['year']}「{_metric_name(c, d['metric'])}」{d['month']}月：{d['cur_value']} → {d['src_value']}（预估链重锚重算·校验重跑）")
+    return get_board(d["year"])
+
+
+@app.post("/api/diffs/{did}/keep")
+def diff_keep(did: int, x_user: str = Header("bonniewbli")):
+    with db() as c:
+        require_writer(c, x_user)
+        d = c.execute("SELECT * FROM pending_diffs WHERE id=? AND status='open'", (did,)).fetchone()
+        if not d:
+            raise HTTPException(404, "差异不存在或已处理")
+        c.execute("UPDATE pending_diffs SET status='kept', resolved_by=?, resolved_at=? WHERE id=?", (x_user, now(), did))
+        _audit(c, x_user, "维持口径",
+               f"{d['year']}「{_metric_name(c, d['metric'])}」{d['month']}月差异（{d['cur_value']} vs 源 {d['src_value']}）留案，随下周期滚入")
+        return {"ok": True}
+
+
+# ---------------- 月份确认：锁定推进 ----------------
+class LockSet(BaseModel):
+    lock_month: int
+
+
+@app.post("/api/years/{year}/lock")
+def set_lock(year: int, s: LockSet, x_user: str = Header("bonniewbli")):
+    if not (0 <= s.lock_month <= 12):
+        raise HTTPException(422, "锁定月须为 0-12")
+    with db() as c:
+        require_writer(c, x_user)
+        yr = c.execute("SELECT * FROM years WHERE year=?", (year,)).fetchone()
+        if not yr:
+            raise HTTPException(404, "年份不存在")
+        c.execute("UPDATE years SET lock_month=? WHERE year=?", (s.lock_month, year))
+        _audit(c, x_user, "月份确认", f"{year} 锁定推进：1-{yr['lock_month']}月 → 1-{s.lock_month}月（已确认月改动须走采纳修正）")
+    return {"ok": True, "year": year, "lock_month": s.lock_month}
+
+
+# ---------------- 分支停用 / 还原（不删数据） ----------------
+@app.post("/api/board/{year}/branch/{bid}/toggle")
+def branch_toggle(year: int, bid: int, x_user: str = Header("bonniewbli")):
+    with db() as c:
+        require_writer(c, x_user)
+        b = c.execute("SELECT * FROM branches WHERE id=? AND year=?", (bid, year)).fetchone()
+        if not b:
+            raise HTTPException(404, "分支不存在")
+        newv = 0 if b["on_ok"] else 1
+        c.execute("UPDATE branches SET on_ok=? WHERE id=?", (newv, bid))
+        _audit(c, x_user, "启用分支" if newv else "停用分支",
+               f"{year} {b['sec']} · {b['name']}（数据保留" + ("，已恢复计入合计）" if newv else "，可随时还原）"))
+    return get_board(year)
+
+
+# ---------------- 单元格变更历史（口径可复现） ----------------
+@app.get("/api/board/{year}/history")
+def cell_history(year: int, metric: str, month: int):
+    with db() as c:
+        rows = [dict(r) for r in c.execute(
+            "SELECT * FROM cells_history WHERE year=? AND metric=? AND month=? ORDER BY id DESC LIMIT 50",
+            (year, metric, month))]
+        return {"year": year, "metric": metric, "metric_name": _metric_name(c, metric), "month": month, "history": rows}
+
+
+# ---------------- 导出 xlsx ----------------
+@app.get("/api/export/{year}.xlsx")
+def export_xlsx(year: int):
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+    from fastapi.responses import Response
+    board = get_board(year)
+    names = {k: n for k, _s, n, *_ in CANON_PROJECTS}
+    wb = Workbook()
+    ws = wb.active
+    ws.title = f"看板1-{year}"
+    header = ["项目"] + [f"{m}月" for m in range(1, 13)] + ["年均"]
+    ws.append(header)
+    for cell in ws[1]:
+        cell.font = Font(name="微软雅黑", bold=True)
+        cell.fill = PatternFill("solid", fgColor="F3F8FF")
+    def row(name, vals, avg_=None):
+        ws.append([name] + [("" if v is None else v) for v in vals] + [avg_ if avg_ is not None else ""])
+    row(names["budget"], board["metrics"]["budget"]["vals"], board["computed"]["budget_avg"])
+    row(names["actual"], board["metrics"]["actual"]["vals"])
+    row("总流出（−）", board["computed"]["outT"])
+    row("总流入（＋）", board["computed"]["inT"])
+    row(names["chain"], board["computed"]["chain"], board["computed"]["chain_avg"])
+    ws.column_dimensions["A"].width = 22
+    buf = io.BytesIO()
+    wb.save(buf)
+    with db() as c:
+        _audit(c, "system", "导出", f"{year} 看板1 导出 xlsx")
+    return Response(buf.getvalue(),
+                    media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f"attachment; filename=board1-{year}.xlsx"})
 
 
 # ---------------- 看板3 台账：按列名识别解析 xlsx/csv（XML 直读·兼容 WPS） ----------------
@@ -539,6 +709,8 @@ def _norm_date(v):
         return ""
     t = s.replace("年", ".").replace("月", ".").replace("日", "").replace("/", ".").replace("-", ".")
     parts = [p for p in _re.split(r"[.\s]+", t) if p.isdigit()]
+    if parts and len(parts[0]) == 2 and 20 <= int(parts[0]) <= 39:  # 两位年 25.6.30 → 2025-06-30
+        parts[0] = "20" + parts[0]
     if len(parts) >= 3 and len(parts[0]) == 4:
         try:
             return "%s-%02d-%02d" % (parts[0], int(parts[1]), int(parts[2]))
@@ -701,7 +873,7 @@ def _ledger_list(c, year):
     out = []
     for r in c.execute("SELECT * FROM ledger_rows WHERE year=? ORDER BY id", (year,)):
         d = dict(r)
-        out.append({"c": d["center"], "own": d["owner"], "src": d["src"], "job": d["job"],
+        out.append({"id": d["id"], "c": d["center"], "own": d["owner"], "src": d["src"], "job": d["job"],
                     "cls": d["cls"], "loc": d["loc"], "ask": d["ask"], "num": d["num"], "tgt": d["tgt"],
                     "st": d["st"], "eta": d["eta"], "memo": d["memo"], "offer": d["offer"],
                     "lvl": d["olvl"], "join": d["join_dt"], "jmemo": d["jmemo"],
@@ -709,18 +881,94 @@ def _ledger_list(c, year):
     return out
 
 
-@app.get("/api/ledger/{year}")
-def get_ledger(year: int):
-    with db() as c:
-        return {"year": year, "rows": _ledger_list(c, year)}
+LEDGER_F2DB = {"dept": "dept", "c": "center", "own": "owner", "src": "src", "job": "job", "cls": "cls",
+              "loc": "loc", "ask": "ask", "num": "num", "tgt": "tgt", "st": "st", "eta": "eta", "memo": "memo",
+              "offer": "offer", "lvl": "olvl", "join": "join_dt", "jmemo": "jmemo", "who": "who"}
+LEDGER_DATE_F = {"ask", "tgt", "eta", "join"}
 
 
-@app.post("/api/ledger/{year}/import")
-async def import_ledger(year: int, file: UploadFile = File(...), x_user: str = Header("bonniewbli")):
+class LedgerEdit(BaseModel):
+    fields: dict  # 前端字段名 → 新值（仅人工列；派生列不存库）
+
+
+def _ledger_norm(f, v):
+    v = "" if v is None else str(v).strip()
+    if f in LEDGER_DATE_F:
+        return _norm_date(v)
+    if f == "st":
+        return _norm_status(v)
+    return v
+
+
+@app.post("/api/ledger/row")
+def ledger_add_row(e: LedgerEdit, x_user: str = Header("bonniewbli")):
     with db() as c:
         require_writer(c, x_user)
-        if not c.execute("SELECT 1 FROM years WHERE year=?", (year,)).fetchone():
-            raise HTTPException(404, "年份不存在")
+        vals = {db_f: "" for db_f in LEDGER_F2DB.values()}
+        for f, v in (e.fields or {}).items():
+            if f in LEDGER_F2DB:
+                vals[LEDGER_F2DB[f]] = _ledger_norm(f, v)
+        c.execute(
+            "INSERT INTO ledger_rows(year,batch,dept,center,owner,src,job,lvl,cls,loc,ask,num,tgt,st,eta,memo,offer,olvl,join_dt,jmemo,who) "
+            "VALUES(0,0,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (vals["dept"], vals["center"], vals["owner"], vals["src"], vals["job"], "", vals["cls"], vals["loc"],
+             vals["ask"], vals["num"], vals["tgt"], vals["st"], vals["eta"], vals["memo"],
+             vals["offer"], vals["olvl"], vals["join_dt"], vals["jmemo"], vals["who"]),
+        )
+        rid = c.execute("SELECT last_insert_rowid() AS i").fetchone()["i"]
+        _audit(c, x_user, "台账新增行", f"行#{rid}" + (f"（{vals['center']} · {vals['job']}）" if vals["center"] or vals["job"] else "（空行·待填）"))
+    with db() as c:
+        return {"ok": True, "id": rid, "rows": _ledger_list(c, 0)}
+
+
+@app.put("/api/ledger/row/{rid}")
+def ledger_edit_row(rid: int, e: LedgerEdit, x_user: str = Header("bonniewbli")):
+    with db() as c:
+        require_writer(c, x_user)
+        row = c.execute("SELECT * FROM ledger_rows WHERE id=? AND year=0", (rid,)).fetchone()
+        if not row:
+            raise HTTPException(404, "台账行不存在")
+        changes = []
+        for f, v in (e.fields or {}).items():
+            if f not in LEDGER_F2DB:
+                continue
+            db_f = LEDGER_F2DB[f]
+            nv = _ledger_norm(f, v)
+            ov = row[db_f] or ""
+            if nv != ov:
+                c.execute(f"UPDATE ledger_rows SET {db_f}=? WHERE id=?", (nv, rid))
+                changes.append(f"{f}:「{ov}」→「{nv}」")
+        if changes:
+            _audit(c, x_user, "台账改行", f"行#{rid} " + "；".join(changes)[:300])
+    with db() as c:
+        return {"ok": True, "rows": _ledger_list(c, 0)}
+
+
+@app.delete("/api/ledger/row/{rid}")
+def ledger_del_row(rid: int, x_user: str = Header("bonniewbli")):
+    with db() as c:
+        require_writer(c, x_user)
+        row = c.execute("SELECT * FROM ledger_rows WHERE id=? AND year=0", (rid,)).fetchone()
+        if not row:
+            raise HTTPException(404, "台账行不存在")
+        c.execute("DELETE FROM ledger_rows WHERE id=?", (rid,))
+        _audit(c, x_user, "台账删行", f"行#{rid}（{row['center']} · {row['job']} · {row['st']}）")
+    with db() as c:
+        return {"ok": True, "rows": _ledger_list(c, 0)}
+
+
+@app.get("/api/ledger")
+def get_ledger():
+    with db() as c:
+        return {"rows": _ledger_list(c, 0)}
+
+
+@app.post("/api/ledger/import")
+async def import_ledger(file: UploadFile = File(...), x_user: str = Header("bonniewbli")):
+    """台账全局一份（跨年滚动）；3.2 矩阵由前端按归月年份分发到各年份页签"""
+    year = 0
+    with db() as c:
+        require_writer(c, x_user)
     raw = await file.read()
     rows, report = parse_ledger(raw, file.filename or "upload")
     if not rows:
@@ -741,7 +989,7 @@ async def import_ledger(year: int, file: UploadFile = File(...), x_user: str = H
                  r["ask"], r["num"], r["tgt"], r["st"], r["eta"], r["memo"], r["offer"], r["olvl"], r["join"], r["jmemo"], r["who"]),
             )
         _audit(c, x_user, "导入台账",
-               f"{year} 批次#{batch}「{file.filename}」sheet「{report['sheet']}」表头第{report['header_row']}行 · "
+               f"全局台账 批次#{batch}「{file.filename}」sheet「{report['sheet']}」表头第{report['header_row']}行 · "
                f"列名命中{report['hits']}项 · 有效{len(rows)}行/跳过{report['skipped']}行（整年替换）")
     with db() as c:
         return {"ok": True, "report": report, "rows": _ledger_list(c, year)}
