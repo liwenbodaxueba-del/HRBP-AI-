@@ -325,11 +325,11 @@ body.navfold .navtg{left:8px;}
   <h2 class="sec">看板3.1 · 社招滚动台账（招聘需求面板）</h2>
   <div class="imp-bar">
     <label class="imp-btn">＋ 导入台账文档<input type="file" accept=".xlsx,.xls,.csv,application/pdf,.pdf" style="display:none" onchange="kb3Import(this)"></label>
-    <span id="kb3ImpName" class="imp-name">未导入 · 支持 xlsx/csv（解析入台账）或 pdf（预览）· 仅本地打开</span>
+    <span id="kb3ImpName" class="imp-name">未导入 · 支持 xlsx/csv（解析入台账）或 pdf（预览）· 仅本地打开</span><span style="flex:1"></span><button class="btn ghost2" id="kb3ExpandBtn" onclick="kb3ToggleAll()" title="默认固定高度内滚动；点此展开全部行">展开全部</button>
   </div>
   <div id="kb3ImpView"></div>
   <div class="yeartabs"></div>
-  <div class="tblwrap"><table class="plain" id="kb3Tbl"></table></div>
+  <div class="tblwrap" id="kb3Wrap"><table class="plain" id="kb3Tbl"></table></div>
   <div class="hint">四段：①需求信息 ②进展阶段 ③入选与入职（①②③=招聘系统取数+BP维护）④系统派生（勿改，自动）。归月：入职=实际月，offer/面试=预计月，Hold/取消不计入。「计入看板1」列即喂看板1 三行的自动派生。</div>
 
   <h2 class="sec" style="margin-top:20px">看板3.2 · 待流入-社招面板（总结·便核对 · 喂看板1）</h2>
@@ -1133,6 +1133,20 @@ function navFold(f){
   var f=false;try{f=localStorage.getItem('hcfb_navfold')==='1';}catch(e){}
   navFold(f);
 })();
+</script>
+<script>
+/* ===== 看板3.1 台账限高+展开全部 ===== */
+var KB3_CLAMP=430, kb3Open=false;
+function kb3ApplyClamp(){
+  var w=document.getElementById('kb3Wrap');if(!w)return;
+  var n=(typeof D!=='undefined'&&D&&D.kb3rows)?D.kb3rows.length:0;
+  if(kb3Open){w.style.maxHeight='';w.style.overflowY='';}
+  else{w.style.maxHeight=KB3_CLAMP+'px';w.style.overflowY='auto';}
+  var b=document.getElementById('kb3ExpandBtn');
+  if(b){b.style.display=n>8?'':'none';b.textContent=kb3Open?'收起列表':'展开全部（'+n+' 行）';}
+}
+function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
+(function(){var _r=renderKb3;renderKb3=function(){_r();kb3ApplyClamp();};kb3ApplyClamp();})();
 </script>
 </body>
 </html>
