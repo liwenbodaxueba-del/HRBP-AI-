@@ -1145,6 +1145,11 @@ function kb3ApplyClamp(){
   else{w.style.height=KB3_H+'px';w.style.minHeight='150px';w.style.overflowY='auto';w.style.resize='vertical';if(drag)drag.style.display=n>8?'':'none';}
   var b=document.getElementById('kb3ExpandBtn');
   if(b){b.style.display=n>8?'':'none';b.textContent=kb3Open?'收起列表':'展开全部（'+n+' 行）';}
+  /* 两级表头吸顶：分组行贴0，列名行贴分组行下沿 */
+  var grpRow=document.querySelector('#kb3Tbl thead tr.grp');
+  var gh=grpRow?grpRow.offsetHeight:0;
+  document.querySelectorAll('#kb3Tbl thead tr.grp th').forEach(function(th){th.style.position='sticky';th.style.top='0';th.style.zIndex='6';});
+  document.querySelectorAll('#kb3Tbl thead tr.col th').forEach(function(th){th.style.position='sticky';th.style.top=gh+'px';th.style.zIndex='5';});
 }
 function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
 (function(){
@@ -1162,6 +1167,7 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
     document.addEventListener('mouseup',function(){if(dragging){dragging=false;document.body.style.cursor='';}});
   }
   var _r=renderKb3;renderKb3=function(){_r();kb3ApplyClamp();};kb3ApplyClamp();
+  var _gv=goView;goView=function(v){_gv(v);if(v==='kb3')kb3ApplyClamp();};
 })();
 </script>
 </body>
