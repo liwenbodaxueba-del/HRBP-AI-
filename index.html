@@ -118,16 +118,20 @@ table.bsc{border-collapse:collapse;width:100%;font-size:12.5px;font-variant-nume
 .banner.on{display:flex;}
 .mask{display:none;position:fixed;inset:0;background:rgba(10,26,60,.35);z-index:60;align-items:center;justify-content:center;}
 .mask.on{display:flex;}
-.modal{background:#fff;border-radius:14px;padding:20px 22px;width:370px;box-shadow:0 10px 40px rgba(10,26,60,.3);}
+.modal{background:#fff;border-radius:14px;padding:22px 24px 32px;width:370px;box-shadow:0 10px 40px rgba(10,26,60,.3);}
 .modal h3{font-size:14.5px;color:var(--navy);margin-bottom:4px;}
 .modal .meta{font-size:12px;color:var(--ink3);margin-bottom:10px;}
 .modal label{display:block;font-size:12px;color:var(--ink2);margin:10px 0 4px;}
 .modal input,.modal textarea,.modal select{width:100%;border:1px solid var(--b100);border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit;background:#fff;}
 .modal textarea{height:54px;resize:none;}
-.modal .row{display:flex;gap:10px;margin-top:16px;justify-content:flex-end;}
+.modal .row{display:flex;gap:10px;margin-top:22px;justify-content:flex-end;}
 .err{color:var(--red);font-size:11.5px;display:none;margin-top:4px;}
-.signsel{display:flex;flex-direction:column;gap:8px;margin-top:4px;}
-.signsel .opt{display:flex;align-items:center;gap:8px;font-size:13px;border:1px solid var(--b100);border-radius:8px;padding:8px 10px;cursor:pointer;}
+.signsel{display:flex;flex-direction:row;gap:8px;margin-top:4px;}
+.signsel .opt{display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:13px;border:1px solid var(--b100);border-radius:999px;padding:6px 14px;cursor:pointer;transition:all .15s;background:#fff;white-space:nowrap;min-width:88px;}
+.signsel .opt input[type=radio]{width:14px;height:14px;margin:0;accent-color:var(--navy);}
+.signsel .opt .sym{font-size:14px;color:var(--navy);font-weight:600;line-height:1;}
+.signsel .opt .lbl{color:var(--ink);}
+.signsel .opt:has(input:checked){border-color:var(--navy);background:#F4F8FF;}
 table.plain{border-collapse:collapse;width:100%;font-size:12.5px;background:#fff;min-width:1180px;}
 .plain th,.plain td{border-bottom:1px solid #EDF3FB;border-right:1px solid #F3F7FD;padding:7px 9px;text-align:left;white-space:nowrap;vertical-align:top;}
 .plain thead tr.grp th{background:var(--navy);color:#fff;text-align:center;font-weight:700;font-size:12px;}
@@ -140,7 +144,7 @@ table.plain{border-collapse:collapse;width:100%;font-size:12.5px;background:#fff
 .imp-btn{background:var(--blue);color:#fff;border-radius:9px;padding:8px 16px;font-size:13px;cursor:pointer;}
 .imp-btn:hover{background:#1746c9;}
 .imp-name{font-size:12.5px;color:var(--ink2);}
-.pdf-viewer{height:calc(100vh - 230px);min-height:460px;border:1px solid var(--b100);border-radius:12px;overflow:hidden;background:#F4F6FA;}
+.pdf-viewer{height:calc(100vh - 360px);min-height:420px;border:1px solid var(--b100);border-radius:12px;overflow:hidden;background:#F4F6FA;margin-bottom:24px;}
 .pdf-empty{display:flex;align-items:center;justify-content:center;height:100%;color:var(--ink3);font-size:14px;text-align:center;padding:20px;}
 .cov-legend{display:flex;gap:16px;margin:6px 2px 14px;font-size:12.5px;color:var(--ink2);flex-wrap:wrap;}
 table.cov{border-collapse:collapse;width:100%;font-size:13px;background:#fff;border:1px solid var(--b100);border-radius:12px;overflow:hidden;}
@@ -168,7 +172,12 @@ table.cov{border-collapse:collapse;width:100%;font-size:13px;background:#fff;bor
 .ai-bub .num{font-weight:700;color:var(--blue);}
 .ai-bub .act{margin-top:8px;}
 .ai-bub .act button{background:var(--blue);color:#fff;border:none;border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:inherit;}
+.ai-chips-bar{cursor:pointer;font-size:11.5px;color:var(--ink3);padding:6px 12px;border-top:1px solid var(--b100);display:flex;align-items:center;justify-content:space-between;user-select:none;}
+.ai-chips-bar:hover{color:var(--ink);}
+.ai-chips-bar .arr{transition:transform .2s ease;font-size:10px;}
+.ai-chips-bar .arr.folded{transform:rotate(-90deg);}
 .ai-chips{padding:8px 10px;max-height:96px;overflow-y:auto;border-top:1px solid var(--b100);background:#FAFCFF;display:flex;gap:8px;flex-wrap:wrap;}
+.ai-chips.hide{display:none;}
 .ai-chip{border:1px solid var(--b100);background:#fff;color:var(--blue);border-radius:16px;padding:4px 12px;font-size:12px;cursor:pointer;}
 .ai-chip:hover{background:var(--b50);}
 .ai-input{display:flex;gap:8px;padding:10px;border-top:1px solid var(--b100);}
@@ -427,6 +436,7 @@ body.navfold .navtg{left:8px;}
   <div class="hint"><b>非 Agent</b>，网站自带 RAG 问答专家，基于最新口径数据回答、每条标来源。<b>只走人走的门</b>：不直写库，只代填草稿，仍须走同一录入弹窗与校验闸（备注必填、已发生月锁定照样拦）。右下角浮窗任意页可唤起。</div>
   <div class="card" style="height:calc(100vh - 240px);min-height:420px;display:flex;flex-direction:column;padding:0;overflow:hidden;">
     <div class="ai-msgs" id="aiMsgs"></div>
+    <div class="ai-chips-bar" onclick="aiChipsToggle('aiChips','arrChips')"><span>快捷问题</span><span class="arr" id="arrChips">▾</span></div>
     <div class="ai-chips" id="aiChips"></div>
     <div class="ai-input"><input id="aiInput" placeholder="问点什么？如：12月预估多少 / 今年校招多少人 / 帮我9月减2个人" onkeydown="if(event.key==='Enter')aiSend(null,'aiInput')"><button onclick="aiSend(null,'aiInput')">发送</button></div>
   </div>
@@ -442,6 +452,7 @@ body.navfold .navtg{left:8px;}
 <div class="aiPop" id="aiPop">
   <div class="ph"><span>AI 助手 · RAG 问答</span><span class="x" onclick="aiToggle(false)">✕</span></div>
   <div class="ai-msgs" id="aiPopMsgs"></div>
+  <div class="ai-chips-bar" onclick="aiChipsToggle('aiPopChips','arrPopChips')"><span>快捷问题</span><span class="arr" id="arrPopChips">▾</span></div>
   <div class="ai-chips" id="aiPopChips"></div>
   <div class="ai-input"><input id="aiPopInput" placeholder="问点什么…" onkeydown="if(event.key==='Enter')aiSend(null,'aiPopInput')"><button onclick="aiSend(null,'aiPopInput')">发送</button></div>
 </div>
@@ -477,8 +488,16 @@ body.navfold .navtg{left:8px;}
   <label>行名称（缘由）</label><input type="text" id="dName" placeholder="如：组织架构调整腾挪">
   <label>方向</label>
   <div class="signsel">
-    <label class="opt"><input type="radio" name="dsign" value="+"> ＋ 加项</label>
-    <label class="opt"><input type="radio" name="dsign" value="-"> − 减项</label>
+    <label class="opt" data-tip="加项">
+      <input type="radio" name="dsign" value="+">
+      <span class="sym">＋</span>
+      <span class="lbl">加项</span>
+    </label>
+    <label class="opt" data-tip="减项">
+      <input type="radio" name="dsign" value="-">
+      <span class="sym">−</span>
+      <span class="lbl">减项</span>
+    </label>
   </div>
   <div class="err" id="dErr">请填名称并选方向</div>
   <div class="row"><button class="btn danger" id="dDel" onclick="delRowFromDef()" style="display:none">删除此行</button><button class="btn gray" onclick="closeDef()">取消</button><button class="btn" onclick="saveRowDef()">保存</button></div>
@@ -989,9 +1008,11 @@ function aiAnswer(q){var c=chain(),qa=avg(D.budget),mi=pMonth(q),dm=q.match(/(\d
   return '我可以回答：<br>· 预估/在岗（如"7月预估多少"）<br>· 达标/超预算<br>· 校招/社招/流入/流出人数<br>· 预算当量/法定HC<br>· 草拟调节（如"帮我9月减2个人"）';}
 function renderAI(){
   var html=aiMsgs.map(function(m){return '<div class="ai-row '+(m.role==='me'?'me':'ai')+'"><div class="ai-av">'+(m.role==='me'?'我':'AI')+'</div><div class="ai-bub">'+m.html+'</div></div>';}).join('');
-  var chips=aiChipList.map(function(t){return '<span class="ai-chip" onclick="aiSend('+JSON.stringify(t)+')">'+t+'</span>';}).join('');
+  var chips=aiChipList.map(function(t){return '<span class="ai-chip" data-q='+JSON.stringify(t)+' onclick="aiFill(this.dataset.q)">'+t+'</span>';}).join('');
   ['aiMsgs','aiPopMsgs'].forEach(function(id){var el=document.getElementById(id);if(el){el.innerHTML=html;el.scrollTop=el.scrollHeight;}});
   ['aiChips','aiPopChips'].forEach(function(id){var el=document.getElementById(id);if(el)el.innerHTML=chips;});}
+function aiFill(text){var pop=document.getElementById('aiPop'),id=pop&&pop.classList.contains('on')?'aiPopInput':'aiInput';var el=document.getElementById(id);if(!el)return;el.value=text;el.focus();try{el.setSelectionRange(el.value.length,el.value.length);}catch(e){}}
+function aiChipsToggle(chipsId,arrId){var c=document.getElementById(chipsId),a=document.getElementById(arrId);if(!c)return;c.classList.toggle('hide');a.classList.toggle('folded');}
 function aiSend(text,inputId){var q=(typeof text==='string'&&text)?text:(inputId&&document.getElementById(inputId)?document.getElementById(inputId).value:'');q=(q||'').trim();if(!q)return;
   aiMsgs.push({role:'me',html:esc(q)});aiMsgs.push({role:'ai',html:aiAnswer(q)});
   ['aiInput','aiPopInput'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});renderAI();log('AI助手','RAG问答','Q：'+q);}
