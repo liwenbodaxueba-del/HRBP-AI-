@@ -142,11 +142,21 @@ r = client.post("/api/years/2026/natparam", json={"n": 8}, headers=H)
 check("n=8跨年缺数不派生", j(r)["nat"]["avg"] is None and "上年12月" in j(r)["nat"]["missing"], str(j(r)["nat"]))
 client.post("/api/import/2025", files={"file": ("er25.csv", "metric,month,value\ner_out,11,20\ner_out,12,22\n", "text/csv")}, headers=H)
 b = j(client.get("/api/board/2026"))
-check("补上年数后跨年窗口=13.5", b["nat"]["avg"] == 13.5, str(b["nat"]))
+check("补上年数后跨年窗口=14(108/8=13.5取整)", b["nat"]["avg"] == 14, str(b["nat"]))
+# n=24 窗口越过上一年（前年无数据源）：不回绕取错年份的数，判缺数不派生
+r = client.post("/api/years/2026/natparam", json={"n": 24}, headers=H)
+check("n=24前年无源不回绕不派生", j(r)["nat"]["avg"] is None and any("前年" in t for t in j(r)["nat"]["missing"]), str(j(r)["nat"]["missing"][-3:]))
+# 已发生月：实际自然流失=er_out 当月值直接带出（行内与窗口同源）
+b = j(client.get("/api/board/2026"))
+check("已发生月o_nat=ER当月实际带出", b["metrics"]["o_nat"]["vals"][0] == 6 and b["metrics"]["o_nat"]["vals"][5] == 16 and b["nat"]["actual_months"] == [1, 2, 3, 4, 5, 6], str(b["metrics"]["o_nat"]["vals"][:6]))
+client.post("/api/years/2026/natparam", json={"n": 8}, headers=H)  # 还原，下方存量用例依赖 n=8 派生 13.5
 # 存量 o_nat 优先，派生只补空
 client.post("/api/import/2026", files={"file": ("nat8.csv", "metric,month,value\no_nat,8,3\n", "text/csv")}, headers=H)
 b = j(client.get("/api/board/2026"))
-check("存量o_nat优先派生只补空", b["metrics"]["o_nat"]["vals"][7] == 3 and b["metrics"]["o_nat"]["vals"][6] == 13.5)
+check("存量o_nat优先派生只补空", b["metrics"]["o_nat"]["vals"][7] == 3 and b["metrics"]["o_nat"]["vals"][6] == 14)
+# n=24 窗口跨到前年（无数据源）——不得回绕错年取数，必须判缺数不派生
+r = client.post("/api/years/2026/natparam", json={"n": 24}, headers=H)
+check("n=24前年无源判缺数不派生", j(r)["nat"]["avg"] is None and any("前年" in t for t in j(r)["nat"]["missing"]), str(j(r)["nat"]["missing"][-3:]))
 client.post("/api/years/2026/natparam", json={"n": 6}, headers=H)  # 还原
 
 # ========== 外部源直连（月末实际在岗 zhaopin/diy·配置驱动·mock 源） ==========
@@ -180,6 +190,8 @@ b = j(r)
 check("示例加载 demo标志亮", r.status_code == 200 and b["demo"] is True)
 check("示例不覆盖真数(budget1月仍544)", b["metrics"]["budget"]["vals"][0] == 544)
 check("示例填空格(budget2月=550)", b["metrics"]["budget"]["vals"][1] == 550)
+check("已发生月明细项有数(o_bp/i_yy)", b["metrics"]["o_bp"]["vals"][1] == 1 and b["metrics"]["i_yy"]["vals"][1] == 3, str([b["metrics"]["o_bp"]["vals"][1], b["metrics"]["i_yy"]["vals"][1]]))
+check("o_nat已发生月=ER当月实际离职(同源自洽)", b["metrics"]["o_nat"]["vals"][0] == 6 and b["metrics"]["o_nat"]["vals"][5] == 16, str(b["metrics"]["o_nat"]["vals"][:6]))
 check("示例台账4行入库", len(j(client.get("/api/ledger"))["rows"]) == led_before + 4)
 check("示例分支带【示例】标", any("示例" in x["name"] for x in b["branches"]))
 b25 = j(client.get("/api/board/2025"))

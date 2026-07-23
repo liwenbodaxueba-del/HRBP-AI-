@@ -11,6 +11,7 @@ import csv
 import io
 import json
 import os
+import random
 import sqlite3
 import time
 from contextlib import contextmanager
@@ -228,28 +229,34 @@ def nat_forecast(vals, lock, prev_er, nat_n):
     返回 (effective_o_nat[12], nat_info)。已有存量 o_nat（导入/源）优先，派生只补空。"""
     er = vals.get("er_out", [None] * 12)
     prev_er = prev_er or [None] * 12
-    window, missing = [], []
+    window, missing, wvals = [], [], []
     for i in range(nat_n):
-        m1 = lock - i  # 1-based 月，≤0 落到上一年
+        m1 = lock - i  # 1-based 月；0~-11 落上一年；再往前无数据源（不回绕取错年，判缺数）
         if m1 >= 1:
             v, tag = er[m1 - 1], f"{m1}月"
+        elif m1 + 12 >= 1:
+            v, tag = prev_er[m1 + 11], f"上年{m1 + 12}月"
         else:
-            v, tag = prev_er[m1 + 12 - 1], f"上年{m1 + 12}月"
+            v, tag = None, f"前年{m1 + 24}月（无数据源）"
         window.append(tag)
+        wvals.append(v)
         if not isinstance(v, (int, float)):
             missing.append(tag)
-    nat_avg = None
-    if not missing:
-        total = sum(er[m1 - 1] if m1 >= 1 else prev_er[m1 + 12 - 1] for m1 in range(lock, lock - nat_n, -1))
-        nat_avg = round(total / nat_n, 2)
+    # 人数取整（int）：四舍五入（half-up），预估月不出现小数人头
+    nat_avg = int(sum(wvals) / nat_n + 0.5) if not missing else None
     eff = list(vals.get("o_nat", [None] * 12))
-    derived_months = []
+    derived_months, actual_months = [], []
+    for m in range(0, lock):  # 已发生月：实际自然流失=ER报表当月离职数直接带出（与窗口同源，行内自洽）
+        if not isinstance(eff[m], (int, float)) and isinstance(er[m], (int, float)):
+            eff[m] = er[m]
+            actual_months.append(m + 1)
     if nat_avg is not None:
-        for m in range(lock, 12):  # 仅未发生月，且不覆盖存量
+        for m in range(lock, 12):  # 未发生月：均值摊入，且不覆盖存量
             if not isinstance(eff[m], (int, float)):
                 eff[m] = nat_avg
                 derived_months.append(m + 1)
-    info = {"n": nat_n, "avg": nat_avg, "window": window, "missing": missing, "derived_months": derived_months}
+    info = {"n": nat_n, "avg": nat_avg, "window": window, "missing": missing,
+            "derived_months": derived_months, "actual_months": actual_months}
     return eff, info
 
 
@@ -284,7 +291,7 @@ def compute(vals, branches, lock, prev_er=None, nat_n=NAT_N_DEFAULT):
             else:
                 o = outT[m] if isinstance(outT[m], (int, float)) else 0
                 i = inT[m] if isinstance(inT[m], (int, float)) else 0
-                chain.append(prev - o + i)
+                chain.append(round(prev - o + i, 2))
     def avg(a):
         n = [x for x in a if isinstance(x, (int, float))]
         return round(sum(n) / len(n), 2) if n else None
@@ -726,7 +733,6 @@ def demo_load(y: YearNew, x_user: str = Header("bonniewbli")):
         if not c.execute("SELECT 1 FROM years WHERE year=?", (y.year,)).fetchone():
             raise HTTPException(404, "年份不存在")
         filled, skipped = 0, 0
-        er_cycle = [7, 6, 8]
         for yr in c.execute("SELECT * FROM years ORDER BY year").fetchall():
             yy, lock = yr["year"], yr["lock_month"]
             base = 548 + (2026 - yy) * 6  # 历史年在岗基数略高，逐年递减更像真实走势
@@ -746,11 +752,25 @@ def demo_load(y: YearNew, x_user: str = Header("bonniewbli")):
                 put("budget", m, 550 + (2026 - yy) * 5)
                 put("fa_hc", m, 479)
                 put("q_init", m, 550 + (2026 - yy) * 5)
-            for m in range(1, lock + 1):  # 历史实际月：lock=12 的归档年填满全年
-                put("actual", m, base - m)
-                put("er_out", m, er_cycle[m % 3])
-                put("o_sys", m, er_cycle[(m + 1) % 3] - 4)  # 已发生月流出明细（2/3/4 循环）
-                put("i_soc", m, er_cycle[(m + 2) % 3] - 5)
+            # 历史实际月：只随机填「源」单元格（Excel 思路——运算行 o_nat/总流出/总流入/链 由引擎公式现算，不落库）
+            rng = random.Random(yy * 97 + 7)  # 每年固定种子：重复导入结果一致（幂等）
+            for m in range(1, lock + 1):
+                put("actual", m, base - m + rng.randint(-2, 2))  # 月末快照·随机波动
+                put("er_out", m, rng.randint(4, 9))  # ER实际离职：o_nat 已发生月由引擎从此带出，未发生月=近n月均值
+                put("o_sys", m, rng.randint(1, 4))
+                put("i_soc", m, rng.randint(1, 5))
+                if m % 3 == 2:
+                    put("o_bp", m, 1, "【示例】历史月已明确离职1人")
+                if m % 4 == 0:
+                    put("o_act", m, 1, "【示例】历史月计划优化1人")
+                if m % 6 == 4:
+                    put("i_incr", m, 1, "【示例】历史月增量补位1人")
+            if lock >= 2:
+                put("i_yy", 2, 3, "【示例】春季批次到岗")
+            if lock >= 3:
+                put("i_bs", 3, 2, "【示例】毕业生转聘2人")
+            if lock >= 5:
+                put("i_cbp", 5, 1, "【示例】BP补录1人")
             if lock >= 7:
                 put("i_yy", 7, 22, "【示例】历史校招批次")
             if lock < 12:  # 执行中/规划年：未发生月的 BP 调节与分支
@@ -763,13 +783,17 @@ def demo_load(y: YearNew, x_user: str = Header("bonniewbli")):
                 put("i_yy", lock + 1, 25, "【示例】校招批次到岗")
                 put("i_bs", lock + 2, 5)
                 put("i_cbp", lock + 3, 1, "【示例】BP补录1人")
-                if not c.execute("SELECT 1 FROM branches WHERE year=? AND created_by='demo'", (yy,)).fetchone():
+                brow = c.execute("SELECT id FROM branches WHERE year=? AND created_by='demo'", (yy,)).fetchone()
+                if brow:
+                    bid = brow["id"]
+                else:
                     c.execute("INSERT INTO branches(year,sec,name,sign,on_ok,created_by,created_at) VALUES(?,?,?,?,1,'demo',?)",
                               (yy, "总流出（−）", "【示例】组织架构腾挪", "-", now()))
                     bid = c.execute("SELECT last_insert_rowid() AS i").fetchone()["i"]
-                    if lock + 3 <= 12:
-                        c.execute("INSERT INTO branch_cells(branch_id,month,value,note,updated_by,updated_at) VALUES(?,?,?,?,'demo',?)",
-                                  (bid, lock + 3, 2, "【示例】腾挪冲抵2", now()))
+                for bm, bv, bnote in [(lock + 3, 2, "【示例】腾挪冲抵2"), (max(lock - 2, 1), 1, "【示例】历史月腾挪1")]:
+                    if 1 <= bm <= 12:
+                        c.execute("INSERT OR IGNORE INTO branch_cells(branch_id,month,value,note,updated_by,updated_at) VALUES(?,?,?,?,'demo',?)",
+                                  (bid, bm, bv, bnote, now()))
         if not c.execute("SELECT 1 FROM ledger_rows WHERE batch=?", (DEMO_LEDGER_BATCH,)).fetchone():
             mm = lambda off: f"{y.year}-{min(lock + off, 12):02d}-15"
             demo_rows = [
