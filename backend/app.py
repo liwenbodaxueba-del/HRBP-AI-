@@ -92,6 +92,14 @@ def init_db():
               created_by TEXT, created_at TEXT);
             CREATE TABLE IF NOT EXISTS audit(
               id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT, user TEXT, action TEXT, detail TEXT);
+            CREATE TABLE IF NOT EXISTS ledger_rows(
+              id INTEGER PRIMARY KEY AUTOINCREMENT, year INTEGER, batch INTEGER,
+              dept TEXT, center TEXT, owner TEXT, src TEXT, job TEXT, lvl TEXT, cls TEXT, loc TEXT,
+              ask TEXT, num TEXT, tgt TEXT, st TEXT, eta TEXT, memo TEXT,
+              offer TEXT, olvl TEXT, join_dt TEXT, jmemo TEXT, who TEXT);
+            CREATE TABLE IF NOT EXISTS ledger_snapshots(
+              id INTEGER PRIMARY KEY AUTOINCREMENT, year INTEGER, filename TEXT, sheet TEXT,
+              rows_n INTEGER, created_by TEXT, created_at TEXT);
             """
         )
         if not c.execute("SELECT 1 FROM years LIMIT 1").fetchone():
@@ -477,6 +485,266 @@ def export_csv(year: int):
     with db() as c:
         _audit(c, "system", "导出", f"{year} 看板1 导出 CSV")
     return PlainTextResponse("﻿" + buf.getvalue(), media_type="text/csv; charset=utf-8")
+
+
+# ---------------- 看板3 台账：按列名识别解析 xlsx/csv（XML 直读·兼容 WPS） ----------------
+import re as _re
+import zipfile
+import xml.etree.ElementTree as _ET
+from datetime import datetime as _dt, timedelta as _td
+
+_NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+_RNS = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
+
+# 列名同义词（按包含匹配；靠列名识别，不认列位置/不认 sheet 名）
+LEDGER_SYN = [
+    ("dept", ["部门"]),
+    ("center", ["中心"]),
+    ("owner", ["业务负责人", "负责人"]),
+    ("src", ["HC来源", "hc来源"]),
+    ("job", ["招聘岗位"]),
+    ("lvl", ["职级"]),
+    ("cls", ["分类"]),
+    ("loc", ["地点", "城市"]),
+    ("ask", ["需求提出"]),
+    ("num", ["招聘数量", "数量"]),
+    ("tgt", ["目标到岗"]),
+    ("st", ["进展", "当前状态"]),
+    ("eta", ["预计到岗"]),
+    ("memo", ["备注"]),
+    ("who", ["面试中人选", "可简述背景"]),   # 须在 offer 之前：R列「人选姓名（可简述背景）」归 who
+    ("offer", ["offer人选", "人选姓名"]),
+    ("olvl", ["人选职级"]),
+    ("join", ["实际入职"]),
+]
+LEDGER_ST = ["已offer待入职", "已入职", "简历&面试中", "简历面试中", "Hold", "取消"]
+LEDGER_MIN_HITS = 4  # 表头行至少命中的列名数
+
+
+def _col_idx(ref):
+    s = 0
+    for ch in ref:
+        if ch.isalpha():
+            s = s * 26 + (ord(ch.upper()) - 64)
+        else:
+            break
+    return s - 1
+
+
+def _norm_date(v):
+    if isinstance(v, (int, float)) and 20000 < v < 60000:
+        return (_dt(1899, 12, 30) + _td(days=int(v))).strftime("%Y-%m-%d")
+    s = str(v).strip()
+    if not s:
+        return ""
+    t = s.replace("年", ".").replace("月", ".").replace("日", "").replace("/", ".").replace("-", ".")
+    parts = [p for p in _re.split(r"[.\s]+", t) if p.isdigit()]
+    if len(parts) >= 3 and len(parts[0]) == 4:
+        try:
+            return "%s-%02d-%02d" % (parts[0], int(parts[1]), int(parts[2]))
+        except ValueError:
+            return s
+    if len(parts) == 2 and len(parts[0]) == 4:
+        return "%s-%02d" % (parts[0], int(parts[1]))
+    if len(parts) == 1 and len(parts[0]) == 4:
+        return parts[0]
+    return s  # 解析不了保留原文（不猜不编）
+
+
+def _norm_status(v):
+    s = str(v).strip()
+    low = s.lower()
+    for k in LEDGER_ST:
+        if k.lower() in low:
+            return "简历&面试中" if "面试" in k else k
+    return s
+
+
+def _sheet_cells(z, path, ss):
+    """worksheet → [ {col_idx: value} ] 按行；value: float|str"""
+    rows = []
+    root = _ET.fromstring(z.read(path))
+    for row in root.iter(_NS + "row"):
+        d = {}
+        for c in row.iter(_NS + "c"):
+            ref, t = c.get("r") or "", c.get("t")
+            v = c.find(_NS + "v")
+            val = None
+            if t == "inlineStr":
+                ie = c.find(_NS + "is")
+                if ie is not None:
+                    val = "".join(x.text or "" for x in ie.iter(_NS + "t"))
+            elif v is not None and v.text is not None:
+                if t == "s":
+                    try:
+                        val = ss[int(v.text)]
+                    except (ValueError, IndexError):
+                        val = v.text
+                elif t == "str":
+                    val = v.text
+                else:
+                    try:
+                        val = float(v.text)
+                    except ValueError:
+                        val = v.text
+            if val not in (None, ""):
+                d[_col_idx(ref)] = val
+        rows.append(d)
+    return rows
+
+
+def _match_header(cells):
+    """一行 {col:val} → (colmap{field:col}, hits)；列名按包含匹配，首个命中列生效"""
+    colmap = {}
+    for col, val in cells.items():
+        txt = str(val).replace("\n", "").replace(" ", "")
+        for field, syns in LEDGER_SYN:
+            if field in colmap:
+                continue
+            if any(s in txt for s in syns):
+                # 「目标到岗」不要抢 eta；「预计到岗」不要抢 tgt——同义词已区分，此处防 memo 抢占具体列
+                colmap[field] = col
+                break
+    return colmap, len(colmap)
+
+
+def parse_ledger(raw, filename):
+    """返回 (rows, report)；识别不到表头 raise HTTPException 422"""
+    candidates = []  # (hits, sheet_name, header_idx, colmap, sheet_rows)
+    if filename.lower().endswith(".csv"):
+        try:
+            text = raw.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            text = raw.decode("gbk", errors="replace")
+        sheet_rows = []
+        for r in csv.reader(io.StringIO(text)):
+            sheet_rows.append({i: v for i, v in enumerate(r) if str(v).strip()})
+        for i in range(min(6, len(sheet_rows))):
+            colmap, hits = _match_header(sheet_rows[i])
+            if hits >= LEDGER_MIN_HITS:
+                candidates.append((hits, "CSV", i, colmap, sheet_rows))
+                break
+    else:
+        try:
+            z = zipfile.ZipFile(io.BytesIO(raw))
+            wb = _ET.fromstring(z.read("xl/workbook.xml"))
+            rels = dict(_re.findall(r'Id="(rId\d+)"[^>]*Target="([^"]+)"', z.read("xl/_rels/workbook.xml.rels").decode("utf-8")))
+            try:
+                sroot = _ET.fromstring(z.read("xl/sharedStrings.xml"))
+                ss = ["".join(t.text or "" for t in si.iter(_NS + "t")) for si in sroot.findall(_NS + "si")]
+            except KeyError:
+                ss = []
+        except (zipfile.BadZipFile, KeyError) as e:
+            raise HTTPException(422, f"无法解析文件（需 .xlsx/.csv）：{e}")
+        for sh in wb.iter(_NS + "sheet"):
+            name, rid = sh.get("name"), sh.get(_RNS + "id")
+            path = rels.get(rid, "")
+            if not path.startswith("xl/"):
+                path = "xl/" + path
+            try:
+                sheet_rows = _sheet_cells(z, path, ss)
+            except (KeyError, _ET.ParseError):
+                continue
+            best = None
+            for i in range(min(6, len(sheet_rows))):
+                colmap, hits = _match_header(sheet_rows[i])
+                if hits >= LEDGER_MIN_HITS and (best is None or hits > best[0]):
+                    best = (hits, name, i, colmap, sheet_rows)
+            if best:
+                candidates.append(best)
+    if not candidates:
+        raise HTTPException(422, {
+            "msg": "未识别到台账表头（按列名识别，不认列位置）",
+            "hint": "任一 sheet 的前 6 行内，须至少出现 %d 个列名，如：部门/中心/业务负责人/招聘岗位/进展(当前状态)/预计到岗时间/实际入职时间/offer人选…" % LEDGER_MIN_HITS,
+        })
+    hits, sheet_name, hidx, colmap, sheet_rows = max(candidates, key=lambda x: x[0])
+
+    def g(cells, field):
+        col = colmap.get(field)
+        v = cells.get(col) if col is not None else None
+        return "" if v is None else (str(int(v)) if isinstance(v, float) and v.is_integer() and field not in ("ask", "tgt", "eta", "join") else v)
+
+    rows, skipped = [], 0
+    for cells in sheet_rows[hidx + 1:]:
+        if not cells:
+            continue
+        vals = {f: g(cells, f) for f, _ in LEDGER_SYN}
+        joined = "".join(str(x) for x in cells.values())
+        if "填写说明" in joined or str(vals.get("owner", "")).strip() == "总监/leader":
+            skipped += 1
+            continue
+        st = _norm_status(vals.get("st", ""))
+        if not str(vals.get("center", "")).strip() and not str(vals.get("job", "")).strip() and not st:
+            skipped += 1
+            continue
+        rows.append({
+            "dept": str(vals.get("dept", "")), "center": str(vals.get("center", "")),
+            "owner": str(vals.get("owner", "")), "src": str(vals.get("src", "")),
+            "job": str(vals.get("job", "")), "lvl": str(vals.get("lvl", "")),
+            "cls": str(vals.get("cls", "")), "loc": str(vals.get("loc", "")),
+            "ask": _norm_date(vals.get("ask", "")), "num": str(vals.get("num", "")),
+            "tgt": _norm_date(vals.get("tgt", "")), "st": st,
+            "eta": _norm_date(vals.get("eta", "")), "memo": str(vals.get("memo", "")),
+            "offer": str(vals.get("offer", "")), "olvl": str(vals.get("olvl", "")),
+            "join": _norm_date(vals.get("join", "")), "jmemo": "",
+            "who": str(vals.get("who", "")) or str(vals.get("offer", "")),
+        })
+    report = {
+        "sheet": sheet_name, "header_row": hidx + 1, "hits": hits,
+        "mapping": {f: chr(65 + c) if c < 26 else "A" + chr(65 + c - 26) for f, c in colmap.items()},
+        "rows": len(rows), "skipped": skipped,
+    }
+    return rows, report
+
+
+def _ledger_list(c, year):
+    out = []
+    for r in c.execute("SELECT * FROM ledger_rows WHERE year=? ORDER BY id", (year,)):
+        d = dict(r)
+        out.append({"c": d["center"], "own": d["owner"], "src": d["src"], "job": d["job"],
+                    "cls": d["cls"], "loc": d["loc"], "ask": d["ask"], "num": d["num"], "tgt": d["tgt"],
+                    "st": d["st"], "eta": d["eta"], "memo": d["memo"], "offer": d["offer"],
+                    "lvl": d["olvl"], "join": d["join_dt"], "jmemo": d["jmemo"],
+                    "who": d["who"], "dept": d["dept"]})
+    return out
+
+
+@app.get("/api/ledger/{year}")
+def get_ledger(year: int):
+    with db() as c:
+        return {"year": year, "rows": _ledger_list(c, year)}
+
+
+@app.post("/api/ledger/{year}/import")
+async def import_ledger(year: int, file: UploadFile = File(...), x_user: str = Header("bonniewbli")):
+    with db() as c:
+        require_writer(c, x_user)
+        if not c.execute("SELECT 1 FROM years WHERE year=?", (year,)).fetchone():
+            raise HTTPException(404, "年份不存在")
+    raw = await file.read()
+    rows, report = parse_ledger(raw, file.filename or "upload")
+    if not rows:
+        raise HTTPException(422, "识别到表头但无有效数据行")
+    with db() as c:
+        require_writer(c, x_user)
+        c.execute(
+            "INSERT INTO ledger_snapshots(year,filename,sheet,rows_n,created_by,created_at) VALUES(?,?,?,?,?,?)",
+            (year, file.filename, report["sheet"], len(rows), x_user, now()),
+        )
+        batch = c.execute("SELECT last_insert_rowid() AS i").fetchone()["i"]
+        c.execute("DELETE FROM ledger_rows WHERE year=?", (year,))
+        for r in rows:
+            c.execute(
+                "INSERT INTO ledger_rows(year,batch,dept,center,owner,src,job,lvl,cls,loc,ask,num,tgt,st,eta,memo,offer,olvl,join_dt,jmemo,who) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (year, batch, r["dept"], r["center"], r["owner"], r["src"], r["job"], r["lvl"], r["cls"], r["loc"],
+                 r["ask"], r["num"], r["tgt"], r["st"], r["eta"], r["memo"], r["offer"], r["olvl"], r["join"], r["jmemo"], r["who"]),
+            )
+        _audit(c, x_user, "导入台账",
+               f"{year} 批次#{batch}「{file.filename}」sheet「{report['sheet']}」表头第{report['header_row']}行 · "
+               f"列名命中{report['hits']}项 · 有效{len(rows)}行/跳过{report['skipped']}行（整年替换）")
+    with db() as c:
+        return {"ok": True, "report": report, "rows": _ledger_list(c, year)}
 
 
 # ---------------- 静态前端（同源托管 index.html / admin.html） ----------------

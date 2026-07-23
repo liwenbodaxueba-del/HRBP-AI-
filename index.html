@@ -789,7 +789,7 @@ function renderKb3(){
   document.getElementById('kb3Tbl').innerHTML=g+'</tbody>';
   // 3.2 汇总
   var mat={};KB3CATS.forEach(function(c){mat[c.key]=Array(12).fill(0);});
-  D.kb3rows.forEach(function(r){var cat=kb3cat(r.st);if(cat==='不计入')return;var mo=kb3mo(r);if(!mo)return;var mi=+mo.slice(5,7)-1;if(mi>=0&&mi<12)mat[cat][mi]++;});
+  D.kb3rows.forEach(function(r){var cat=kb3cat(r.st);if(cat==='不计入')return;var mo=kb3mo(r);if(!mo)return;if(mo.slice(0,4)!==String(YEAR))return;var mi=+mo.slice(5,7)-1;if(mi>=0&&mi<12)mat[cat][mi]++;});
   var total=Array(12).fill(0);KB3CATS.forEach(function(c){for(var m=0;m<12;m++)total[m]+=mat[c.key][m];});
   var s='<tr><th>计入看板1的行</th>';for(var m=0;m<12;m++)s+='<th>'+moLbl(YEAR+'-'+String(m+1).padStart(2,'0'))+'</th>';s+='<th>全年总数</th></tr>';
   function mr(cls,n,a){var t='<tr class="'+cls+'"><td>'+n+'</td>';for(var m=0;m<12;m++)t+='<td>'+(a[m]||'')+'</td>';return t+'<td>'+sum(a)+'</td></tr>';}
@@ -952,7 +952,7 @@ function applyBoard(b){
   CUSTOM[y]=cu;
   if(y===YEAR){bindYear();renderYearTabs();renderAll();renderKb3();}
 }
-function loadYear(y){return api('GET','/api/board/'+y).then(applyBoard);}
+function loadYear(y){return api('GET','/api/board/'+y).then(applyBoard).then(function(){return loadLedger(y);});}
 function loadYears(){return api('GET','/api/years').then(function(ys){
   YEARS.length=0;
   ys.forEach(function(r){YEARS.push(r.year);
@@ -1016,6 +1016,33 @@ setYear=function(y){
   YEAR=y;loadYear(y).then(function(){refreshKb0();}).catch(apiErr);
 };
 renderAudit=function(){if(!USE_API)return ORIG.renderAudit();renderAuditApi();};
+ORIG.kb3Import=kb3Import;
+function loadLedger(y){return api('GET','/api/ledger/'+y).then(function(r){DATA[y].kb3rows=r.rows||[];if(y===YEAR)renderKb3();});}
+kb3Import=function(inp){
+  var f=inp.files[0];if(!f)return;
+  var ext=(f.name.split('.').pop()||'').toLowerCase();
+  if(!USE_API||['xlsx','xls','csv'].indexOf(ext)<0)return ORIG.kb3Import(inp);
+  document.getElementById('kb3ImpName').textContent=f.name+' · '+(f.size/1024).toFixed(0)+'KB · 服务端按列名识别中…';
+  var fd=new FormData();fd.append('file',f);
+  fetch('/api/ledger/'+YEAR+'/import',{method:'POST',headers:{'X-User':API_USER},body:fd})
+    .then(function(r){return r.json().then(function(j){if(!r.ok)throw j;return j;});})
+    .then(function(res){
+      var rp=res.report;
+      DATA[YEAR].kb3rows=res.rows||[];renderKb3();
+      document.getElementById('kb3ImpName').textContent=f.name+' · 已入库（整年替换·审计留痕）';
+      var mapTxt=Object.keys(rp.mapping).map(function(k){return k+'→'+rp.mapping[k];}).join('  ');
+      document.getElementById('kb3ImpView').innerHTML=
+        '<div class="note"><b>列名识别成功</b>：sheet「'+rp.sheet+'」第 '+rp.header_row+' 行为表头，命中 '+rp.hits+' 个列名；有效 <b>'+rp.rows+'</b> 行、跳过 '+rp.skipped+' 行说明行。'
+        +'<br><span style="font-size:11px;color:var(--ink3)">字段映射：'+mapTxt+'</span></div>';
+      renderAuditApi();
+    })
+    .catch(function(e){
+      var d=e&&e.detail;
+      document.getElementById('kb3ImpView').innerHTML='<div class="note" style="border-color:#F3D0BC"><b>未能识别</b>：'
+        +(d&&d.msg?d.msg+'<br><span style="font-size:11px">'+ (d.hint||'') +'</span>':JSON.stringify(d||e))+'</div>';
+    });
+  inp.value='';
+};
 if(typeof cfgRefresh==='function'){ORIG.cfgRefresh=cfgRefresh;
   cfgRefresh=function(){if(!USE_API)return ORIG.cfgRefresh();loadCfg().then(function(){renderAll();apiTag();}).catch(function(){});};}
 if(typeof cfgTag==='function'){ORIG.cfgTag=cfgTag;cfgTag=function(){if(!USE_API)return ORIG.cfgTag();apiTag();};}
