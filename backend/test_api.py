@@ -121,6 +121,79 @@ check("只读账号拒改台账", client.put(f"/api/ledger/row/{rid}", json={"fi
 r = client.delete(f"/api/ledger/row/{rid}", headers=H)
 check("台账删行", len(j(r)["rows"]) == 2)
 
+# ========== 自然流失预估（近n月ER实际离职均值摊到未发生月·可调参·占总流出%） ==========
+# 窗口缺数不派生（识空不编造）：只导 3-6 月
+r = client.post("/api/import/2026", files={"file": ("er1.csv", "metric,month,value\ner_out,3,10\ner_out,4,12\ner_out,5,14\ner_out,6,16\n", "text/csv")}, headers=H)
+check("er_out部分导入", r.status_code == 200 and j(r)["applied"] == 4)
+b = j(client.get("/api/board/2026"))
+check("窗口缺数不派生(缺1-2月)", b["nat"]["avg"] is None and sorted(b["nat"]["missing"]) == ["1月", "2月"] and b["metrics"]["o_nat"]["vals"][6] is None, str(b["nat"]))
+# 补齐 1-2 月 → 近6月均值 (6+8+10+12+14+16)/6=11 摊到 7-12 月
+client.post("/api/import/2026", files={"file": ("er2.csv", "metric,month,value\ner_out,1,6\ner_out,2,8\n", "text/csv")}, headers=H)
+b = j(client.get("/api/board/2026"))
+check("近6月均值=11摊到未发生月", b["nat"]["avg"] == 11.0 and b["metrics"]["o_nat"]["vals"][6] == 11.0 and b["metrics"]["o_nat"]["vals"][11] == 11.0, str(b["nat"]))
+check("占总流出%外显", isinstance(b["nat"]["pct"], (int, float)) and 0 < b["nat"]["pct"] <= 100, str(b["nat"]["pct"]))
+check("派生入总流出重算链", b["computed"]["outT"][6] == 11.0)
+# 调参 n=3 → 窗口=6/5/4月 (16+14+12)/3=14
+check("调参n越界422", client.post("/api/years/2026/natparam", json={"n": 0}, headers=H).status_code == 422)
+r = client.post("/api/years/2026/natparam", json={"n": 3}, headers=H)
+check("调参n=3均值=14", j(r)["nat"]["n"] == 3 and j(r)["nat"]["avg"] == 14.0, str(j(r)["nat"]))
+# 调参 n=8 → 窗口跨年(缺上年11/12月) → 不派生；补上年数后 (6+8+10+12+14+16+20+22)/8=13.5
+r = client.post("/api/years/2026/natparam", json={"n": 8}, headers=H)
+check("n=8跨年缺数不派生", j(r)["nat"]["avg"] is None and "上年12月" in j(r)["nat"]["missing"], str(j(r)["nat"]))
+client.post("/api/import/2025", files={"file": ("er25.csv", "metric,month,value\ner_out,11,20\ner_out,12,22\n", "text/csv")}, headers=H)
+b = j(client.get("/api/board/2026"))
+check("补上年数后跨年窗口=13.5", b["nat"]["avg"] == 13.5, str(b["nat"]))
+# 存量 o_nat 优先，派生只补空
+client.post("/api/import/2026", files={"file": ("nat8.csv", "metric,month,value\no_nat,8,3\n", "text/csv")}, headers=H)
+b = j(client.get("/api/board/2026"))
+check("存量o_nat优先派生只补空", b["metrics"]["o_nat"]["vals"][7] == 3 and b["metrics"]["o_nat"]["vals"][6] == 13.5)
+client.post("/api/years/2026/natparam", json={"n": 6}, headers=H)  # 还原
+
+# ========== 外部源直连（月末实际在岗 zhaopin/diy·配置驱动·mock 源） ==========
+check("源状态含actual", any(s["metric"] == "actual" for s in j(client.get("/api/sources"))["sources"]))
+check("未配置源428", client.post("/api/sources/actual/sync", json={"year": 2026}, headers=H).status_code == 428)
+check("不支持指标404", client.post("/api/sources/budget/sync", json={"year": 2026}, headers=H).status_code == 404)
+_orig_cfg, _orig_fetch = app.load_sources_cfg, app.fetch_source
+app.load_sources_cfg = lambda: {"actual": [{"name": "zhaopin-mock", "url": "mock://kpi", "map": {"month": "m", "value": "v"}}]}
+app.fetch_source = lambda cfg, year: {1: 500, 4: 544, 12: 520}
+# 当前 actual: 1月=547 2月=546 3月=999(采纳后) 4月=544 5月=543 6月=542；lock=6
+# 1月锁定且值不同→差异；4月锁定但值相同→重写采纳；12月未完结→跳过（2026年内跑测试时）
+r = client.post("/api/sources/actual/sync", json={"year": 2026}, headers=H)
+sy = j(r)
+import datetime
+exp_skip12 = datetime.date.today() <= datetime.date(2026, 12, 31)
+check("源同步:锁定月差异+相同值采纳", r.status_code == 200 and sy["diffs"] == 1 and sy["applied"] == (1 if exp_skip12 else 2), str(sy))
+check("源同步:未完结月跳过", (12 in sy["skipped"]) == exp_skip12, str(sy["skipped"]))
+check("锁定月1月未被自动改(547)", j(client.get("/api/board/2026"))["metrics"]["actual"]["vals"][0] == 547)
+d = [x for x in j(client.get("/api/diffs/2026"))["diffs"] if x["month"] == 1]
+check("源同步差异进diffs(547 vs 500)", len(d) == 1 and d[0]["cur_value"] == 547 and d[0]["src_value"] == 500 and d[0]["source"].startswith("sync:"), str(d))
+client.post(f"/api/diffs/{d[0]['id']}/keep", headers=H)  # 清场
+app.fetch_source = lambda cfg, year: {7: 999999}
+check("源同步量级闸422", client.post("/api/sources/actual/sync", json={"year": 2026}, headers=H).status_code == 422)
+check("源同步只读403", client.post("/api/sources/actual/sync", json={"year": 2026}, headers={"X-User": "nobody"}).status_code == 403)
+app.load_sources_cfg, app.fetch_source = _orig_cfg, _orig_fetch
+
+# ========== 示例数据：demo标签·只填空不覆盖·一键全清 ==========
+led_before = len(j(client.get("/api/ledger"))["rows"])
+r = client.post("/api/demo/load", json={"year": 2026}, headers=H)
+b = j(r)
+check("示例加载 demo标志亮", r.status_code == 200 and b["demo"] is True)
+check("示例不覆盖真数(budget1月仍544)", b["metrics"]["budget"]["vals"][0] == 544)
+check("示例填空格(budget2月=550)", b["metrics"]["budget"]["vals"][1] == 550)
+check("示例台账4行入库", len(j(client.get("/api/ledger"))["rows"]) == led_before + 4)
+check("示例分支带【示例】标", any("示例" in x["name"] for x in b["branches"]))
+b25 = j(client.get("/api/board/2025"))
+check("历史归档年2025实际月填满", b25["demo"] is True and all(isinstance(v, (int, float)) for v in b25["metrics"]["actual"]["vals"]), str(b25["metrics"]["actual"]["vals"]))
+check("2025历史年不加未来调节分支", not any("示例" in x["name"] for x in b25["branches"]))
+r = client.post("/api/demo/clear", headers=H)
+cr = j(r)
+b = j(client.get("/api/board/2026"))
+check("删除假数:demo灭+真数保留", b["demo"] is False and b["metrics"]["budget"]["vals"][0] == 544 and b["metrics"]["budget"]["vals"][1] is None, str(cr))
+b25 = j(client.get("/api/board/2025"))
+check("删除假数:2025历史年同清(真er_out保留)", b25["demo"] is False and b25["metrics"]["actual"]["vals"][0] is None and j(client.get("/api/board/2026"))["nat"] is not None)
+check("删除假数:台账示例行清光", len(j(client.get("/api/ledger"))["rows"]) == led_before)
+check("删除假数:分支清光", not any("示例" in x["name"] for x in b["branches"]))
+
 # ========== 导出 ==========
 r = client.get("/api/export/2026.csv")
 check("导出CSV", r.status_code == 200 and "期末在岗预估" in r.text)

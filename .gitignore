@@ -3,3 +3,4 @@ backend/uvicorn.log
 __pycache__/
 *.pyc
 backend/hcfb_test.db
+backend/sources_config.json

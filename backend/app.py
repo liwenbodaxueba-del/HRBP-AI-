@@ -48,13 +48,16 @@ OUT_KEYS = ["o_sys", "o_nat", "o_bp", "o_act"]
 CAMP_KEYS = ["i_yy", "i_bs", "i_cbp"]
 IN_DIRECT_KEYS = ["i_soc", "i_incr"]  # + campTot + 流入分支
 BP_EDITABLE = {"o_bp", "o_act", "i_cbp", "i_incr"}  # 叶子级 BP 录入位（可被 config.add 关闭）
-IMPORTABLE = {"budget", "actual", "o_sys", "o_nat", "i_soc", "i_yy", "i_bs", "fa_hc", "q_init"}  # 上传兜底可写
+IMPORTABLE = {"budget", "actual", "o_sys", "o_nat", "i_soc", "i_yy", "i_bs", "fa_hc", "q_init", "er_out"}  # 上传兜底可写
 VALUE_ABS_MAX = 100000  # 量级异常闸
 PLAN_METRICS = {"budget", "fa_hc", "q_init"}  # 计划/预算类：不受"已发生月锁定"约束（预算是规划数据）
 EXTRA_METRICS = {  # 看板2 预算过程基线（不在看板1 行内，但可存取/编辑/导入）
     "fa_hc": "其中：期初法定HC（看板2）",
     "q_init": "其中：期初预算当量（看板2）",
 }
+# er_out = ER报表·月实际离职数（HR数仓，URL 待求）：自然流失预估的运算源。
+# 仅走导入/API（不入 EXTRA_METRICS 手填口——系统数拒手填）。可跨年取数（窗口回看上一年）。
+NAT_N_DEFAULT = 6  # 自然流失预估回看月数 n（可调参 1-24）
 
 
 # ---------------- DB ----------------
@@ -130,6 +133,10 @@ def init_db():
                 ("bonniewbli", "李文博", "管理员", "云产品五部", "[1,1,1,1]"),
             )
         _audit(c, "system", "初始化", "建库：年份 2025-2027、项目口径 13 项、账号 bonniewbli；数据表为空（待导入/待录入，不编造）")
+        try:
+            c.execute(f"ALTER TABLE years ADD COLUMN nat_n INTEGER NOT NULL DEFAULT {NAT_N_DEFAULT}")
+        except sqlite3.OperationalError:
+            pass  # 列已存在
 
 
 def now() -> str:
@@ -215,7 +222,41 @@ def _agg(parts):
     return sum(nums) if nums else None
 
 
-def compute(vals, branches, lock):
+def nat_forecast(vals, lock, prev_er, nat_n):
+    """自然流失预估：近 n 个已发生月 ER 实际离职合计 ÷ n，均摊到每个未发生月。
+    窗口锚定最近已发生月（lock），可跨年回看上一年 er_out；窗口内任一月缺数则不派生（识空，不编造）。
+    返回 (effective_o_nat[12], nat_info)。已有存量 o_nat（导入/源）优先，派生只补空。"""
+    er = vals.get("er_out", [None] * 12)
+    prev_er = prev_er or [None] * 12
+    window, missing = [], []
+    for i in range(nat_n):
+        m1 = lock - i  # 1-based 月，≤0 落到上一年
+        if m1 >= 1:
+            v, tag = er[m1 - 1], f"{m1}月"
+        else:
+            v, tag = prev_er[m1 + 12 - 1], f"上年{m1 + 12}月"
+        window.append(tag)
+        if not isinstance(v, (int, float)):
+            missing.append(tag)
+    nat_avg = None
+    if not missing:
+        total = sum(er[m1 - 1] if m1 >= 1 else prev_er[m1 + 12 - 1] for m1 in range(lock, lock - nat_n, -1))
+        nat_avg = round(total / nat_n, 2)
+    eff = list(vals.get("o_nat", [None] * 12))
+    derived_months = []
+    if nat_avg is not None:
+        for m in range(lock, 12):  # 仅未发生月，且不覆盖存量
+            if not isinstance(eff[m], (int, float)):
+                eff[m] = nat_avg
+                derived_months.append(m + 1)
+    info = {"n": nat_n, "avg": nat_avg, "window": window, "missing": missing, "derived_months": derived_months}
+    return eff, info
+
+
+def compute(vals, branches, lock, prev_er=None, nat_n=NAT_N_DEFAULT):
+    nat_eff, nat_info = nat_forecast(vals, lock, prev_er, nat_n)
+    vals = dict(vals, o_nat=nat_eff)
+
     def g(k, m):
         v = vals.get(k, [None] * 12)[m]
         return v if isinstance(v, (int, float)) else None
@@ -247,8 +288,12 @@ def compute(vals, branches, lock):
     def avg(a):
         n = [x for x in a if isinstance(x, (int, float))]
         return round(sum(n) / len(n), 2) if n else None
+    nat_nums = [x for x in nat_eff if isinstance(x, (int, float))]
+    out_sum = sum(x for x in outT if isinstance(x, (int, float)))
+    nat_info["pct"] = round(100 * sum(nat_nums) / out_sum, 1) if nat_nums and out_sum else None
     return {"campT": campT, "outT": outT, "inT": inT, "chain": chain,
-            "chain_avg": avg(chain), "budget_avg": avg(vals.get("budget", [None] * 12))}
+            "chain_avg": avg(chain), "budget_avg": avg(vals.get("budget", [None] * 12)),
+            "o_nat_eff": nat_eff, "nat": nat_info}
 
 
 # ---------------- 通用 ----------------
@@ -336,10 +381,17 @@ def get_board(year: int):
             raise HTTPException(404, "年份不存在")
         vals, notes = _grid(c, year)
         brs = _branches(c, year)
-        comp = compute(vals, brs, yr["lock_month"])
+        prev_er = _grid(c, year - 1)[0].get("er_out")
+        nat_n = yr["nat_n"] if "nat_n" in yr.keys() else NAT_N_DEFAULT
+        comp = compute(vals, brs, yr["lock_month"], prev_er=prev_er, nat_n=nat_n)
         metrics = {k: {"vals": vals.get(k, [None] * 12), "notes": notes.get(k, {})} for k, *_ in CANON_PROJECTS}
+        metrics["o_nat"]["vals"] = comp["o_nat_eff"]  # 存量优先，派生只补未发生月空格
+        demo = bool(c.execute("SELECT 1 FROM cells WHERE year=? AND source='demo' LIMIT 1", (year,)).fetchone()
+                    or c.execute("SELECT 1 FROM branches WHERE year=? AND created_by='demo' LIMIT 1", (year,)).fetchone()
+                    or c.execute("SELECT 1 FROM ledger_rows WHERE batch=-999 LIMIT 1").fetchone())
         return {"year": year, "status": yr["status"], "lock": yr["lock_month"],
-                "metrics": metrics, "branches": brs, "computed": comp, "ts": int(time.time() * 1000)}
+                "metrics": metrics, "branches": brs, "computed": comp, "nat": comp["nat"],
+                "demo": demo, "ts": int(time.time() * 1000)}
 
 
 class CellEdit(BaseModel):
@@ -508,6 +560,253 @@ async def import_csv(year: int, file: UploadFile = File(...), x_user: str = Head
     return {"ok": True, "snapshot": snap_id, "rows": len(rows), "applied": applied, "diffs": diffs}
 
 
+# ---------------- 外部源直连（KPI系统 zhaopin / diy 员工宽表 / HR数仓…） ----------------
+# 高压线：凭据与接口信息放 backend/sources_config.json（已 .gitignore，绝不进仓库）；
+# 未配置/接口未通 → 428 明确报错，单元格保持空，绝不编造。
+# 配置由「浏览器 F12 抓包 Copy as cURL」或平台开放 API 文档填入（url/method/headers/params/map），改配置不改代码。
+SOURCES_CFG_PATH = os.path.join(os.path.dirname(__file__), "sources_config.json")
+SOURCE_METRICS = {  # 可直连的系统数指标（均在 IMPORTABLE 白名单内）
+    "actual": "月末实际在岗（月末快照·集团本部含青云）",
+    "er_out": "ER报表·月实际离职数（自然流失预估运算源）",
+    "o_sys": "已流出/待流出·系统明确",
+    "i_soc": "已流入/待流入·社招",
+    "i_yy": "校招·预约入职",
+    "i_bs": "校招·毕业生转聘",
+}
+
+
+def load_sources_cfg():
+    if not os.path.exists(SOURCES_CFG_PATH):
+        return {}
+    with open(SOURCES_CFG_PATH, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _dig(obj, path):
+    for part in path.split("."):
+        if isinstance(obj, dict):
+            obj = obj.get(part)
+        else:
+            return None
+    return obj
+
+
+def fetch_source(cfg, year):
+    """按配置调外部源，返回 {month(1-12): value}。month 字段兼容 1-12 / '202601' / '2026-01'。"""
+    import httpx
+    def sub(o):
+        if isinstance(o, str):
+            return o.replace("{year}", str(year))
+        if isinstance(o, dict):
+            return {k: sub(v) for k, v in o.items()}
+        if isinstance(o, list):
+            return [sub(v) for v in o]
+        return o
+    r = httpx.request(cfg.get("method", "GET"), cfg["url"], params=sub(cfg.get("params")),
+                      json=sub(cfg.get("body")), headers=cfg.get("headers") or {},
+                      timeout=30, verify=cfg.get("verify", True))
+    if r.status_code in (401, 403):
+        raise HTTPException(502, f"源「{cfg.get('name', '?')}」鉴权失败（{r.status_code}）：headers 里的 Cookie/token 失效，请重新抓包更新")
+    r.raise_for_status()
+    data = r.json()
+    mp = cfg["map"]
+    rows = _dig(data, mp["list"]) if mp.get("list") else data
+    if not isinstance(rows, list):
+        raise HTTPException(502, f"源响应里找不到列表路径「{mp.get('list')}」——用返回 JSON 核对 map.list 配置")
+    out = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        m_raw, v_raw = row.get(mp["month"]), row.get(mp["value"])
+        try:
+            digits = "".join(ch for ch in str(m_raw) if ch.isdigit())
+            m = int(digits[-2:]) if len(digits) > 2 else int(digits)
+            v = float(v_raw)
+        except (TypeError, ValueError):
+            continue
+        if 1 <= m <= 12:
+            out[m] = v
+    if not out:
+        raise HTTPException(502, "源返回 0 个有效月份值——核对 map.month / map.value 字段名与筛选条件")
+    return out
+
+
+def _month_completed(year, month):
+    """月末快照仅当月最后一天已过才成立（当月不取期中值冒充月末）"""
+    import calendar
+    import datetime
+    last = datetime.date(year, month, calendar.monthrange(year, month)[1])
+    return last < datetime.date.today()
+
+
+@app.get("/api/sources")
+def sources_status():
+    cfg = load_sources_cfg()
+    out = []
+    for k, name in SOURCE_METRICS.items():
+        entries = cfg.get(k) or []
+        if isinstance(entries, dict):
+            entries = [entries]
+        out.append({"metric": k, "name": name,
+                    "configured": bool(entries and entries[0].get("url")),
+                    "sources": [{"name": e.get("name", "?"), "url": e.get("url", ""), "note": e.get("note", "")} for e in entries]})
+    return {"sources": out, "cfg_path": "backend/sources_config.json（gitignore·凭据不进仓库）"}
+
+
+class SyncReq(BaseModel):
+    year: int
+    source: Optional[str] = None  # 多来源时指定 name（如 diy 第二来源核对），缺省用第一个
+
+
+@app.post("/api/sources/{metric}/sync")
+def source_sync(metric: str, q: SyncReq, x_user: str = Header("bonniewbli")):
+    if metric not in SOURCE_METRICS or metric not in IMPORTABLE:
+        raise HTTPException(404, f"指标「{metric}」不支持外部源直连")
+    entries = load_sources_cfg().get(metric) or []
+    if isinstance(entries, dict):
+        entries = [entries]
+    cfg = next((e for e in entries if not q.source or e.get("name") == q.source), None)
+    if not cfg or not cfg.get("url"):
+        raise HTTPException(428, {"msg": f"「{SOURCE_METRICS[metric]}」外部源未配置",
+                                  "need": "backend/sources_config.json 填入该指标的 url/method/headers/params/map（参照 sources_config.example.json；来源=F12抓包 Copy as cURL 或平台开放API文档）"})
+    with db() as c:
+        require_writer(c, x_user)
+        yr = c.execute("SELECT * FROM years WHERE year=?", (q.year,)).fetchone()
+        if not yr:
+            raise HTTPException(404, "年份不存在")
+    months_vals = fetch_source(cfg, q.year)
+    bad = [f"{m}月={v}" for m, v in months_vals.items() if abs(v) > VALUE_ABS_MAX]
+    if bad:
+        raise HTTPException(422, {"msg": "量级异常，整批拒绝入库", "errors": bad})
+    with db() as c:
+        require_writer(c, x_user)
+        lock = yr["lock_month"]
+        src_tag = f"sync:{cfg.get('name', metric)}"
+        applied, diffs, skipped = 0, 0, []
+        for m in sorted(months_vals):
+            v = months_vals[m]
+            if not _month_completed(q.year, m):
+                skipped.append(m)  # 未完结月：月末快照尚不存在
+                continue
+            cur = c.execute("SELECT value FROM cells WHERE year=? AND metric=? AND month=?", (q.year, metric, m)).fetchone()
+            curv = cur["value"] if cur else None
+            confirmed = metric not in PLAN_METRICS and m <= lock and curv is not None
+            if confirmed and curv != v:
+                ex = c.execute("SELECT id FROM pending_diffs WHERE year=? AND metric=? AND month=? AND status='open'",
+                               (q.year, metric, m)).fetchone()
+                if ex:
+                    c.execute("UPDATE pending_diffs SET src_value=?, source=?, created_at=? WHERE id=?",
+                              (v, src_tag, now(), ex["id"]))
+                else:
+                    c.execute("INSERT INTO pending_diffs(year,metric,month,cur_value,src_value,source,status,created_at) "
+                              "VALUES(?,?,?,?,?,?,'open',?)", (q.year, metric, m, curv, v, src_tag, now()))
+                diffs += 1
+            else:
+                _write_cell(c, q.year, metric, m, v, None, src_tag, x_user)
+                applied += 1
+        _audit(c, x_user, "源同步",
+               f"{q.year}「{SOURCE_METRICS[metric]}」← {cfg.get('name', '?')}：采纳 {applied} 格" +
+               (f"；已确认月差异 {diffs} 格待处理" if diffs else "") +
+               (f"；跳过未完结月 {','.join(map(str, skipped))}（月末快照未成立）" if skipped else ""))
+    return {"ok": True, "metric": metric, "source": cfg.get("name", "?"),
+            "applied": applied, "diffs": diffs, "skipped": skipped}
+
+
+# ---------------- 示例（演示假数）数据：source='demo' 全程打标，一键彻底清除 ----------------
+# 高压线兜底：示例数据只填当前为空的格（绝不覆盖真实数据）；页面挂【示例】横幅；
+# 清除 = 按 demo 标签删 cells/branch/台账/历史，真实数据分毫不动。
+DEMO_LEDGER_BATCH = -999
+
+
+@app.post("/api/demo/load")
+def demo_load(y: YearNew, x_user: str = Header("bonniewbli")):
+    """一次填所有年份页签（含历史归档年）：按各年 lock 填历史实际月，只填空格不覆盖真数"""
+    with db() as c:
+        require_writer(c, x_user)
+        if not c.execute("SELECT 1 FROM years WHERE year=?", (y.year,)).fetchone():
+            raise HTTPException(404, "年份不存在")
+        filled, skipped = 0, 0
+        er_cycle = [7, 6, 8]
+        for yr in c.execute("SELECT * FROM years ORDER BY year").fetchall():
+            yy, lock = yr["year"], yr["lock_month"]
+            base = 548 + (2026 - yy) * 6  # 历史年在岗基数略高，逐年递减更像真实走势
+
+            def put(metric, month, value, note=None):
+                nonlocal filled, skipped
+                if not (1 <= month <= 12):
+                    return
+                if c.execute("SELECT 1 FROM cells WHERE year=? AND metric=? AND month=?", (yy, metric, month)).fetchone():
+                    skipped += 1  # 已有数据（真实或旧示例）不覆盖
+                    return
+                c.execute("INSERT INTO cells(year,metric,month,value,note,source,updated_by,updated_at) VALUES(?,?,?,?,?,?,?,?)",
+                          (yy, metric, month, value, note, "demo", x_user, now()))
+                filled += 1
+
+            for m in range(1, 13):
+                put("budget", m, 550 + (2026 - yy) * 5)
+                put("fa_hc", m, 479)
+                put("q_init", m, 550 + (2026 - yy) * 5)
+            for m in range(1, lock + 1):  # 历史实际月：lock=12 的归档年填满全年
+                put("actual", m, base - m)
+                put("er_out", m, er_cycle[m % 3])
+                put("o_sys", m, er_cycle[(m + 1) % 3] - 4)  # 已发生月流出明细（2/3/4 循环）
+                put("i_soc", m, er_cycle[(m + 2) % 3] - 5)
+            if lock >= 7:
+                put("i_yy", 7, 22, "【示例】历史校招批次")
+            if lock < 12:  # 执行中/规划年：未发生月的 BP 调节与分支
+                put("o_sys", lock + 1, 2)
+                put("o_bp", lock + 3, 3, "【示例】某中心已明确离职3人")
+                put("o_act", lock + 4, 2, "【示例】计划优化2人")
+                put("i_soc", lock + 1, 4)
+                put("i_soc", lock + 2, 3)
+                put("i_soc", lock + 3, 2)
+                put("i_yy", lock + 1, 25, "【示例】校招批次到岗")
+                put("i_bs", lock + 2, 5)
+                put("i_cbp", lock + 3, 1, "【示例】BP补录1人")
+                if not c.execute("SELECT 1 FROM branches WHERE year=? AND created_by='demo'", (yy,)).fetchone():
+                    c.execute("INSERT INTO branches(year,sec,name,sign,on_ok,created_by,created_at) VALUES(?,?,?,?,1,'demo',?)",
+                              (yy, "总流出（−）", "【示例】组织架构腾挪", "-", now()))
+                    bid = c.execute("SELECT last_insert_rowid() AS i").fetchone()["i"]
+                    if lock + 3 <= 12:
+                        c.execute("INSERT INTO branch_cells(branch_id,month,value,note,updated_by,updated_at) VALUES(?,?,?,?,'demo',?)",
+                                  (bid, lock + 3, 2, "【示例】腾挪冲抵2", now()))
+        if not c.execute("SELECT 1 FROM ledger_rows WHERE batch=?", (DEMO_LEDGER_BATCH,)).fetchone():
+            mm = lambda off: f"{y.year}-{min(lock + off, 12):02d}-15"
+            demo_rows = [
+                ("已入职", "", mm(0), "【示例】张三", "后台开发", mm(0)),
+                ("已offer待入职", mm(1), "", "【示例】李四", "产品经理", ""),
+                ("简历&面试中", mm(2), "", "【示例】王五", "前端开发", ""),
+                ("Hold", "", "", "【示例】赵六", "测试开发", ""),
+            ]
+            for st, eta, join_dt, who, job, jd in demo_rows:
+                c.execute("INSERT INTO ledger_rows(year,batch,dept,center,owner,src,job,lvl,cls,loc,ask,num,tgt,st,eta,memo,offer,olvl,join_dt,jmemo,who) "
+                          "VALUES(0,?,?,?,?,?,?,'','','深圳',?,'1','',?,?,?,?,'',?,'',?)",
+                          (DEMO_LEDGER_BATCH, "【示例】云产品五部", "【示例】某中心", "【示例】负责人", "【示例】演示行",
+                           job, f"{y.year}-{max(lock - 1, 1):02d}-01", st, eta, "【示例】", who, join_dt or jd, who))
+        _audit(c, x_user, "导入示例数据",
+               f"全部年份页签（含历史归档年填满实际月）：示例(demo标签)填充 {filled} 格（跳过已有数据 {skipped} 格·不覆盖真实数）+ 示例分支/台账4行；页面挂【示例】横幅，说「删除假数」一键全清")
+    return get_board(y.year)
+
+
+@app.post("/api/demo/clear")
+def demo_clear(x_user: str = Header("bonniewbli")):
+    with db() as c:
+        require_writer(c, x_user)
+        n_cells = c.execute("SELECT COUNT(*) AS n FROM cells WHERE source='demo'").fetchone()["n"]
+        c.execute("DELETE FROM cells WHERE source='demo'")
+        c.execute("DELETE FROM cells_history WHERE source='demo'")
+        bids = [r["id"] for r in c.execute("SELECT id FROM branches WHERE created_by='demo'")]
+        for bid in bids:
+            c.execute("DELETE FROM branch_cells WHERE branch_id=?", (bid,))
+            c.execute("DELETE FROM branches WHERE id=?", (bid,))
+        n_led = c.execute("SELECT COUNT(*) AS n FROM ledger_rows WHERE batch=?", (DEMO_LEDGER_BATCH,)).fetchone()["n"]
+        c.execute("DELETE FROM ledger_rows WHERE batch=?", (DEMO_LEDGER_BATCH,))
+        c.execute("DELETE FROM pending_diffs WHERE source='demo'")
+        _audit(c, x_user, "清除示例数据",
+               f"按 demo 标签彻底清除：{n_cells} 格 + 分支 {len(bids)} 条 + 台账 {n_led} 行（真实数据不动，审计留痕）")
+    return {"ok": True, "cells": n_cells, "branches": len(bids), "ledger": n_led}
+
+
 # ---------------- 审计 / 导出 ----------------
 @app.get("/api/audit")
 def get_audit(limit: int = 200):
@@ -536,6 +835,8 @@ def export_csv(year: int):
 
 # ---------------- 迟到数据差异：采纳修正 / 维持口径 ----------------
 def _metric_name(c, key):
+    if key == "er_out":
+        return "ER报表·月实际离职数（HR数仓·URL待求）"
     if key in EXTRA_METRICS:
         return EXTRA_METRICS[key]
     p = c.execute("SELECT name FROM projects WHERE key=?", (key,)).fetchone()
@@ -597,6 +898,26 @@ def set_lock(year: int, s: LockSet, x_user: str = Header("bonniewbli")):
         c.execute("UPDATE years SET lock_month=? WHERE year=?", (s.lock_month, year))
         _audit(c, x_user, "月份确认", f"{year} 锁定推进：1-{yr['lock_month']}月 → 1-{s.lock_month}月（已确认月改动须走采纳修正）")
     return {"ok": True, "year": year, "lock_month": s.lock_month}
+
+
+# ---------------- 自然流失预估调参（参考前 n 个月平均） ----------------
+class NatParam(BaseModel):
+    n: int
+
+
+@app.post("/api/years/{year}/natparam")
+def set_natparam(year: int, p: NatParam, x_user: str = Header("bonniewbli")):
+    if not (1 <= p.n <= 24):
+        raise HTTPException(422, "回看月数 n 须为 1-24")
+    with db() as c:
+        require_writer(c, x_user)
+        yr = c.execute("SELECT * FROM years WHERE year=?", (year,)).fetchone()
+        if not yr:
+            raise HTTPException(404, "年份不存在")
+        old_n = yr["nat_n"] if "nat_n" in yr.keys() else NAT_N_DEFAULT
+        c.execute("UPDATE years SET nat_n=? WHERE year=?", (p.n, year))
+        _audit(c, x_user, "自然流失调参", f"{year} 回看月数 n：{old_n} → {p.n}（近{p.n}个月实际离职均值摊到未发生月，重算）")
+    return get_board(year)
 
 
 # ---------------- 分支停用 / 还原（不删数据） ----------------

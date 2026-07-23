@@ -293,6 +293,10 @@ body.navfold .navtg{left:8px;}
 
 <!-- 看板1 -->
 <div class="view on" id="v-kb1">
+  <div class="banner" id="demoBanner" style="background:#FDECEC;border-color:#F3B4B4;color:#8C2B2B">
+    <span><b>【示例】演示数据已加载</b>——当前含功能演示用假数（demo 标签全程可溯），非真实口径，勿用于汇报</span>
+    <button class="btn danger" onclick="demoClear()">删除假数（一键全清）</button>
+  </div>
   <div class="banner" id="diffBanner">
     <span id="diffText"></span>
     <button class="btn" onclick="acceptDiff()">采纳修正（重锚重算）</button>
@@ -343,8 +347,8 @@ body.navfold .navtg{left:8px;}
   <table class="cov">
     <thead><tr><th>数据源</th><th>提供什么数</th><th>接入方式</th><th>状态</th></tr></thead>
     <tbody>
-      <tr><td>KPI系统 zhaopin / 员工宽表 diy</td><td>月末实际在岗</td><td>API 直连（待批）</td><td><span class="chip todo">调研中</span></td></tr>
-      <tr><td>HR数仓</td><td>待流出（系统明确）、校招（预约入职/毕业生转聘）</td><td>API 直连（待批）</td><td><span class="chip todo">调研中</span></td></tr>
+      <tr><td>KPI系统 zhaopin / 员工宽表 diy</td><td>月末实际在岗（月末快照·集团本部含青云；筛选：管理主体=腾讯集团本部·组织范围/统计指标<b>待核对</b>；diy宽表=第二来源核对）</td><td>API 直连（配置 sources_config.json 即通）</td><td id="dsActual"><span class="chip todo">调研中</span> <button class="btn ghost2" onclick="srcSync('actual')" title="按已配置的外部源拉取；仅取已完结月（月末快照）；已确认月差异走采纳/维持">⟳ 立即取数</button></td></tr>
+      <tr><td>HR数仓</td><td>待流出（系统明确）、校招（预约入职/毕业生转聘）、上一年ER报表离职数（自然流失预估运算源·<b>具体URL待求</b>）</td><td>API 直连（配置 sources_config.json 即通）</td><td><span class="chip todo">调研中</span> <button class="btn ghost2" onclick="srcSync('er_out')" title="拉取 ER 报表月实际离职数（自然流失预估运算源）">⟳ 取ER离职数</button></td></tr>
       <tr><td>招聘系统</td><td>社招 已预约入职</td><td>API 直连（待批）</td><td><span class="chip todo">调研中</span></td></tr>
       <tr><td>招聘需求系统（国内招聘 / workday）</td><td>社招需求、已发offer（含拒offer）</td><td>API 直连（待批）</td><td><span class="chip todo">调研中</span></td></tr>
       <tr><td>招聘台账（看板3）</td><td>已入职 / 已offer / 面试中</td><td>本产品维护 + 兜底上传</td><td><span class="chip ok">V1 内置</span></td></tr>
@@ -489,6 +493,15 @@ body.navfold .navtg{left:8px;}
   <div class="row"><button class="btn gray" onclick="closeYear()">取消</button><button class="btn" onclick="saveYear()">生成模板并读取系统数</button></div>
 </div></div>
 
+<!-- 自然流失预估调参 modal -->
+<div class="mask" id="maskNat"><div class="modal">
+  <h3>自然流失预估 · 调参</h3>
+  <div class="meta">含义：主动离职&amp;跨部门活水人数预估。<br>运算：近 <b>n</b> 个月 ER 实际离职合计 ÷ n，均摊到每个未发生月（源：HR数仓·上一年ER报表离职数，URL 待求）。窗口内任一月缺数则不派生（留空不编造）。</div>
+  <label>回看月数 n（1-24）</label><input type="number" id="natN" min="1" max="24" step="1">
+  <div class="err" id="natErr">n 须为 1-24 的整数</div>
+  <div class="row"><button class="btn gray" onclick="closeNatParam()">取消</button><button class="btn" onclick="saveNatParam()">保存并重算</button></div>
+</div></div>
+
 <!-- 看板3.1 台账添加行 modal -->
 <div class="mask" id="maskKb3"><div class="modal" style="width:640px;max-height:86vh;overflow:auto">
   <h3>台账 · 添加行</h3>
@@ -562,7 +575,7 @@ var srcMap={
   chain:['运算','实际月=月末实际在岗；预估月=上月−流出+流入+调节','calc'],
   outT:['运算·合计','总流出 = 各流出项求和（悬停格显示当月算式）','calc'],
   inT:['运算·合计','总流入 = 社招+校招合计+增量需求+分支（悬停格显示当月算式）','calc'],
-  o_sys:['HR数仓','系统已提离职在流程','snap'], o_nat:['运算','过去6个月主动离职+活水调出 均值','calc'],
+  o_sys:['HR数仓','系统已提离职在流程','snap'], o_nat:['运算','近n个月ER实际离职合计÷n 摊到未发生月（n可调参·源：HR数仓上一年ER报表离职数·URL待求）','calc'],
   o_bp:['BP 手填','人工沟通已明确要走','bp'], o_act:['BP 手填','计划劝退 · 收敛主杠杆 · 人事节奏','bp'],
   i_soc:['招聘系统+需求系统','社招&内部活水待流入','snap'],
   i_yy:['HR数仓','校招·预约入职','snap'], i_bs:['HR数仓','校招·毕业生转聘','snap'], i_cbp:['BP 手填','校招·非系统','bp'],
@@ -645,7 +658,7 @@ function render(){
   h+=tr('subtot','总流出（−） <span class="rowtool" onclick="tg(\'out\')">'+(open_.out?'▾':'▸')+'</span> <span class="badge snap">HR数仓</span><span class="badge bp">BP</span>',outT,{src:'outT',negRow:true,tot:sum(outT),lockShade:true});
   if(open_.out){
     if(cfgOn('o_sys'))h+=tr('sub',cfgName('o_sys','已流出/待流出 · 系统明确'),D.o_sys,{src:'o_sys',hideZero:true,tot:sum(D.o_sys),lockShade:true});
-    if(cfgOn('o_nat'))h+=tr('sub',cfgName('o_nat','已流出/待流出 · 自然流失预估'),D.o_nat,{src:'o_nat',hideZero:true,tot:sum(D.o_nat),lockShade:true});
+    if(cfgOn('o_nat'))h+=tr('sub',cfgName('o_nat','已流出/待流出 · 自然流失预估')+natBadge(),D.o_nat,{src:'o_nat',hideZero:true,tot:sum(D.o_nat),lockShade:true});
     if(cfgOn('o_bp'))h+=tr('sub',cfgName('o_bp','已流出/待流出 · 已明确非系统（BP）'),D.o_bp,{src:'o_bp',key:'o_bp',edit:cfgAdd('o_bp',true),hideZero:true,tot:sum(D.o_bp),lockShade:true});
     if(cfgOn('o_act'))h+=tr('sub',cfgName('o_act','已流出/待流出 · 主动动作（BP）（调节项）'),D.o_act,{src:'o_act',key:'o_act',edit:cfgAdd('o_act',true),hideZero:true,tot:sum(D.o_act),lockShade:true});
     h+=customRows('out');
@@ -698,6 +711,26 @@ function render(){
   ];
   var lightsEl=document.getElementById('lights');if(lightsEl)lightsEl.innerHTML=lights.map(function(l){return '<div class="light"><span class="dot '+(l[0]===null?'':(l[0]?'g':'r'))+'" style="'+(l[0]===null?'background:#C7B36A':'')+'"></span>'+l[1]+'</div>';}).join('');
 }
+/* 自然流失预估：占总流出% 外显 + 回看月数 n 调参（含义：主动离职&跨部门活水人数预估） */
+function natBadge(){
+  var nt=D.nat||{n:6,pct:null,missing:[]};
+  var pct=(nt.pct===null||nt.pct===undefined)?'—':nt.pct+'%';
+  var tip='近'+nt.n+'个月ER实际离职合计÷'+nt.n+'，均摊到每个未发生月（源：HR数仓·上一年ER报表离职数，URL待求）'+(nt.missing&&nt.missing.length?'；窗口缺数：'+nt.missing.join('、')+'（缺数不派生，留空不编造）':'');
+  return ' <span class="badge calc" title="'+esc(tip).replace(/"/g,'&quot;')+'">占总流出 '+pct+'</span>'
+    +(RO?'':' <span class="rowtool" title="调参：参考前 n 个月平均（当前 n='+nt.n+'）" onclick="openNatParam()">n='+nt.n+' ⚙</span>');
+}
+function openNatParam(){
+  var nt=D.nat||{n:6};
+  document.getElementById('natN').value=nt.n;
+  document.getElementById('natErr').style.display='none';
+  document.getElementById('maskNat').classList.add('on');
+}
+function closeNatParam(){document.getElementById('maskNat').classList.remove('on');}
+function saveNatParam(){alert('连接后端后可调参（当前为本地演示模式）');}
+function srcSync(){alert('连接后端后可取数（当前为本地模式）');}
+function demoLoad(){alert('连接后端后可导入示例数据');}
+function demoClear(){alert('连接后端后可清除示例数据');}
+function demoBanner(on){var b=document.getElementById('demoBanner');if(b)b.classList.toggle('on',!!on);var btn=document.getElementById('demoBtn');if(btn)btn.textContent=on?'✕ 删除假数':'◔ 导入示例数据';}
 function tg(k){open_[k]=!open_[k];renderAll();}
 function renderAll(){cmap={};render();renderKb2();bindCells();renderProg();}
 /* ===== 看板2 ===== （kb2base 由 bindYear 按年份重建） */
@@ -915,6 +948,7 @@ function renderCoverage(){
    ['✅','看板3 · 台账4列组(需求/进展/入选入职/系统派生)+3.2待流入-社招面板(归月自动派生)+导入+添加行弹窗(必填★)+行级编辑保存/取消'],
    ['grp','核心功能'],
    ['✅','预估计算（上月−流出+流入+调节，不自动配平，超标红灯）'],
+   ['✅','自然流失预估=近n月ER实际离职均值摊到未发生月（n可调参·跨年窗口·缺数不派生·占总流出%外显）'],
    ['✅','手动调节项（±分支/备注必填/停用还原/不覆盖源）'],
    ['✅','实时双层数据 + 采纳修正/维持口径 + 审计 + 导出'],
    ['✅','AI 助手（浮窗弹出 + 问答 + 代填草稿·走人走的门）'],
@@ -943,7 +977,7 @@ function aiAnswer(q){var c=chain(),qa=avg(D.budget),mi=pMonth(q),dm=q.match(/(\d
       +'<div class="act"><button onclick="aiDraftGo(\''+key+'\','+mi+')">去看板1 录入（人工确认）</button></div>'+aiCite('AI 代填草稿·走人走的门');}
   if(/校招/.test(q)){var ct=0;for(var m=0;m<12;m++)ct+=isN(campTot(m))?campTot(m):0;return YEAR+'年<b class="num">校招合计 '+ct+' 人</b>，峰值 7月 '+campTot(6)+'。分列：预约入职 '+sum(D.i_yy)+' / 毕业生转聘 '+sum(D.i_bs)+' / 非系统(BP) '+sum(D.i_cbp)+'。'+aiCite('HR数仓+BP · 看板1 校招∇');}
   if(/社招/.test(q))return '社招待流入合计 '+sum(D.i_soc)+' 人。逐条明细与归月派生见<b>看板3</b>。'+aiCite('招聘台账 · 看板3');
-  if(/离职|流失|流出/.test(q)){var ot=0;for(m=0;m<12;m++)ot+=isN(outflow(m))?outflow(m):0;return YEAR+'年<b class="num">总流出合计 '+ot+' 人</b>：系统明确 '+sum(D.o_sys)+' / 自然流失 '+sum(D.o_nat)+' / 已明确非系统 '+sum(D.o_bp)+' / 主动动作 '+sum(D.o_act)+'。自然流失=过去6月主动离职+活水调出均值。'+aiCite('HR数仓+运算+BP');}
+  if(/离职|流失|流出/.test(q)){var ot=0;for(m=0;m<12;m++)ot+=isN(outflow(m))?outflow(m):0;return YEAR+'年<b class="num">总流出合计 '+ot+' 人</b>：系统明确 '+sum(D.o_sys)+' / 自然流失 '+sum(D.o_nat)+' / 已明确非系统 '+sum(D.o_bp)+' / 主动动作 '+sum(D.o_act)+'。自然流失=近'+((D.nat&&D.nat.n)||6)+'个月ER实际离职均值摊到未发生月（n可调参）'+(D.nat&&isN(D.nat.pct)?'，占总流出 '+D.nat.pct+'%':'')+'。'+aiCite('HR数仓+运算+BP');}
   if(/流入/.test(q)){var it=0;for(m=0;m<12;m++)it+=isN(inflow(m))?inflow(m):0;return YEAR+'年<b class="num">总流入合计 '+it+' 人</b>：社招 '+sum(D.i_soc)+'、校招 '+sum([sum(D.i_yy),sum(D.i_bs),sum(D.i_cbp)].filter(isN))+'、增量需求 '+sum(D.i_incr)+'。'+aiCite('多源汇总 · 看板1');}
   if(/达标|收敛|超标|超预算|红灯/.test(q)){var over=[];for(m=0;m<12;m++)if(c[m]>D.budget[m]+0.001)over.push(M[m]+'('+c[m]+'>'+D.budget[m]+')');return '收敛校验：年均 '+f2(avg(c))+' vs 预算 '+f2(qa)+' → '+(avg(c)<=qa+0.005?'✅ 达标':'⚠ 超标')+'；12月 '+c[11]+' vs '+D.budget[11]+' → '+(c[11]<=D.budget[11]?'✅ 达标':'⚠ 超标')+'。'+(over.length?'<br><b>逐月超预算</b>：'+over.join('、'):'<br>无逐月超预算月份。')+aiCite('运算 · 看板1 收敛灯');}
   if(/年末|12月|十二月/.test(q))return '12月 <b class="num">期末在岗预估 '+c[11]+'</b>；预算当量 '+D.budget[11]+'。'+(c[11]<=D.budget[11]?'✅ ≤预算（达标）':'⚠ 超预算')+aiCite('运算 · 看板1');
@@ -998,7 +1032,7 @@ document.addEventListener('keydown',function(e){
   if(tag==='input'||tag==='textarea'||tag==='select')return;
   if(e.key>='1'&&e.key<='4'){goView('kb'+(e.key-1));toast('已切换到 看板'+(e.key-1));}
   if(e.key==='?')helpToggle();
-  if(e.key==='Escape'){helpToggle(false);toastHide();closeModal();closeDef();closeYear();closeKb3Add();if(typeof aiToggle==='function')aiToggle(false);}
+  if(e.key==='Escape'){helpToggle(false);toastHide();closeModal();closeDef();closeYear();closeKb3Add();closeNatParam();if(typeof aiToggle==='function')aiToggle(false);}
 });
 /* 后台配置：跨标签页实时同步（admin 改动 → 看板自动重渲染）；回到本页时兜底重读 */
 function cfgTag(){var el=document.getElementById('freshTag');if(!el)return;var base='数据源：○ 未接入 · 单元格留空待取数';el.textContent=CFG?base+' · ✓ 已应用后台配置'+(RO?'（当前账号只读）':''):base;}
@@ -1018,7 +1052,8 @@ var FRONT2SEC={out:'总流出（−）',inn:'总流入（＋）',camp:'校招∇
 function nn(v){return (v===null||v===undefined)?'':v;}
 function applyBoard(b){
   var y=b.year,d=DATA[y]||(DATA[y]=mkEmpty(b.status,b.lock));
-  d.status=b.status;d.lock=b.lock;
+  d.status=b.status;d.lock=b.lock;d.nat=b.nat||d.nat;
+  if(typeof demoBanner==='function')demoBanner(!!b.demo);
   ['budget','actual','o_sys','o_nat','o_bp','o_act','i_soc','i_yy','i_bs','i_cbp','i_incr'].forEach(function(k){
     d[k]=((b.metrics[k]||{}).vals||[]).map(nn);while(d[k].length<12)d[k].push('');
   });
@@ -1097,8 +1132,50 @@ setYear=function(y){
   YEAR=y;loadYear(y).then(function(){refreshKb0();}).catch(apiErr);
 };
 renderAudit=function(){if(!USE_API)return ORIG.renderAudit();renderAuditApi();};
+demoLoad=function(){
+  if(!USE_API)return alert('连接后端后可导入示例数据');
+  if(RO)return alert('当前账号为只读权限');
+  api('POST','/api/demo/load',{year:YEAR})
+    .then(function(b){applyBoard(b);return loadLedger();})
+    .then(function(){renderAuditApi();if(typeof toast==='function')toast('示例数据已加载（demo 标签·只填空格不覆盖真数）');})
+    .catch(apiErr);
+};
+demoClear=function(){
+  if(!USE_API)return alert('连接后端后可清除示例数据');
+  if(RO)return alert('当前账号为只读权限');
+  if(!window.confirm('删除全部示例假数？（按 demo 标签彻底清除，真实数据不动）'))return;
+  api('POST','/api/demo/clear',{})
+    .then(function(r){return loadYear(YEAR).then(function(){return loadLedger();}).then(function(){
+      renderAuditApi();if(typeof toast==='function')toast('假数已全清：'+r.cells+' 格 + 分支 '+r.branches+' 条 + 台账 '+r.ledger+' 行');});})
+    .catch(apiErr);
+};
+srcSync=function(metric){
+  if(!USE_API)return alert('连接后端后可取数（当前为本地模式）');
+  if(RO)return alert('当前账号为只读权限');
+  api('POST','/api/sources/'+metric+'/sync',{year:YEAR})
+    .then(function(r){
+      alert('取数完成（'+r.source+'）：采纳 '+r.applied+' 格'
+        +(r.diffs?('；已确认月差异 '+r.diffs+' 格 → 顶栏「采纳修正/维持口径」处理'):'')
+        +(r.skipped&&r.skipped.length?('；跳过未完结月 '+r.skipped.join('、')+'月（月末快照未成立）'):''));
+      return loadYear(YEAR);})
+    .then(function(){renderAuditApi();})
+    .catch(apiErr);
+};
+saveNatParam=function(){
+  if(!USE_API)return alert('连接后端后可调参（当前为本地演示模式）');
+  var n=parseInt(document.getElementById('natN').value,10);
+  if(!n||n<1||n>24){document.getElementById('natErr').style.display='block';return;}
+  api('POST','/api/years/'+YEAR+'/natparam',{n:n})
+    .then(function(b){closeNatParam();applyBoard(b);renderAuditApi();if(typeof toast==='function')toast('自然流失回看月数 n='+n+'，已重算（审计留痕）');})
+    .catch(apiErr);
+};
 ORIG.kb3Import=kb3Import;
 function loadLedger(){return api('GET','/api/ledger').then(function(r){LEDGER=r.rows||[];renderKb3();});}
+function loadSources(){return api('GET','/api/sources').then(function(r){
+  var a=(r.sources||[]).find(function(s){return s.metric==='actual';});
+  var el=document.getElementById('dsActual'),chip=el?el.querySelector('.chip'):null;
+  if(chip&&a){chip.className='chip '+(a.configured?'ok':'todo');chip.textContent=a.configured?'源已配置':'待配置（sources_config.json）';}
+}).catch(function(){});}
 /* 台账 CRUD（共享Excel式；派生列无 ecell 不响应；只读账号拒） */
 kb3AddRow=function(){
   if(!USE_API)return alert('连接后端后可添加行');
@@ -1229,6 +1306,9 @@ function apiTag(){var el=document.getElementById('freshTag');if(el)el.textConten
 exportCSV=function(){if(!USE_API)return ORIG.exportCSV();window.open('/api/export/'+YEAR+'.csv');};
 function addImportBtn(){
   var bar=document.querySelector('.topbar');if(!bar||document.getElementById('impSnapBtn'))return;
+  var db=document.createElement('button');db.id='demoBtn';db.className='tbi';db.textContent='◔ 导入示例数据';
+  db.title='功能演示用假数：demo 标签全程可溯、只填空格不覆盖真数、页面挂【示例】横幅；再点或说「删除假数」一键全清';
+  db.onclick=function(){var on=document.getElementById('demoBanner').classList.contains('on');on?demoClear():demoLoad();};
   var b=document.createElement('button');b.id='impSnapBtn';b.className='tbi';b.textContent='⬆ 导入快照CSV';b.title='上传兜底：metric,month,value；校验闸不合格整批拒绝';
   var inp=document.createElement('input');inp.type='file';inp.accept='.csv';inp.style.display='none';
   inp.onchange=function(){var f=inp.files[0];if(!f)return;var fd=new FormData();fd.append('file',f);
@@ -1240,7 +1320,7 @@ function addImportBtn(){
     inp.value='';};
   b.onclick=function(){inp.click();};
   var firstBtn=bar.querySelector('.btn');
-  if(firstBtn)bar.insertBefore(b,firstBtn);else bar.appendChild(b);
+  if(firstBtn){bar.insertBefore(b,firstBtn);bar.insertBefore(db,b);}else{bar.appendChild(db);bar.appendChild(b);}
   bar.appendChild(inp);
 }
 fetch('/api/health').then(function(r){return r.json();}).then(function(h){
@@ -1248,7 +1328,7 @@ fetch('/api/health').then(function(r){return r.json();}).then(function(h){
   USE_API=true;
   apiTag();
   addImportBtn();
-  return loadCfg().then(loadYears).then(function(){return loadYear(YEAR);}).then(function(){return loadLedger();}).then(function(){renderAuditApi();});
+  return loadCfg().then(loadYears).then(function(){return loadYear(YEAR);}).then(function(){return loadLedger();}).then(function(){return loadSources();}).then(function(){renderAuditApi();});
 }).catch(function(){/* 无后端：本地空态模式 */});
 })();
 </script>

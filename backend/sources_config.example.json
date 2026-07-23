@@ -1,0 +1,34 @@
+{
+  "_说明": "复制本文件为 sources_config.json（已 gitignore，凭据绝不进仓库），把抓包/开放API信息填进去即通，不用改代码。每个指标 = 来源数组，第一个为默认；POST /api/sources/{metric}/sync {year, source?} 拉取。map: list=响应里行数组的路径(a.b.c)，month=月份字段名(兼容 1-12/202601/2026-01)，value=数值字段名。",
+  "actual": [
+    {
+      "name": "zhaopin",
+      "note": "KPI系统 https://zhaopin.woa.com/dashboard/new-home 的底层数据API（页面地址不是接口，需 F12 抓包）。筛选：管理主体=腾讯集团本部；组织范围=【待核对：业务经营管理部 还是 云产品五部？】；时间=截止当月最后一天；统计指标=【待核对：HC定额是编制口径，月末实际在岗应选“在岗人数”类指标】",
+      "url": "",
+      "method": "GET",
+      "headers": {"Cookie": "抓包后填入", "X-Token": "或平台开放API的 key"},
+      "params": {"year": "{year}", "示例筛选参数": "抓包后照填"},
+      "map": {"list": "data.rows", "month": "month", "value": "headcount"}
+    },
+    {
+      "name": "diy",
+      "note": "第二来源核对用：https://diy.woa.com/datasheet/report 员工信息宽表（用工类型=集团本部正式【待核对：青云是否含在“正式”内，防漏】，员工状态=在职+试用）。sync 时 body 传 {\"source\":\"diy\"} 指定",
+      "url": "",
+      "method": "POST",
+      "headers": {"Cookie": "抓包后填入"},
+      "body": {"year": "{year}", "示例查询参数": "抓包后照填"},
+      "map": {"list": "data.list", "month": "stat_month", "value": "cnt"}
+    }
+  ],
+  "er_out": [
+    {
+      "name": "hr-dw",
+      "note": "HR数仓·上一年ER报表离职数（自然流失预估运算源）。具体URL待求——拿到后照上面格式填",
+      "url": "",
+      "method": "GET",
+      "headers": {},
+      "params": {"year": "{year}"},
+      "map": {"list": "data.rows", "month": "month", "value": "leave_cnt"}
+    }
+  ]
+}
