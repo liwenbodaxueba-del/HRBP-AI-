@@ -1135,18 +1135,34 @@ function navFold(f){
 })();
 </script>
 <script>
-/* ===== 看板3.1 台账限高+展开全部 ===== */
-var KB3_CLAMP=430, kb3Open=false;
+/* ===== 看板3.1 台账限高（可拖拽调整高度）+展开全部 ===== */
+var KB3_H=430, kb3Open=false;
 function kb3ApplyClamp(){
   var w=document.getElementById('kb3Wrap');if(!w)return;
   var n=(typeof D!=='undefined'&&D&&D.kb3rows)?D.kb3rows.length:0;
-  if(kb3Open){w.style.maxHeight='';w.style.overflowY='';}
-  else{w.style.maxHeight=KB3_CLAMP+'px';w.style.overflowY='auto';}
+  var drag=document.getElementById('kb3Drag');
+  if(kb3Open){w.style.height='';w.style.minHeight='';w.style.overflowY='';w.style.resize='';if(drag)drag.style.display='none';}
+  else{w.style.height=KB3_H+'px';w.style.minHeight='150px';w.style.overflowY='auto';w.style.resize='vertical';if(drag)drag.style.display=n>8?'':'none';}
   var b=document.getElementById('kb3ExpandBtn');
   if(b){b.style.display=n>8?'':'none';b.textContent=kb3Open?'收起列表':'展开全部（'+n+' 行）';}
 }
 function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
-(function(){var _r=renderKb3;renderKb3=function(){_r();kb3ApplyClamp();};kb3ApplyClamp();})();
+(function(){
+  var w=document.getElementById('kb3Wrap');
+  if(w&&!document.getElementById('kb3Drag')){
+    var d=document.createElement('div');d.id='kb3Drag';d.title='拖拽调整列表高度（右下角也可拉）';
+    d.style.cssText='height:12px;margin:2px 0 0;border-radius:6px;cursor:ns-resize;display:flex;align-items:center;justify-content:center;user-select:none;';
+    d.innerHTML='<span style="width:44px;height:4px;border-radius:2px;background:#C9D6EA;display:block"></span>';
+    d.onmouseenter=function(){d.firstChild.style.background='#7FB0F0';};
+    d.onmouseleave=function(){d.firstChild.style.background='#C9D6EA';};
+    w.parentNode.insertBefore(d,w.nextSibling);
+    var sy=0,sh=0,dragging=false;
+    d.addEventListener('mousedown',function(e){dragging=true;sy=e.clientY;sh=w.offsetHeight;e.preventDefault();document.body.style.cursor='ns-resize';});
+    document.addEventListener('mousemove',function(e){if(!dragging)return;KB3_H=Math.max(150,sh+(e.clientY-sy));w.style.height=KB3_H+'px';});
+    document.addEventListener('mouseup',function(){if(dragging){dragging=false;document.body.style.cursor='';}});
+  }
+  var _r=renderKb3;renderKb3=function(){_r();kb3ApplyClamp();};kb3ApplyClamp();
+})();
 </script>
 </body>
 </html>
