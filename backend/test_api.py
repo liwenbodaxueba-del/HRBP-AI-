@@ -32,14 +32,16 @@ def j(r):
 r = client.get("/api/health")
 check("health", r.status_code == 200 and j(r)["ok"])
 r = client.get("/api/config")
-check("config 13项目+账号", len(j(r)["projs"]) == 13 and j(r)["accts"][0]["id"] == "bonniewbli")
+check("config 12项目+账号(链行已并入实际行)", len(j(r)["projs"]) == 12 and j(r)["accts"][0]["id"] == "bonniewbli")
 r = client.get("/api/board/2026")
 b = j(r)
 check("空板 lock=6 识空", b["lock"] == 6 and all(v is None for v in b["computed"]["chain"]))
 
 # ========== 校验闸 ==========
 check("锁定月拒绝423", client.post("/api/board/2026/cell", json={"metric": "o_bp", "month": 3, "value": 2, "note": "x"}, headers=H).status_code == 423)
-check("备注必填422", client.post("/api/board/2026/cell", json={"metric": "o_bp", "month": 9, "value": 5, "note": ""}, headers=H).status_code == 422)
+r = client.post("/api/board/2026/cell", json={"metric": "o_bp", "month": 9, "value": 5, "note": ""}, headers=H)
+check("备注可选·空备注直填200(260723 Excel式)", r.status_code == 200 and j(r)["metrics"]["o_bp"]["vals"][8] == 5)
+client.post("/api/board/2026/cell", json={"metric": "o_bp", "month": 9, "value": None, "note": ""}, headers=H)  # 清场
 check("系统数拒手填403", client.post("/api/board/2026/cell", json={"metric": "o_sys", "month": 9, "value": 5, "note": "x"}, headers=H).status_code == 403)
 check("量级异常422", client.post("/api/board/2026/cell", json={"metric": "o_bp", "month": 9, "value": 999999, "note": "x"}, headers=H).status_code == 422)
 check("未配置账号403", client.post("/api/board/2026/cell", json={"metric": "o_bp", "month": 9, "value": 1, "note": "x"}, headers={"X-User": "nobody"}).status_code == 403)
@@ -58,7 +60,7 @@ check("有效录入 outT9=5", j(r)["computed"]["outT"][8] == 5)
 client.post("/api/board/2026/cell", json={"metric": "o_bp", "month": 9, "value": 7, "note": "改为7人"}, headers=H)
 r = client.get("/api/board/2026/history", params={"metric": "o_bp", "month": 9})
 h = j(r)["history"]
-check("变更历史2条(5→7可追溯)", len(h) == 2 and h[0]["old_value"] == 5 and h[0]["new_value"] == 7, str([(x["old_value"], x["new_value"]) for x in h]))
+check("变更历史可追溯(最新5→7)", len(h) >= 2 and h[0]["old_value"] == 5 and h[0]["new_value"] == 7, str([(x["old_value"], x["new_value"]) for x in h]))
 
 # ========== 分支 + 停用还原 ==========
 r = client.post("/api/board/2026/branch", json={"sec": "总流出（−）", "name": "组织架构腾挪", "sign": "-"}, headers=H)
@@ -120,6 +122,36 @@ check("台账改行(两位年归一)", row["st"] == "已入职" and row["join"] 
 check("只读账号拒改台账", client.put(f"/api/ledger/row/{rid}", json={"fields": {"job": "x"}}, headers={"X-User": "nobody"}).status_code == 403)
 r = client.delete(f"/api/ledger/row/{rid}", headers=H)
 check("台账删行", len(j(r)["rows"]) == 2)
+
+# ========== 看板2 计划类分支：已发生月豁免锁定（260723） ==========
+r = client.post("/api/board/2026/branch", json={"sec": "法定HC·其中", "name": "编制调整", "sign": "+"}, headers=H)
+bhc = [x for x in j(r)["branches"] if x["name"] == "编制调整"][0]["id"]
+check("法定HC分支已发生月可改(计划类豁免)", client.post("/api/board/2026/cell", json={"metric": f"branch:{bhc}", "month": 2, "value": 3, "note": ""}, headers=H).status_code == 200)
+check("流出分支已发生月仍锁423", client.post("/api/board/2026/cell", json={"metric": f"branch:{bid}", "month": 2, "value": 1, "note": ""}, headers=H).status_code == 423)
+client.delete(f"/api/board/2026/branch/{bhc}", headers=H)  # 清场
+
+# ========== 台账模板/列性质闸（260723 对齐线下模板v2） ==========
+r = client.get("/api/ledger/template.xlsx")
+check("模板下载xlsx", r.status_code == 200 and "spreadsheetml" in r.headers["content-type"])
+hdr = "部门,中心,业务负责人,招聘岗位,职级,分类,国内/海外,城市,招聘数量,当前状态,预计到岗时间\n"
+r = client.post("/api/ledger/import", files={"file": ("t.csv", hdr + "云五,中心A,alice,后台开发,T9,研发,国内,深圳,2,简历&面试中,2026-08-01\n", "text/csv")}, headers=H)
+check("数量≠1整批拒绝(另起一行)", r.status_code == 422 and any("另起一行" in x for x in j(r)["detail"]["errors"]), str(j(r)["detail"]))
+r = client.post("/api/ledger/import", files={"file": ("t.csv", hdr + "云五,中心A,alice,后台开发,T9,研发,国内,深圳,1,在途,2026-08-01\n", "text/csv")}, headers=H)
+check("状态非枚举整批拒绝", r.status_code == 422 and any("下拉枚举" in x for x in j(r)["detail"]["errors"]))
+r = client.post("/api/ledger/import", files={"file": ("t.csv", hdr + "云五,中心A,alice,后台开发,T9,研发,美国,深圳,1,已入职,2026-08-01\n", "text/csv")}, headers=H)
+check("国内海外枚举闸", r.status_code == 422 and any("国内 或 海外" in x for x in j(r)["detail"]["errors"]))
+r = client.post("/api/ledger/import", files={"file": ("t.csv", hdr + "云五,中心A,alice,后台开发,T9,研发,国内,深圳,1,简历&面试中,1999-08-01\n", "text/csv")}, headers=H)
+check("日期年份limit闸", r.status_code == 422 and any("2000-2100" in x for x in j(r)["detail"]["errors"]))
+r = client.post("/api/ledger/import", files={"file": ("t.csv", hdr + "云五,中心A,alice,后台开发,T9,研发,国内,深圳,1,需求确认,2026-08-01\n", "text/csv")}, headers=H)
+check("合格导入(含新状态需求确认/新列)", r.status_code == 200 and j(r)["report"]["rows"] == 1, str(j(r).get("detail", "")))
+lrow = j(client.get("/api/ledger"))["rows"][0]
+check("新列jlvl/fam/cls映射", lrow["jlvl"] == "T9" and lrow["fam"] == "研发" and lrow["cls"] == "国内" and lrow["num"] == "1")
+lid = lrow["id"]
+check("eta变更缺原因422", client.put(f"/api/ledger/row/{lid}", json={"fields": {"eta": "2026-09-01"}}, headers=H).status_code == 422)
+r = client.put(f"/api/ledger/row/{lid}", json={"fields": {"eta": "2026-09-01", "memo": "候选人延期"}}, headers=H)
+row2 = [x for x in j(r)["rows"] if x["id"] == lid][0]
+check("eta变更留旧值到peta", r.status_code == 200 and row2["eta"] == "2026-09-01" and row2["peta"] == "2026-08-01", str(row2["peta"]))
+check("行编辑数量≠1拒绝", client.put(f"/api/ledger/row/{lid}", json={"fields": {"num": "3"}}, headers=H).status_code == 422)
 
 # ========== 自然流失预估（近n月ER实际离职均值摊到未发生月·可调参·占总流出%） ==========
 # 窗口缺数不派生（识空不编造）：只导 3-6 月
@@ -194,6 +226,7 @@ check("已发生月明细项有数(o_bp/i_yy)", b["metrics"]["o_bp"]["vals"][1] 
 check("o_nat已发生月=ER当月实际离职(同源自洽)", b["metrics"]["o_nat"]["vals"][0] == 6 and b["metrics"]["o_nat"]["vals"][5] == 16, str(b["metrics"]["o_nat"]["vals"][:6]))
 check("示例台账4行入库", len(j(client.get("/api/ledger"))["rows"]) == led_before + 4)
 check("示例分支带【示例】标", any("示例" in x["name"] for x in b["branches"]))
+check("实际行未发生月=链值合一(260723口径)", b["metrics"]["actual"]["vals"][11] is not None and b["metrics"]["actual"]["vals"][11] == b["computed"]["chain"][11], str(b["metrics"]["actual"]["vals"][6:]))
 b25 = j(client.get("/api/board/2025"))
 check("历史归档年2025实际月填满", b25["demo"] is True and all(isinstance(v, (int, float)) for v in b25["metrics"]["actual"]["vals"]), str(b25["metrics"]["actual"]["vals"]))
 check("2025历史年不加未来调节分支", not any("示例" in x["name"] for x in b25["branches"]))
