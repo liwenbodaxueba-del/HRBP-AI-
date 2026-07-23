@@ -122,7 +122,7 @@ table.bsc{border-collapse:collapse;width:100%;font-size:12.5px;font-variant-nume
 .modal h3{font-size:14.5px;color:var(--navy);margin-bottom:4px;}
 .modal .meta{font-size:12px;color:var(--ink3);margin-bottom:10px;}
 .modal label{display:block;font-size:12px;color:var(--ink2);margin:10px 0 4px;}
-.modal input,.modal textarea{width:100%;border:1px solid var(--b100);border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit;}
+.modal input,.modal textarea,.modal select{width:100%;border:1px solid var(--b100);border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit;background:#fff;}
 .modal textarea{height:54px;resize:none;}
 .modal .row{display:flex;gap:10px;margin-top:16px;justify-content:flex-end;}
 .err{color:var(--red);font-size:11.5px;display:none;margin-top:4px;}
@@ -325,7 +325,7 @@ body.navfold .navtg{left:8px;}
   <h2 class="sec">看板3.1 · 社招滚动台账（招聘需求面板）</h2>
   <div class="imp-bar">
     <label class="imp-btn">＋ 导入台账文档<input type="file" accept=".xlsx,.xls,.csv,application/pdf,.pdf" style="display:none" onchange="kb3Import(this)"></label>
-    <span id="kb3ImpName" class="imp-name">未导入 · 支持 xlsx/csv（解析入台账）或 pdf（预览）· 仅本地打开</span><span style="flex:1"></span><button class="btn ghost2" id="kb3ExpandBtn" onclick="kb3ToggleAll()" title="默认固定高度内滚动；点此展开全部行">展开全部</button><button class="btn ghost2" onclick="kb3AddRow()" title="Excel式：新增一行后双击单元格填写">＋ 添加行</button>
+    <span id="kb3ImpName" class="imp-name">未导入 · 支持 xlsx/csv（解析入台账）或 pdf（预览）· 仅本地打开</span><span style="flex:1"></span><button class="btn ghost2" id="kb3ExpandBtn" onclick="kb3ToggleAll()" title="默认固定高度内滚动；点此展开全部行">展开全部</button><button class="btn ghost2" onclick="kb3AddRow()" title="弹窗填写：必填项标★，填齐才可入库">＋ 添加行</button>
   </div>
   <div id="kb3ImpView"></div>
   <div class="tblwrap" id="kb3Wrap"><table class="plain" id="kb3Tbl"></table></div>
@@ -487,6 +487,15 @@ body.navfold .navtg{left:8px;}
   <label>年份</label><input type="number" id="yVal" min="2000" max="2100">
   <div class="err" id="yErr">年份无效或页签已存在</div>
   <div class="row"><button class="btn gray" onclick="closeYear()">取消</button><button class="btn" onclick="saveYear()">生成模板并读取系统数</button></div>
+</div></div>
+
+<!-- 看板3.1 台账添加行 modal -->
+<div class="mask" id="maskKb3"><div class="modal" style="width:640px;max-height:86vh;overflow:auto">
+  <h3>台账 · 添加行</h3>
+  <div class="meta">带 <span style="color:var(--red)">★</span> 为必填；系统派生列（归月/计入看板1/周期/超期/一句话备注）自动计算，无需填写。写入审计留痕。</div>
+  <div id="kb3FormGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px"></div>
+  <div class="err" id="kb3AddErr"></div>
+  <div class="row"><button class="btn gray" onclick="closeKb3Add()">取消</button><button class="btn" onclick="saveKb3Add()">保存入库</button></div>
 </div></div>
 
 <script>
@@ -812,6 +821,30 @@ function delRowFromDef(){var key=curDef.key;if(!key||!cmap[key])return;var sec=c
 function ec(r,f,cls){var v=r[f]==null?'':String(r[f]);return '<td class="ecell'+(cls?' '+cls:'')+'" data-f="'+f+'" title="双击编辑">'+esc(v)+'</td>';}
 function kb3DelRow(id){alert('连接后端后可删除（当前为本地演示模式）');}
 function kb3AddRow(){alert('连接后端后可添加行（当前为本地演示模式）');}
+function kb3EditRow(id){alert('连接后端后可编辑（当前为本地演示模式）');}
+function kb3SaveRow(id){}
+function kb3CancelRow(){}
+function saveKb3Add(){alert('连接后端后可添加行（当前为本地演示模式）');}
+/* 台账添加行弹窗：必填标★，前端先校验，后端 422 再兜底 */
+var KB3_FIELDS=[
+  {f:'dept',l:'部门',req:1},{f:'c',l:'中心',req:1},{f:'own',l:'业务负责人',req:1},{f:'src',l:'HC来源备注'},
+  {f:'job',l:'招聘岗位',req:1},{f:'cls',l:'分类(国内/海外)',sel:['国内','海外']},{f:'loc',l:'地点'},
+  {f:'ask',l:'需求提出时间',date:1},{f:'num',l:'招聘数量',num:1},
+  {f:'st',l:'进展(当前状态)',req:1,sel:['简历&面试中','已offer待入职','已入职','Hold','取消']},
+  {f:'eta',l:'预计到岗时间',date:1},{f:'memo',l:'备注(变更原因/卡点)'},
+  {f:'offer',l:'offer人选'},{f:'lvl',l:'人选职级'},{f:'join',l:'实际入职时间',date:1},{f:'jmemo',l:'入职备注'}];
+function openKb3Add(){
+  var g=document.getElementById('kb3FormGrid');
+  g.innerHTML=KB3_FIELDS.map(function(d){
+    var lab='<label>'+d.l+(d.req?' <span style="color:var(--red)">★</span>':'')+'</label>',id='kb3f_'+d.f,inner;
+    if(d.sel)inner='<select id="'+id+'"><option value="">（请选择）</option>'+d.sel.map(function(o){return '<option>'+o+'</option>';}).join('')+'</select>';
+    else inner='<input type="'+(d.num?'number':'text')+'" id="'+id+'"'+(d.date?' placeholder="YYYY-MM-DD"':'')+(d.num?' min="0" step="1"':'')+'>';
+    return '<div>'+lab+inner+'</div>';
+  }).join('');
+  document.getElementById('kb3AddErr').style.display='none';
+  document.getElementById('maskKb3').classList.add('on');
+}
+function closeKb3Add(){document.getElementById('maskKb3').classList.remove('on');}
 var KB3CATS=[{key:'实际社招（已入职）',st:'已入职'},{key:'待流入（待入职+活水已offer）',st:'已offer待入职'},{key:'待流入（简历面试中）',st:'简历&面试中'}];
 function kb3cat(st){var f=KB3CATS.find(function(x){return x.st===st;});return f?f.key:'不计入';}
 function kb3mo(r){if(r.st==='Hold'||r.st==='取消')return '';var d=(r.st==='已入职'?r.join:r.eta);return d?d.slice(0,7):'';}
@@ -821,7 +854,7 @@ function renderKb3(){
     +'<tr class="col"><th>部门</th><th>中心</th><th>业务负责人</th><th>HC来源备注</th><th>招聘岗位</th><th>分类(国内/海外)</th><th>地点</th><th>需求提出时间</th><th>招聘数量</th>'
     +'<th>进展(当前状态)</th><th>预计到岗时间</th><th>备注(变更原因/卡点)</th>'
     +'<th>offer人选</th><th>人选职级</th><th>实际入职时间</th><th>备注</th>'
-    +'<th>归月(自动)</th><th>计入看板1(自动)</th><th>周期·天(自动)</th><th>超期(自动)</th><th>一句话备注(自动)</th><th style="width:46px">操作</th></tr></thead><tbody>';
+    +'<th>归月(自动)</th><th>计入看板1(自动)</th><th>周期·天(自动)</th><th>超期(自动)</th><th>一句话备注(自动)</th><th style="width:96px">操作</th></tr></thead><tbody>';
   LEDGER.forEach(function(r){
     var cat=kb3cat(r.st),mo=kb3mo(r),over=(r.st==='简历&面试中'||r.st==='已offer待入职')&&r.eta<'2026-07';
     var days=(r.st==='已入职'&&r.join)?Math.round((new Date(r.join)-new Date(r.ask))/864e5):'';
@@ -831,7 +864,7 @@ function renderKb3(){
       +ec(r,'st')+ec(r,'eta')+ec(r,'memo')
       +ec(r,'offer')+ec(r,'lvl')+ec(r,'join')+ec(r,'jmemo')
       +'<td>'+(moLbl(mo)||'—')+'</td><td><span class="chip '+catChip+'">'+cat+'</span></td><td class="num">'+(days||'')+'</td><td>'+(over?'⚠超期':'')+'</td><td>'+one+'</td>'
-      +'<td class="c" style="text-align:center">'+(r.id?'<span class="rowtool del" onclick="kb3DelRow('+r.id+')" title="删除此行（审计留痕）">✕</span>':'')+'</td></tr>';
+      +'<td class="c" style="text-align:center;white-space:nowrap">'+(r.id?'<span class="rowtool" onclick="kb3EditRow('+r.id+')" title="编辑此行（手动列整行进入编辑态）">✎</span> <span class="rowtool del" onclick="kb3DelRow('+r.id+')" title="删除此行（审计留痕）">✕</span>':'')+'</td></tr>';
   });
   if(!LEDGER.length)g+='<tr><td colspan="22" style="text-align:center;color:#8194AE;padding:22px">暂无台账数据（全局一份·跨年滚动） · 点上方「导入台账文档」或接数据源</td></tr>';
   document.getElementById('kb3Tbl').innerHTML=g+'</tbody>';
@@ -879,7 +912,7 @@ function renderCoverage(){
    ['✅','看板0 · 导入 PDF 直接内嵌呈现原文（不做提取）'],
    ['✅','看板1 · 部门集成表：heads(项目+1-12月+年均+总数)、key(预算当量/期末在岗预估)、已流出入分列、校招∇可展开、⊕加分支、行双击下钻、超标红灯、趋势图+瀑布'],
    ['✅','看板2 · 预算看板：法定HC/预算当量=其中求和+⊕分支+收起'],
-   ['✅','看板3 · 台账4列组(需求/进展/入选入职/系统派生)+3.2待流入-社招面板(归月自动派生)+导入'],
+   ['✅','看板3 · 台账4列组(需求/进展/入选入职/系统派生)+3.2待流入-社招面板(归月自动派生)+导入+添加行弹窗(必填★)+行级编辑保存/取消'],
    ['grp','核心功能'],
    ['✅','预估计算（上月−流出+流入+调节，不自动配平，超标红灯）'],
    ['✅','手动调节项（±分支/备注必填/停用还原/不覆盖源）'],
@@ -965,7 +998,7 @@ document.addEventListener('keydown',function(e){
   if(tag==='input'||tag==='textarea'||tag==='select')return;
   if(e.key>='1'&&e.key<='4'){goView('kb'+(e.key-1));toast('已切换到 看板'+(e.key-1));}
   if(e.key==='?')helpToggle();
-  if(e.key==='Escape'){helpToggle(false);toastHide();closeModal();closeDef();closeYear();if(typeof aiToggle==='function')aiToggle(false);}
+  if(e.key==='Escape'){helpToggle(false);toastHide();closeModal();closeDef();closeYear();closeKb3Add();if(typeof aiToggle==='function')aiToggle(false);}
 });
 /* 后台配置：跨标签页实时同步（admin 改动 → 看板自动重渲染）；回到本页时兜底重读 */
 function cfgTag(){var el=document.getElementById('freshTag');if(!el)return;var base='数据源：○ 未接入 · 单元格留空待取数';el.textContent=CFG?base+' · ✓ 已应用后台配置'+(RO?'（当前账号只读）':''):base;}
@@ -1070,8 +1103,55 @@ function loadLedger(){return api('GET','/api/ledger').then(function(r){LEDGER=r.
 kb3AddRow=function(){
   if(!USE_API)return alert('连接后端后可添加行');
   if(RO)return alert('当前账号为只读权限');
-  api('POST','/api/ledger/row',{fields:{}})
-    .then(function(r){LEDGER=r.rows||[];renderKb3();renderAuditApi();if(typeof toast==='function')toast('已新增空行（双击单元格填写）');})
+  openKb3Add();
+};
+saveKb3Add=function(){
+  var fs={},miss=[];
+  KB3_FIELDS.forEach(function(d){var el=document.getElementById('kb3f_'+d.f),v=el?el.value.trim():'';
+    if(d.req&&!v)miss.push(d.l);if(v!=='')fs[d.f]=v;});
+  var err=document.getElementById('kb3AddErr');
+  if(miss.length){err.textContent='必填项未填：'+miss.join('、');err.style.display='block';return;}
+  api('POST','/api/ledger/row',{fields:fs})
+    .then(function(r){closeKb3Add();LEDGER=r.rows||[];renderKb3();renderAuditApi();if(typeof toast==='function')toast('已添加台账行（审计留痕）');})
+    .catch(apiErr);
+};
+function kb3RowEditor(f,old){
+  var ed;
+  if(f==='st'){ed=document.createElement('select');
+    ['','简历&面试中','已offer待入职','已入职','Hold','取消'].forEach(function(o){
+      var op=document.createElement('option');op.value=o;op.textContent=o||'（空）';if(o===old)op.selected=true;ed.appendChild(op);});
+  }else{ed=document.createElement('input');ed.type='text';ed.value=old;
+    if(f==='ask'||f==='eta'||f==='join')ed.placeholder='YYYY-MM-DD';}
+  ed.style.cssText='width:100%;min-width:90px;border:1px solid var(--blue-l);border-radius:4px;padding:2px 6px;font:inherit;background:#fff;';
+  return ed;
+}
+kb3EditRow=function(id){
+  if(!USE_API)return alert('连接后端后可编辑');
+  if(RO)return alert('当前账号为只读权限');
+  renderKb3();
+  var tr=document.querySelector('#kb3Tbl tr[data-rid="'+id+'"]');if(!tr)return;
+  tr.querySelectorAll('td.ecell').forEach(function(td){
+    var f=td.getAttribute('data-f'),old=td.textContent;
+    td.setAttribute('data-old',old);
+    var ed=kb3RowEditor(f,old);td.textContent='';td.appendChild(ed);
+  });
+  tr.lastElementChild.innerHTML='<button class="btn" style="padding:2px 8px;font-size:11px" onclick="kb3SaveRow('+id+')">保存</button><button class="btn gray" style="padding:2px 8px;font-size:11px;margin-left:4px" onclick="kb3CancelRow()">取消</button>';
+};
+kb3CancelRow=function(){renderKb3();};
+kb3SaveRow=function(id){
+  var tr=document.querySelector('#kb3Tbl tr[data-rid="'+id+'"]');if(!tr)return;
+  var fs={},miss=[];
+  tr.querySelectorAll('td.ecell').forEach(function(td){
+    var f=td.getAttribute('data-f'),old=td.getAttribute('data-old')||'',ed=td.querySelector('input,select');
+    if(!ed)return;
+    var nv=ed.value.trim(),def=KB3_FIELDS.find(function(d){return d.f===f;});
+    if(def&&def.req&&!nv)miss.push(def.l);
+    if(nv!==old)fs[f]=nv;
+  });
+  if(miss.length)return alert('必填项不能清空：'+miss.join('、'));
+  if(!Object.keys(fs).length)return kb3CancelRow();
+  api('PUT','/api/ledger/row/'+id,{fields:fs})
+    .then(function(r){LEDGER=r.rows||[];renderKb3();renderAuditApi();if(typeof toast==='function')toast('已保存整行改动（审计留痕）');})
     .catch(apiErr);
 };
 kb3DelRow=function(id){

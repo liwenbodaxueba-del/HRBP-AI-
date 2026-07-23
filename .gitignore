@@ -2,3 +2,4 @@ backend/hcfb.db
 backend/uvicorn.log
 __pycache__/
 *.pyc
+backend/hcfb_test.db

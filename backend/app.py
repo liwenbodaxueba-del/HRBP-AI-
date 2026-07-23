@@ -885,6 +885,7 @@ LEDGER_F2DB = {"dept": "dept", "c": "center", "own": "owner", "src": "src", "job
               "loc": "loc", "ask": "ask", "num": "num", "tgt": "tgt", "st": "st", "eta": "eta", "memo": "memo",
               "offer": "offer", "lvl": "olvl", "join": "join_dt", "jmemo": "jmemo", "who": "who"}
 LEDGER_DATE_F = {"ask", "tgt", "eta", "join"}
+LEDGER_REQUIRED = [("dept", "部门"), ("c", "中心"), ("own", "业务负责人"), ("job", "招聘岗位"), ("st", "进展(当前状态)")]
 
 
 class LedgerEdit(BaseModel):
@@ -908,6 +909,9 @@ def ledger_add_row(e: LedgerEdit, x_user: str = Header("bonniewbli")):
         for f, v in (e.fields or {}).items():
             if f in LEDGER_F2DB:
                 vals[LEDGER_F2DB[f]] = _ledger_norm(f, v)
+        missing = [lab for f, lab in LEDGER_REQUIRED if not vals[LEDGER_F2DB[f]]]
+        if missing:
+            raise HTTPException(422, "必填项未填：" + "、".join(missing))
         c.execute(
             "INSERT INTO ledger_rows(year,batch,dept,center,owner,src,job,lvl,cls,loc,ask,num,tgt,st,eta,memo,offer,olvl,join_dt,jmemo,who) "
             "VALUES(0,0,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
@@ -929,11 +933,14 @@ def ledger_edit_row(rid: int, e: LedgerEdit, x_user: str = Header("bonniewbli"))
         if not row:
             raise HTTPException(404, "台账行不存在")
         changes = []
+        req = dict(LEDGER_REQUIRED)
         for f, v in (e.fields or {}).items():
             if f not in LEDGER_F2DB:
                 continue
             db_f = LEDGER_F2DB[f]
             nv = _ledger_norm(f, v)
+            if f in req and not nv:
+                raise HTTPException(422, f"必填项「{req[f]}」不能清空")
             ov = row[db_f] or ""
             if nv != ov:
                 c.execute(f"UPDATE ledger_rows SET {db_f}=? WHERE id=?", (nv, rid))
