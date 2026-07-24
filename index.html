@@ -1187,12 +1187,14 @@ function rowEditCancel(){
   ROWEDIT=null;renderAll();
 }
 function rowEditSave(key){
-  var m=cmap[key];if(!m)return;
-  var r=m.row,sec=m.sec,isNew=!!r._new;
-  // 新建行必须先填行名
-  var nameVal=(document.getElementById('ninp_'+key)||{}).value||r.name||'';
-  nameVal=nameVal.trim();
-  if(isNew&&!nameVal){if(typeof toast==='function')toast('请先填写行名（必填）');return;}
+  // key 可能是固定 BP 行(o_bp/o_act/i_cbp/i_incr，不在 cmap)，也可能是自定义分支行(C+id，在 cmap)
+  var m=cmap[key],r=m?m.row:null,sec=m?m.sec:null,isNew=!!(r&&r._new);
+  // 仅新建分支行需先填行名
+  var nameVal='';
+  if(isNew){
+    nameVal=((document.getElementById('ninp_'+key)||{}).value||r.name||'').trim();
+    if(!nameVal){if(typeof toast==='function')toast('请先填写行名（必填）');return;}
+  }
   // 收集数据变更
   var chg=[];
   document.querySelectorAll('input.rowed[data-rk="'+key+'"]').forEach(function(inp){
