@@ -770,10 +770,11 @@ function tr(cls,label,arr,opt){
   var t='<tr class="'+cls+'"'+(opt.drill?' data-drill="'+opt.drill+'" title="双击下钻"':'')+'><td>'+label+'</td>';
   for(var m=0;m<12;m++){
     var v=(arr&&arr[m]!==undefined&&arr[m]!==null)?arr[m]:'';
-    var editable=opt.edit&&m>=lock&&!RO;
+    var rowEdit=opt.key&&ROWEDIT===opt.key;
+    var editable=opt.edit&&(m>=lock||rowEdit)&&!RO;  // 行编辑态放宽：全月可填（新建行/调整行不受已发生月限制）
     var cl=(m<lock&&opt.lockShade?'lock ':'')+(editable?'edit adj ':'')+(opt.neg&&v<0?'neg ':'');
     var disp=(v===''||(v===0&&opt.hideZero))?'':(opt.negRow&&v!==0?'−'+v:(opt.plus&&v>0?'+'+v:v));
-    if(opt.key&&ROWEDIT===opt.key&&editable){disp='<input type="number" step="1" class="rowed" data-rk="'+opt.key+'" data-m="'+m+'" value="'+(v===''?'':v)+'" onkeydown="if(event.key===\'Enter\'){event.preventDefault();rowEditEnter(\''+opt.key+'\');}else if(event.key===\'Escape\'){event.preventDefault();rowEditEnter(\''+opt.key+'\');}" style="width:100%;min-width:44px;border:1px solid var(--blue-l);padding:2px 4px;font:inherit;text-align:right;background:#fff">';}
+    if(rowEdit&&editable){disp='<input type="number" step="1" class="rowed" data-rk="'+opt.key+'" data-m="'+m+'" value="'+(v===''?'':v)+'" onkeydown="if(event.key===\'Enter\'){event.preventDefault();rowEditEnter(\''+opt.key+'\');}else if(event.key===\'Escape\'){event.preventDefault();rowEditEnter(\''+opt.key+'\');}" style="width:100%;min-width:44px;border:1px solid var(--blue-l);padding:2px 4px;font:inherit;text-align:right;background:#fff">';}
     var noteTxt=memos[(opt.key||'')+'_'+m];
     var noteAttr=noteTxt?' data-note="'+esc(noteTxt).replace(/"/g,'&quot;')+'"':'';
     var memo=noteTxt?'<span class="memo"></span>':'';
@@ -1140,16 +1141,53 @@ function rowEditEnter(key){
   if(window.confirm('检测到未保存的更改，是否保存？\n确定 = 保存并关闭　·　取消 = 放弃更改'))rowEditSave(key);
   else rowEditCancel();
 }
-function rowEditCancel(){ROWEDIT=null;renderAll();}
+function rowEditCancel(){
+  if(ROWEDIT){
+    var m=cmap[ROWEDIT];if(m&&m.row._new){custom[m.sec]=custom[m.sec].filter(function(x){return x!==m.row;});}
+  }
+  ROWEDIT=null;renderAll();
+}
 function rowEditSave(key){
+  var m=cmap[key];if(!m)return;
+  var r=m.row,sec=m.sec,isNew=!!r._new;
+  // 新建行必须先填行名
+  var nameVal=(document.getElementById('ninp_'+key)||{}).value||r.name||'';
+  nameVal=nameVal.trim();
+  if(isNew&&!nameVal){if(typeof toast==='function')toast('请先填写行名（必填）');return;}
+  // 收集数据变更
   var chg=[];
   document.querySelectorAll('input.rowed[data-rk="'+key+'"]').forEach(function(inp){
-    var m=+inp.getAttribute('data-m'),raw=inp.value.trim();
+    var mi=+inp.getAttribute('data-m'),raw=inp.value.trim();
     var nv=raw===''?null:parseFloat(raw);
     if(raw!==''&&isNaN(nv))return;
-    var old=gV(key,m);old=(old===''||old===null||old===undefined)?null:old;
-    if(nv!==old)chg.push([m,nv]);
+    var old=gV(key,mi);old=(old===''||old===null||old===undefined)?null:old;
+    if(nv!==old)chg.push([mi,nv]);
   });
+  // 新建行：先通过 API 创建分支，再逐格写数据
+  if(isNew){
+    r.name=nameVal;delete r._new;
+    var frontSec=FRONT2SEC[sec];
+    if(USE_API&&frontSec){
+      api('POST','/api/board/'+YEAR+'/branch',{sec:frontSec,name:nameVal,sign:'+'})
+        .then(function(b){
+          applyBoard(b);ROWEDIT=null;
+          if(!open_[sec])open_[sec]=true;
+          if(typeof toast==='function')toast('分支已创建（审计留痕）');
+          renderAll();
+        }).catch(apiErr);
+      return;
+    }
+    // 无后端：本地暂存
+    ROWEDIT=null;
+    log('bonniewbli','新增分支',(secName[sec]||sec)+' · '+nameVal+'（纯计人头·负数=调减）');
+    if(!chg.length){renderAll();return;}
+    (function step(i){
+      if(i>=chg.length){if(typeof toast==='function')toast('已保存 '+chg.length+' 格');return;}
+      cellWrite(key,chg[i][0],chg[i][1],undefined,function(){step(i+1);});
+    })(0);
+    return;
+  }
+  // 已有行：直接逐格写
   ROWEDIT=null;
   if(!chg.length){renderAll();return;}
   (function step(i){
@@ -1178,10 +1216,11 @@ document.addEventListener('mousedown',function(e){
 });
 var curDef={sec:null,key:null};
 function openRowDef(sec,key){
-  if(!key){  // 260724 新增分支：不弹窗，直接插一个待命名空白行进入内联编辑
+  if(!key){  // 260724 新增分支：不弹窗，直接插空白行并进入整行编辑态（全行可编辑）
     var r={id:cid++,name:'',sign:'+',vals:Array(12).fill(0),_new:true};
-    custom[sec].push(r);if(!open_[sec])open_[sec]=true;renderAll();
-    setTimeout(function(){var inp=document.getElementById('ninp_C'+r.id);if(inp)inp.focus();},0);
+    custom[sec].push(r);if(!open_[sec])open_[sec]=true;
+    var nk='C'+r.id;ROWEDIT=nk;renderAll();
+    setTimeout(function(){var inp=document.getElementById('ninp_'+nk);if(inp)inp.focus();},0);
     return;
   }
   curDef={sec:sec,key:key};  // 编辑已有行：保留原确认弹窗
@@ -1189,15 +1228,11 @@ function openRowDef(sec,key){
   document.getElementById('dDel').style.display='inline-block';document.getElementById('dErr').style.display='none';
   var r=cmap[key].row;document.getElementById('dName').value=r?r.name:'';
   document.getElementById('maskDef').classList.add('on');}
-// 260724 内联新行：回车/失焦提交——空名则整行撤销（行名必填，不弹窗）
+// 260724 内联新行：行名失焦只暂存到内存（不触发持久化），保存/取消统一由行级编辑按钮控制
 function commitNewRow(key,val){var m=cmap[key];if(!m)return;var r=m.row;if(!r._new)return;
-  var name=(val||'').trim();
-  if(!name){cancelNewRow(key);return;}  // 空名 → 撤销该空行
-  r.name=name;delete r._new;
-  log('bonniewbli','新增分支',(secName[m.sec]||m.sec)+' · '+name+'（纯计人头·负数=调减）');
-  renderAll();}
+  r.name=(val||'').trim();}
 function cancelNewRow(key){var m=cmap[key];if(!m)return;var sec=m.sec,r=m.row;
-  custom[sec]=custom[sec].filter(function(x){return x!==r;});renderAll();}
+  custom[sec]=custom[sec].filter(function(x){return x!==r;});ROWEDIT=null;renderAll();}
 function closeDef(){document.getElementById('maskDef').classList.remove('on');}
 function saveRowDef(){var name=document.getElementById('dName').value.trim();
   if(!name){document.getElementById('dErr').style.display='block';return;}
