@@ -253,6 +253,20 @@ check("删除假数:2025历史年同清(真er_out保留)", b25["demo"] is False 
 check("删除假数:台账示例行清光", len(j(client.get("/api/ledger"))["rows"]) == led_before)
 check("删除假数:分支清光", not any("示例" in x["name"] for x in b["branches"]))
 
+# ========== 看板视图偏好持久化（列宽/固定列/隐藏列/隐藏行 存后端） ==========
+check("初始无偏好", client.get("/api/prefs", headers=H).json() == {})
+check("未知偏好键422", client.put("/api/prefs/xxx", json={"value": 1}, headers=H).status_code == 422)
+r = client.put("/api/prefs/hcfb_kb3pin", json={"value": ["dept", "job"]}, headers=H)
+check("存固定列偏好200", r.status_code == 200)
+client.put("/api/prefs/hcfb_colw", json={"value": {"kb3Tbl": [90, 110]}}, headers=H)
+client.put("/api/prefs/hcfb_kb3colhide", json={"value": {"src": 1}}, headers=H)
+p = client.get("/api/prefs", headers=H).json()
+check("偏好回读一致", p["hcfb_kb3pin"] == ["dept", "job"] and p["hcfb_colw"]["kb3Tbl"] == [90, 110] and p["hcfb_kb3colhide"] == {"src": 1}, str(p))
+client.put("/api/prefs/hcfb_kb3pin", json={"value": ["dept"]}, headers=H)
+check("偏好upsert覆盖", client.get("/api/prefs", headers=H).json()["hcfb_kb3pin"] == ["dept"])
+check("偏好按用户隔离", client.get("/api/prefs", headers={"X-User": "someone_else"}).json() == {})
+check("只读账号存偏好403", client.put("/api/prefs/hcfb_colw", json={"value": {}}, headers={"X-User": "nobody"}).status_code == 403)
+
 # ========== 导出 ==========
 r = client.get("/api/export/2026.csv")
 check("导出CSV", r.status_code == 200 and "期末在岗预估" in r.text)

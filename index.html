@@ -1793,6 +1793,18 @@ saveNatParam=function(){
 };
 ORIG.kb3Import=kb3Import;
 function loadLedger(){return api('GET','/api/ledger').then(function(r){LEDGER=r.rows||[];renderKb3();});}
+/* 260724 看板视图偏好持久化：后端为准，落 localStorage 作离线缓存；变更透明镜像到后端 */
+function savePref(k,val){if(!USE_API)return;api('PUT','/api/prefs/'+k,{value:val}).catch(function(){});}
+(function(){var _set=localStorage.setItem.bind(localStorage),BK={hcfb_colw:1,hcfb_kb3pin:1,hcfb_kb3colhide:1,hcfb_kb3hide:1};
+  localStorage.setItem=function(k,v){_set(k,v);if(BK[k]&&window.USE_API){try{savePref(k,JSON.parse(v));}catch(e){}}};})();
+function loadPrefs(){return api('GET','/api/prefs').then(function(p){
+  if(!p||typeof p!=='object')return;
+  if(p.hcfb_colw){COLW=p.hcfb_colw;}
+  if(p.hcfb_kb3pin&&p.hcfb_kb3pin.length!==undefined){KB3PIN=p.hcfb_kb3pin;}
+  if(p.hcfb_kb3hide){KB3HIDE=p.hcfb_kb3hide;}
+  if(p.hcfb_kb3colhide&&window.KB3COLHIDE){var h=window.KB3COLHIDE;Object.keys(h).forEach(function(k){delete h[k];});Object.keys(p.hcfb_kb3colhide).forEach(function(k){h[k]=p.hcfb_kb3colhide[k];});}
+  renderKb3();
+}).catch(function(){});}
 function loadSources(){return api('GET','/api/sources').then(function(r){
   var a=(r.sources||[]).find(function(s){return s.metric==='actual';});
   var el=document.getElementById('dsActual'),chip=el?el.querySelector('.chip'):null;
@@ -1978,7 +1990,7 @@ fetch('/api/health').then(function(r){return r.json();}).then(function(h){
   USE_API=true;
   apiTag();
   addImportBtn();
-  return loadCfg().then(loadYears).then(function(){return loadYear(YEAR);}).then(function(){return loadLedger();}).then(function(){return loadSources();}).then(function(){renderAuditApi();});
+  return loadCfg().then(loadYears).then(function(){return loadYear(YEAR);}).then(function(){return loadLedger();}).then(function(){return loadPrefs();}).then(function(){return loadSources();}).then(function(){renderAuditApi();});
 }).catch(function(){/* 无后端：本地空态模式 */});
 })();
 </script>
@@ -2041,6 +2053,7 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
 /* ===== 260724 Excel 行/列头交互：编辑态点行号选整行、点列号选整列，右键弹操作菜单 ===== */
 (function(){
   var KB3COLHIDE={};try{KB3COLHIDE=JSON.parse(localStorage.getItem('hcfb_kb3colhide')||'{}');}catch(e){}
+  window.KB3COLHIDE=KB3COLHIDE;  // 暴露引用，供后端偏好加载时就地写入
   window.KB3SEL=null;
   function colIdxDom(f){return KB3COLS.findIndex(function(c){return c.f===f;})+(KB3EDIT?1:0);}
   window.kb3ApplyColHide=function(){

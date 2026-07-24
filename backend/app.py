@@ -919,6 +919,40 @@ def ledger_template():
                     headers={"Content-Disposition": "attachment; filename=ledger-template.xlsx"})
 
 
+# ---------------- 看板视图偏好（列宽/固定列/隐藏列/隐藏行）：按用户存后端，换设备也在 ----------------
+UI_PREF_KEYS = {"hcfb_colw", "hcfb_kb3pin", "hcfb_kb3colhide", "hcfb_kb3hide"}
+
+
+@app.get("/api/prefs")
+def get_prefs(x_user: str = Header("bonniewbli")):
+    with db() as c:
+        out = {}
+        for r in c.execute("SELECT k,v FROM ui_prefs WHERE user_id=?", (x_user,)):
+            try:
+                out[r["k"]] = json.loads(r["v"])
+            except (ValueError, TypeError):
+                pass
+        return out
+
+
+class PrefSet(BaseModel):
+    value: object = None  # 任意 JSON（列宽对象/固定列数组/隐藏映射）
+
+
+@app.put("/api/prefs/{key}")
+def put_pref(key: str, p: PrefSet, x_user: str = Header("bonniewbli")):
+    if key not in UI_PREF_KEYS:
+        raise HTTPException(422, f"未知偏好键「{key}」（可存：{','.join(sorted(UI_PREF_KEYS))}）")
+    with db() as c:
+        require_writer(c, x_user)
+        c.execute(
+            "INSERT INTO ui_prefs(user_id,k,v,updated_at) VALUES(?,?,?,?) "
+            "ON CONFLICT(user_id,k) DO UPDATE SET v=excluded.v,updated_at=excluded.updated_at",
+            (x_user, key, json.dumps(p.value, ensure_ascii=False), now()),
+        )
+    return {"ok": True}
+
+
 # ---------------- 静态前端（同源托管 index.html / admin.html） ----------------
 @app.get("/")
 def root():
