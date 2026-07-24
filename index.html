@@ -55,7 +55,8 @@ body{background:var(--page);color:var(--ink);font-family:"Microsoft YaHei","Ping
 .btn.gray{background:#EEF2F8;color:var(--ink2);}
 .btn.danger{background:#fff;color:var(--red);border:1px solid #F3D0BC;}
 .btn.keep{background:#fff;color:#92400E;border:1px solid #F5D97E;}
-.btn.ghost2{background:#fff;border:1px solid var(--b100);color:var(--ink2);}
+.btn.ghost2{background:#fff;border:1px solid var(--td-brand-color,#1D4ED8);color:var(--td-brand-color,#1D4ED8);font-weight:500;}
+.btn.ghost2:hover{background:var(--td-brand-color,#1D4ED8);color:#fff;}
 .user{font-size:12px;color:var(--ink3);margin-top:auto;padding:12px 12px 4px;border-top:1px solid var(--b100);}.user b{color:var(--ink);}
 .empbar{background:#FFF7E0;border-bottom:1px solid #F5D97E;color:#92400E;font-size:12.5px;padding:9px 18px;line-height:1.6;}
 .empbar b{color:#7A3E00;}
@@ -1340,7 +1341,7 @@ function kb3FreezeApply(){
     if(tr.cells.length<=KB3COLS.length)return;
     pin.forEach(function(i){if(i<tr.cells.length)fix(tr.cells[i],i,2,(i===0&&KB3EDIT?'#F2F6FC':'#fff'));});
   });
-  var b=document.getElementById('kb3PinBtn');if(b)b.textContent='📌 固定列'+(KB3PIN.length?('('+KB3PIN.length+')'):'');
+  var b=document.getElementById('kb3PinBtn');if(b)b.innerHTML='<t-icon name="pin" style="vertical-align:-2px;margin-right:4px"></t-icon>固定列'+(KB3PIN.length?('('+KB3PIN.length+')'):'');
 }
 function kb3PinToggle(ev){
   var p=document.getElementById('kb3PinPanel');
@@ -1492,7 +1493,7 @@ function renderKb3(){
   var hidN=(window.KB3HIDE)?Object.keys(KB3HIDE).length:0;
   if(fi)fi.innerHTML=(fActive?('筛出 '+items.length+' / '+totalN+' 行'):(KB3SORT.f?('已排序 · '+totalN+' 行'):''))
     +(hidN?((fActive||KB3SORT.f?' · ':'')+'已隐藏 '+hidN+' 行 <a style="color:var(--blue);cursor:pointer" onclick="kb3Unhide()">恢复</a>'):'');
-  var fb=document.getElementById('kb3FltBtn');if(fb)fb.textContent=KB3FON?'⛃ 收起筛选':'⛃ 筛选';
+  var fb=document.getElementById('kb3FltBtn');if(fb)fb.innerHTML='<t-icon name="filter" style="vertical-align:-2px;margin-right:4px"></t-icon>'+(KB3FON?'收起筛选':'筛选');
   // 3.2 汇总
   var mat={};KB3CATS.forEach(function(c){mat[c.key]=Array(12).fill(0);});
   LEDGER.forEach(function(r){var cat=kb3cat(r.st);if(cat==='不计入')return;var mo=kb3mo(r);if(!mo)return;if(mo.slice(0,4)!==String(YEAR))return;var mi=+mo.slice(5,7)-1;if(mi>=0&&mi<12)mat[cat][mi]++;});
