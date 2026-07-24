@@ -119,6 +119,26 @@ def add_year(y: YearNew, x_user: str = Header("bonniewbli")):
 
 
 # ---------------- 看板读写 ----------------
+def _prev_dec_ending(c, year, _depth=0):
+    """上一年 12 月期末在岗（跨年链首种子）：优先取上年 12 月实际值；
+    上年也是整年预估（lock=0）时，递推其运算链的 12 月值（最多回溯一层，再往前判无源→None，不编造）。"""
+    py = year - 1
+    pyr = c.execute("SELECT * FROM years WHERE year=?", (py,)).fetchone()
+    if not pyr:
+        return None
+    pv = _grid(c, py)[0]
+    dec = (pv.get("actual") or [None] * 12)[11]
+    if isinstance(dec, (int, float)):
+        return dec  # 上年 12 月实际在岗直接作种子
+    if _depth >= 1:
+        return None  # 只回溯一层，避免深链；再往前无实际则判缺数
+    pnat = pyr["nat_n"] if "nat_n" in pyr.keys() else NAT_N_DEFAULT
+    pseed = _prev_dec_ending(c, py, _depth + 1) if pyr["lock_month"] == 0 else None
+    pcomp = compute(pv, _branches(c, py), pyr["lock_month"],
+                    prev_er=_grid(c, py - 1)[0].get("er_out"), nat_n=pnat, seed=pseed)
+    return pcomp["chain"][11]
+
+
 @app.get("/api/board/{year}")
 def get_board(year: int):
     with db() as c:
@@ -129,7 +149,8 @@ def get_board(year: int):
         brs = _branches(c, year)
         prev_er = _grid(c, year - 1)[0].get("er_out")
         nat_n = yr["nat_n"] if "nat_n" in yr.keys() else NAT_N_DEFAULT
-        comp = compute(vals, brs, yr["lock_month"], prev_er=prev_er, nat_n=nat_n)
+        seed = _prev_dec_ending(c, year) if yr["lock_month"] == 0 else None
+        comp = compute(vals, brs, yr["lock_month"], prev_er=prev_er, nat_n=nat_n, seed=seed)
         metrics = {k: {"vals": vals.get(k, [None] * 12), "notes": notes.get(k, {})} for k, *_ in CANON_PROJECTS}
         for k in EXTRA_METRICS:  # 看板2 期初基线（fa_hc/q_init）一并下发
             metrics[k] = {"vals": vals.get(k, [None] * 12), "notes": notes.get(k, {})}
@@ -143,7 +164,7 @@ def get_board(year: int):
         demo = bool(c.execute("SELECT 1 FROM cells WHERE year=? AND source='demo' LIMIT 1", (year,)).fetchone()
                     or c.execute("SELECT 1 FROM branches WHERE year=? AND created_by='demo' LIMIT 1", (year,)).fetchone()
                     or c.execute("SELECT 1 FROM ledger_rows WHERE batch=-999 LIMIT 1").fetchone())
-        return {"year": year, "status": yr["status"], "lock": yr["lock_month"],
+        return {"year": year, "status": yr["status"], "lock": yr["lock_month"], "seed": seed,
                 "metrics": metrics, "branches": brs, "computed": comp, "nat": comp["nat"],
                 "demo": demo, "ts": int(time.time() * 1000)}
 
@@ -917,6 +938,40 @@ def ledger_template():
     return Response(buf.getvalue(),
                     media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     headers={"Content-Disposition": "attachment; filename=ledger-template.xlsx"})
+
+
+# ---------------- 看板视图偏好（列宽/固定列/隐藏列/隐藏行）：按用户存后端，换设备也在 ----------------
+UI_PREF_KEYS = {"hcfb_colw", "hcfb_kb3pin", "hcfb_kb3colhide", "hcfb_kb3hide"}
+
+
+@app.get("/api/prefs")
+def get_prefs(x_user: str = Header("bonniewbli")):
+    with db() as c:
+        out = {}
+        for r in c.execute("SELECT k,v FROM ui_prefs WHERE user_id=?", (x_user,)):
+            try:
+                out[r["k"]] = json.loads(r["v"])
+            except (ValueError, TypeError):
+                pass
+        return out
+
+
+class PrefSet(BaseModel):
+    value: object = None  # 任意 JSON（列宽对象/固定列数组/隐藏映射）
+
+
+@app.put("/api/prefs/{key}")
+def put_pref(key: str, p: PrefSet, x_user: str = Header("bonniewbli")):
+    if key not in UI_PREF_KEYS:
+        raise HTTPException(422, f"未知偏好键「{key}」（可存：{','.join(sorted(UI_PREF_KEYS))}）")
+    with db() as c:
+        require_writer(c, x_user)
+        c.execute(
+            "INSERT INTO ui_prefs(user_id,k,v,updated_at) VALUES(?,?,?,?) "
+            "ON CONFLICT(user_id,k) DO UPDATE SET v=excluded.v,updated_at=excluded.updated_at",
+            (x_user, key, json.dumps(p.value, ensure_ascii=False), now()),
+        )
+    return {"ok": True}
 
 
 # ---------------- 静态前端（同源托管 index.html / admin.html） ----------------

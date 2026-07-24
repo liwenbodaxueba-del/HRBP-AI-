@@ -67,6 +67,9 @@ def init_db():
             CREATE TABLE IF NOT EXISTS ledger_snapshots(
               id INTEGER PRIMARY KEY AUTOINCREMENT, year INTEGER, filename TEXT, sheet TEXT,
               rows_n INTEGER, created_by TEXT, created_at TEXT);
+            CREATE TABLE IF NOT EXISTS ui_prefs(
+              user_id TEXT, k TEXT, v TEXT, updated_at TEXT,
+              PRIMARY KEY(user_id, k));
             """
         )
         if not c.execute("SELECT 1 FROM years LIMIT 1").fetchone():

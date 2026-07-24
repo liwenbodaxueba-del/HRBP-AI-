@@ -716,7 +716,7 @@ function z(){return [0,0,0,0,0,0,0,0,0,0,0,0];}
 function emptyCustom(){return {out:[],inn:[],camp:[],hc:[],quota:[]};}
 /* ===== 空态：所有数据源未接入，数字一律留空，绝不编造 ===== */
 function nb(){return ['','','','','','','','','','','','',''];}  // 12 个空格（待接入）
-function mkEmpty(status,lock){return {status:status,lock:lock,budget:nb(),actual:[],o_sys:nb(),o_nat:nb(),o_bp:nb(),o_act:nb(),i_soc:nb(),i_yy:nb(),i_bs:nb(),i_cbp:nb(),i_incr:nb(),faHC:'',q_init:nb(),kb3rows:[],pdfUrl:null,pdfName:''};}
+function mkEmpty(status,lock){return {status:status,lock:lock,budget:nb(),actual:[],o_sys:nb(),o_nat:nb(),o_bp:nb(),o_act:nb(),i_soc:nb(),i_yy:nb(),i_bs:nb(),i_cbp:nb(),i_incr:nb(),faHC:'',q_init:nb(),kb3rows:[],pdfUrl:null,pdfName:'',seed:null};}
 var DATA={
   2025:mkEmpty('待接入·历史归档',12),
   2026:mkEmpty('待接入·执行中',6),
@@ -796,7 +796,7 @@ function outflow(m){return agg([D.o_sys[m],D.o_nat[m],D.o_bp[m],D.o_act[m],cSum(
 function inflow(m){return agg([D.i_soc[m],campTot(m),D.i_incr[m],cSum('inn',m)]);}
 function chain(){var c=[];for(var m=0;m<12;m++){
   if(m<LOCK){c[m]=isN(D.actual[m])?D.actual[m]:'';}
-  else{var prev=m>0?c[m-1]:(isN(D.actual[LOCK-1])?D.actual[LOCK-1]:'');
+  else{var prev=m>0?c[m-1]:(LOCK>0?(isN(D.actual[LOCK-1])?D.actual[LOCK-1]:''):(isN(D.seed)?D.seed:''));  // LOCK=0 整年纯预估：链首=上年12月期末(跨年种子)
     if(!isN(prev)){c[m]='';}else{var o=outflow(m),i=inflow(m);c[m]=Math.round((prev-(isN(o)?o:0)+(isN(i)?i:0))*100)/100;}}
   }return c;}
 /* ===== 通用行渲染 ===== */
@@ -1305,7 +1305,7 @@ function rowEditCancel(){
 function rowEditSave(key){
   var m=cmap[key]||null;
   var r=m?m.row:null,sec=m?m.sec:null,isNew=!!(r&&r._new);
-  // 新建行必须先填行名；固定 BP 行没有 cmap，也可正常保存
+  // 新建行必须先填行名；固定 BP 行(o_bp/o_act/i_cbp/i_incr)没有 cmap，也可正常保存
   var nameVal=isNew?(((document.getElementById('ninp_'+key)||{}).value||r.name||'').trim()):'';
   if(isNew&&!nameVal){if(typeof toast==='function')toast('请先填写行名（必填）');return;}
   // 收集数据变更
@@ -1779,7 +1779,7 @@ var FRONT2SEC={out:'总流出（−）',inn:'总流入（＋）',camp:'校招∇
 function nn(v){return (v===null||v===undefined)?'':v;}
 function applyBoard(b){
   var y=b.year,d=DATA[y]||(DATA[y]=mkEmpty(b.status,b.lock));
-  d.status=b.status;d.lock=b.lock;d.nat=b.nat||d.nat;
+  d.status=b.status;d.lock=b.lock;d.nat=b.nat||d.nat;d.seed=(b.seed===undefined?null:b.seed);
   if(typeof demoBanner==='function')demoBanner(!!b.demo);
   ['budget','actual','o_sys','o_nat','o_bp','o_act','i_soc','i_yy','i_bs','i_cbp','i_incr'].forEach(function(k){
     d[k]=((b.metrics[k]||{}).vals||[]).map(nn);while(d[k].length<12)d[k].push('');
@@ -1918,6 +1918,18 @@ saveNatParam=function(){
 };
 ORIG.kb3Import=kb3Import;
 function loadLedger(){return api('GET','/api/ledger').then(function(r){LEDGER=r.rows||[];renderKb3();});}
+/* 260724 看板视图偏好持久化：后端为准，落 localStorage 作离线缓存；变更透明镜像到后端 */
+function savePref(k,val){if(!USE_API)return;api('PUT','/api/prefs/'+k,{value:val}).catch(function(){});}
+(function(){var _set=localStorage.setItem.bind(localStorage),BK={hcfb_colw:1,hcfb_kb3pin:1,hcfb_kb3colhide:1,hcfb_kb3hide:1};
+  localStorage.setItem=function(k,v){_set(k,v);if(BK[k]&&window.USE_API){try{savePref(k,JSON.parse(v));}catch(e){}}};})();
+function loadPrefs(){return api('GET','/api/prefs').then(function(p){
+  if(!p||typeof p!=='object')return;
+  if(p.hcfb_colw){COLW=p.hcfb_colw;}
+  if(p.hcfb_kb3pin&&p.hcfb_kb3pin.length!==undefined){KB3PIN=p.hcfb_kb3pin;}
+  if(p.hcfb_kb3hide){KB3HIDE=p.hcfb_kb3hide;}
+  if(p.hcfb_kb3colhide&&window.KB3COLHIDE){var h=window.KB3COLHIDE;Object.keys(h).forEach(function(k){delete h[k];});Object.keys(p.hcfb_kb3colhide).forEach(function(k){h[k]=p.hcfb_kb3colhide[k];});}
+  renderKb3();
+}).catch(function(){});}
 function loadSources(){return api('GET','/api/sources').then(function(r){
   var a=(r.sources||[]).find(function(s){return s.metric==='actual';});
   var el=document.getElementById('dsActual'),chip=el?el.querySelector('.chip'):null;
@@ -2132,7 +2144,7 @@ fetch('/api/health').then(function(r){return r.json();}).then(function(h){
   USE_API=true;
   apiTag();
   addImportBtn();
-  return loadCfg().then(loadYears).then(function(){return loadYear(YEAR);}).then(function(){return loadLedger();}).then(function(){return loadSources();}).then(function(){renderAuditApi();});
+  return loadCfg().then(loadYears).then(function(){return loadYear(YEAR);}).then(function(){return loadLedger();}).then(function(){return loadPrefs();}).then(function(){return loadSources();}).then(function(){renderAuditApi();});
 }).catch(function(){/* 无后端：本地空态模式 */});
 })();
 </script>
@@ -2195,6 +2207,7 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
 /* ===== 260724 Excel 行/列头交互：编辑态点行号选整行、点列号选整列，右键弹操作菜单 ===== */
 (function(){
   var KB3COLHIDE={};try{KB3COLHIDE=JSON.parse(localStorage.getItem('hcfb_kb3colhide')||'{}');}catch(e){}
+  window.KB3COLHIDE=KB3COLHIDE;  // 暴露引用，供后端偏好加载时就地写入
   window.KB3SEL=null;
   function colIdxDom(f){return KB3COLS.findIndex(function(c){return c.f===f;})+(KB3EDIT?1:0);}
   window.kb3ApplyColHide=function(){
