@@ -799,7 +799,7 @@ function tr(cls,label,arr,opt){
     var editable=opt.edit&&(m>=lock||rowEdit)&&!RO;  // 行编辑态放宽：全月可填（新建行/调整行不受已发生月限制）
     var cl=(m<lock&&opt.lockShade?'lock ':'')+(editable?'edit adj ':'')+(opt.neg&&v<0?'neg ':'');
     var disp=(v===''||(v===0&&opt.hideZero))?'':(opt.negRow&&v!==0?'−'+v:(opt.plus&&v>0?'+'+v:v));
-    if(rowEdit&&editable){disp='<input type="number" step="1" class="rowed" data-rk="'+opt.key+'" data-m="'+m+'" value="'+(v===''?'':v)+'" onkeydown="if(event.key===\'Enter\'){event.preventDefault();rowEditEnter(\''+opt.key+'\');}else if(event.key===\'Escape\'){event.preventDefault();rowEditEnter(\''+opt.key+'\');}" style="width:100%;min-width:44px;border:1px solid var(--blue-l);padding:2px 4px;font:inherit;text-align:right;background:#fff">';}
+    if(rowEdit&&editable){disp='<input type="number" step="1" class="rowed" data-rk="'+opt.key+'" data-m="'+m+'" value="'+(v===''?'':v)+'" onkeydown="if(event.key===\'Enter\'){event.preventDefault();rowEditSave(\''+opt.key+'\');}else if(event.key===\'Escape\'){event.preventDefault();rowEditEnter(\''+opt.key+'\');}" style="width:100%;min-width:44px;border:1px solid var(--blue-l);padding:2px 4px;font:inherit;text-align:right;background:#fff">';}
     var noteTxt=memos[(opt.key||'')+'_'+m];
     var noteAttr=noteTxt?' data-note="'+esc(noteTxt).replace(/"/g,'&quot;')+'"':'';
     var memo=noteTxt?'<span class="memo"></span>':'';
