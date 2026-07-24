@@ -794,7 +794,7 @@ function customRows(sec,extra){
     var label;
     if(r._new){  // 260724 待命名新行：行名直接内联编辑（不弹窗），回车/失焦校验必填
       label=(extra.prefix||'')+'<input class="rowname-inp" id="ninp_'+key+'" type="text" placeholder="填缘由后回车（必填）" value="'+esc(r.name||'')+'" '
-        +'onkeydown="if(event.key===\'Enter\'){this.blur();}else if(event.key===\'Escape\'){cancelNewRow(\''+key+'\');}" '
+        +'onkeydown="if(event.key===\'Enter\'){commitNewRow(\''+key+'\',this.value);rowEditSave(\''+key+'\');}else if(event.key===\'Escape\'){cancelNewRow(\''+key+'\');}" '
         +'onblur="commitNewRow(\''+key+'\',this.value)">'
         +'<span class="rowtool del" title="取消" onclick="cancelNewRow(\''+key+'\')">✕</span>';
     }else{
