@@ -41,6 +41,7 @@ LEDGER_SYN = [
 LEDGER_ST = ["需求确认", "已offer待入职", "已入职", "简历&面试中", "简历面试中", "Hold", "取消"]
 LEDGER_CLS = ["国内", "海外"]  # H列 下拉枚举
 LEDGER_MIN_HITS = 4  # 表头行至少命中的列名数
+LEDGER_DEFAULT_YEAR = 2026  # 260724 纯月份文本（11月）默认补的年份（26年预算表）
 
 
 def _col_idx(ref):
@@ -90,6 +91,11 @@ def _norm_date(v):
         return "%s-%02d" % (parts[0], mo) if 1 <= mo <= 12 else parts[0]  # 2023-00 → 2023
     if len(parts) == 1 and len(parts[0]) == 4:
         return parts[0]
+    # 260724 纯月份文本（如 11月/12月/3月/11）→ 补默认年 LEDGER_DEFAULT_YEAR（26年预算表）
+    if len(parts) == 1 and 1 <= len(parts[0]) <= 2:
+        mo = int(parts[0])
+        if 1 <= mo <= 12:
+            return "%d-%02d" % (LEDGER_DEFAULT_YEAR, mo)
     return s  # 解析不了保留原文（不猜不编）
 
 
@@ -276,16 +282,24 @@ def _ledger_norm(f, v):
     return v
 
 
-def validate_ledger_rows(rows):
-    """逐行校验列性质（下拉枚举/日期有效性+年份limit/招聘数量=1）；返回错误清单，非空则整批拒绝。
+def validate_ledger_rows(rows, partial=False):
+    """逐行校验列性质（下拉枚举/日期有效性+年份limit/招聘数量=1）。
+    partial=False（默认）：返回错误清单，非空则由上层整批拒绝（旧行为）。
+    partial=True：返回 (errors, bad_rns)——bad_rns 为出错行号集合，上层可只入好行、跳过坏行。
     招聘数量留空自动按 1 填（每行=一个名额）；填了但≠1 → 报错提醒另起一行。"""
     errors = []
+    bad_rns = set()
     for r in rows:
         rn = r.get("_r", "?")
+
+        def _bad(msg):
+            errors.append(msg)
+            bad_rns.add(rn)
+
         if r["st"] and r["st"] not in LEDGER_ST_CANON:
-            errors.append(f"第{rn}行 当前状态「{r['st']}」不在下拉枚举（{'/'.join(LEDGER_ST_CANON)}）")
+            _bad(f"第{rn}行 当前状态「{r['st']}」不在下拉枚举（{'/'.join(LEDGER_ST_CANON)}）")
         if r["cls"] and r["cls"] not in LEDGER_CLS:
-            errors.append(f"第{rn}行 国内/海外「{r['cls']}」须为：国内 或 海外")
+            _bad(f"第{rn}行 国内/海外「{r['cls']}」须为：国内 或 海外")
         num = r.get("num", "")
         if num == "":
             r["num"] = "1"
@@ -295,14 +309,16 @@ def validate_ledger_rows(rows):
             except ValueError:
                 ok = False
             if not ok:
-                errors.append(f"第{rn}行 招聘数量「{num}」必须为 1——每行一个名额，多名额请另起一行")
+                _bad(f"第{rn}行 招聘数量「{num}」必须为 1——每行一个名额，多名额请另起一行")
         for f, lab in (("ask", "需求提出时间"), ("tgt", "目标到岗时间"), ("eta", "预计到岗时间"),
                        ("prev_eta", "上次预计到岗"), ("join", "实际入职时间")):
             v = r.get(f, "")
             if not v:
                 continue
             if not _DATE_OK.match(str(v)):
-                errors.append(f"第{rn}行 {lab}「{v}」无法识别为日期（支持 2026-03-15 / 26.3.15 / 2026年3月15日）")
+                _bad(f"第{rn}行 {lab}「{v}」无法识别为日期（支持 2026-03-15 / 26.3.15 / 2026年3月15日）")
             elif not (2000 <= int(str(v)[:4]) <= 2100):
-                errors.append(f"第{rn}行 {lab}「{v}」年份超出 2000-2100 范围")
+                _bad(f"第{rn}行 {lab}「{v}」年份超出 2000-2100 范围")
+    if partial:
+        return errors, bad_rns
     return errors

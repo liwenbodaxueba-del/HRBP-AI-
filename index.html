@@ -154,6 +154,7 @@ th.sortable:hover{filter:brightness(1.08);}
 .bsc tr[data-drill]:hover td:first-child{color:var(--blue);}
 .drill{color:var(--blue);font-size:11px;margin-left:5px;}
 .rowtool{color:var(--ink3);font-size:11px;cursor:pointer;user-select:none;margin-right:2px;}
+.rowname-inp{border:1px solid var(--blue);border-radius:4px;padding:2px 6px;font-size:12px;outline:none;min-width:180px;margin-right:4px;}
 .rowtool.del{color:#C2410C;}
 .addrow{display:inline-flex;align-items:center;gap:4px;background:#fff;border:1px solid var(--blue);color:var(--blue);border-radius:4px;padding:2px 10px;font-size:12px;cursor:pointer;line-height:1.6;}
 .addrow:hover{background:var(--b50);text-decoration:none;}
@@ -789,9 +790,17 @@ function customRows(sec,extra){
   custom[sec].forEach(function(r){
     var key='C'+r.id; cmap[key]={sec:sec,row:r};
     var tot=sum(r.vals)*(r.sign==='-'?-1:1);  // 260723 起新分支一律 '+'（纯计人头，负数=调减）；兼容历史 '−'
-    var label=(extra.prefix||'')+'<span style="cursor:pointer" title="点击改名" onclick="openRowDef(\''+sec+'\',\''+key+'\')">'+esc(r.name)+'</span>'
-      +pen(key)
-      +'<span class="rowtool del" title="删除" onclick="delRow(\''+key+'\')">✕</span>';
+    var label;
+    if(r._new){  // 260724 待命名新行：行名直接内联编辑（不弹窗），回车/失焦校验必填
+      label=(extra.prefix||'')+'<input class="rowname-inp" id="ninp_'+key+'" type="text" placeholder="填缘由后回车（必填）" value="'+esc(r.name||'')+'" '
+        +'onkeydown="if(event.key===\'Enter\'){this.blur();}else if(event.key===\'Escape\'){cancelNewRow(\''+key+'\');}" '
+        +'onblur="commitNewRow(\''+key+'\',this.value)">'
+        +'<span class="rowtool del" title="取消" onclick="cancelNewRow(\''+key+'\')">✕</span>';
+    }else{
+      label=(extra.prefix||'')+'<span style="cursor:pointer" title="点击改名" onclick="openRowDef(\''+sec+'\',\''+key+'\')">'+esc(r.name)+'</span>'
+        +pen(key)
+        +'<span class="rowtool del" title="删除" onclick="delRow(\''+key+'\')">✕</span>';
+    }
     var avgV=extra.avgMode==='dash'?'—':(extra.avgMode==='calc'?f2(avg12(r.vals)):undefined);
     out+=tr('sub'+(extra.deep?'2':''),label,r.vals,{src:'custom',key:key,edit:true,hideZero:true,lock:extra.lock,avg:avgV,tot:(extra.noTot?undefined:tot),noTot:extra.noTot});
   });
@@ -1168,16 +1177,31 @@ document.addEventListener('mousedown',function(e){
   if(p&&p.style.display!=='none'&&!(e.target.closest&&e.target.closest('#notePop'))&&!(e.target.closest&&e.target.closest('td[data-edit]')))closeNotePop();
 });
 var curDef={sec:null,key:null};
-function openRowDef(sec,key){curDef={sec:sec,key:key};var e=!!key;
-  document.getElementById('dTitle').textContent=e?'编辑分支':'新增分支';
-  document.getElementById('dDel').style.display=e?'inline-block':'none';document.getElementById('dErr').style.display='none';
-  var r=e?cmap[key].row:null;document.getElementById('dName').value=r?r.name:'';
+function openRowDef(sec,key){
+  if(!key){  // 260724 新增分支：不弹窗，直接插一个待命名空白行进入内联编辑
+    var r={id:cid++,name:'',sign:'+',vals:Array(12).fill(0),_new:true};
+    custom[sec].push(r);if(!open_[sec])open_[sec]=true;renderAll();
+    setTimeout(function(){var inp=document.getElementById('ninp_C'+r.id);if(inp)inp.focus();},0);
+    return;
+  }
+  curDef={sec:sec,key:key};  // 编辑已有行：保留原确认弹窗
+  document.getElementById('dTitle').textContent='编辑分支';
+  document.getElementById('dDel').style.display='inline-block';document.getElementById('dErr').style.display='none';
+  var r=cmap[key].row;document.getElementById('dName').value=r?r.name:'';
   document.getElementById('maskDef').classList.add('on');}
+// 260724 内联新行：回车/失焦提交——空名则整行撤销（行名必填，不弹窗）
+function commitNewRow(key,val){var m=cmap[key];if(!m)return;var r=m.row;if(!r._new)return;
+  var name=(val||'').trim();
+  if(!name){cancelNewRow(key);return;}  // 空名 → 撤销该空行
+  r.name=name;delete r._new;
+  log('bonniewbli','新增分支',(secName[m.sec]||m.sec)+' · '+name+'（纯计人头·负数=调减）');
+  renderAll();}
+function cancelNewRow(key){var m=cmap[key];if(!m)return;var sec=m.sec,r=m.row;
+  custom[sec]=custom[sec].filter(function(x){return x!==r;});renderAll();}
 function closeDef(){document.getElementById('maskDef').classList.remove('on');}
 function saveRowDef(){var name=document.getElementById('dName').value.trim();
   if(!name){document.getElementById('dErr').style.display='block';return;}
   if(curDef.key){var r=cmap[curDef.key].row,o=r.name;r.name=name;log('bonniewbli','改分支定义',o+' → '+name);}
-  else{custom[curDef.sec].push({id:cid++,name:name,sign:'+',vals:Array(12).fill(0)});log('bonniewbli','新增分支',(secName[curDef.sec]||curDef.sec)+' · '+name+'（纯计人头·负数=调减）');if(!open_[curDef.sec])open_[curDef.sec]=true;}
   closeDef();renderAll();}
 function delRow(key){curDef={sec:cmap[key].sec,key:key};delRowFromDef();}
 function delRowFromDef(){var key=curDef.key;if(!key||!cmap[key])return;var sec=cmap[key].sec,r=cmap[key].row;
@@ -1824,11 +1848,22 @@ kb3Import=function(inp){
     .then(function(res){
       var rp=res.report;
       LEDGER=res.rows||[];renderKb3();
-      document.getElementById('kb3ImpName').textContent=f.name+' · 已入库（整年替换·审计留痕）';
+      var badN=res.skipped_bad||0;
+      document.getElementById('kb3ImpName').textContent=f.name+' · 已入库 '+(res.imported||rp.rows)+' 行'+(badN?('（跳过 '+badN+' 行不合格）'):'')+' · 整年替换·审计留痕';
       var mapTxt=Object.keys(rp.mapping).map(function(k){return k+'→'+rp.mapping[k];}).join('  ');
+      // 260724 部分导入：好行照入，不合格行单列清单 + 具体行号
+      var badBlock='';
+      if(badN){
+        var errLis=(res.errors&&res.errors.length)?res.errors.map(function(x){return '<li>'+esc(x)+'</li>';}).join(''):'';
+        if(res.total_errors>((res.errors&&res.errors.length)||0))errLis+='<li>…共 '+res.total_errors+' 处</li>';
+        badBlock='<div class="note" style="border-color:#F3D0BC;margin-top:6px"><b>已跳过 '+badN+' 行不合格</b>'
+          +(res.skipped_rows&&res.skipped_rows.length?'（行号：'+res.skipped_rows.join('、')+'）':'')
+          +'，其余已入库。修正这些行后重新导入即可覆盖：'
+          +'<ul style="margin:6px 0 0 18px;font-size:11.5px;line-height:1.7">'+errLis+'</ul></div>';
+      }
       document.getElementById('kb3ImpView').innerHTML=
-        '<div class="note"><b>列名识别成功</b>：sheet「'+rp.sheet+'」第 '+rp.header_row+' 行为表头，命中 '+rp.hits+' 个列名；有效 <b>'+rp.rows+'</b> 行、跳过 '+rp.skipped+' 行说明行。'
-        +'<br><span style="font-size:11px;color:var(--ink3)">字段映射：'+mapTxt+'</span></div>';
+        '<div class="note"><b>列名识别成功</b>：sheet「'+rp.sheet+'」第 '+rp.header_row+' 行为表头，命中 '+rp.hits+' 个列名；入库 <b>'+(res.imported||rp.rows)+'</b> 行'+(badN?('、跳过 '+badN+' 行不合格'):'')+'、跳过 '+rp.skipped+' 行说明行。'
+        +'<br><span style="font-size:11px;color:var(--ink3)">字段映射：'+mapTxt+'</span></div>'+badBlock;
       renderAuditApi();
     })
     .catch(function(e){

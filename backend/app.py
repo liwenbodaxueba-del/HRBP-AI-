@@ -816,30 +816,36 @@ async def import_ledger(file: UploadFile = File(...), x_user: str = Header("bonn
     rows, report = parse_ledger(raw, file.filename or "upload")
     if not rows:
         raise HTTPException(422, "识别到表头但无有效数据行")
-    errors = validate_ledger_rows(rows)  # 列性质闸：枚举/日期limit/数量=1，不合格整批拒绝
-    if errors:
-        raise HTTPException(422, {"msg": f"台账数据不合格 {len(errors)} 处，整批拒绝入库（一处都不能错）",
+    errors, bad_rns = validate_ledger_rows(rows, partial=True)  # 260724 部分导入：坏行跳过，好行照入
+    good_rows = [r for r in rows if r.get("_r", "?") not in bad_rns]
+    if not good_rows:
+        raise HTTPException(422, {"msg": f"台账数据不合格 {len(errors)} 处，且无一行可入库",
                                   "errors": errors[:50], "total_errors": len(errors)})
     with db() as c:
         require_writer(c, x_user)
         c.execute(
             "INSERT INTO ledger_snapshots(year,filename,sheet,rows_n,created_by,created_at) VALUES(?,?,?,?,?,?)",
-            (year, file.filename, report["sheet"], len(rows), x_user, now()),
+            (year, file.filename, report["sheet"], len(good_rows), x_user, now()),
         )
         batch = c.execute("SELECT last_insert_rowid() AS i").fetchone()["i"]
         c.execute("DELETE FROM ledger_rows WHERE year=?", (year,))
-        for r in rows:
+        for r in good_rows:
             c.execute(
                 "INSERT INTO ledger_rows(year,batch,dept,center,owner,src,job,lvl,fam,cls,loc,ask,num,tgt,st,eta,prev_eta,memo,offer,olvl,join_dt,jmemo,who) "
                 "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (year, batch, r["dept"], r["center"], r["owner"], r["src"], r["job"], r["lvl"], r["fam"], r["cls"], r["loc"],
                  r["ask"], r["num"], r["tgt"], r["st"], r["eta"], r["prev_eta"], r["memo"], r["offer"], r["olvl"], r["join"], r["jmemo"], r["who"]),
             )
+        skipped_rns = sorted(bad_rns, key=lambda x: (isinstance(x, str), x))
         _audit(c, x_user, "导入台账",
                f"全局台账 批次#{batch}「{file.filename}」sheet「{report['sheet']}」表头第{report['header_row']}行 · "
-               f"列名命中{report['hits']}项 · 有效{len(rows)}行/跳过{report['skipped']}行（整年替换）")
+               f"列名命中{report['hits']}项 · 入库{len(good_rows)}行/校验跳过{len(bad_rns)}行"
+               + (f"（跳过行号：{skipped_rns}）" if bad_rns else "") + f"/空行跳过{report['skipped']}行（整年替换）")
     with db() as c:
-        return {"ok": True, "report": report, "rows": _ledger_list(c, year)}
+        return {"ok": True, "report": report, "rows": _ledger_list(c, year),
+                "imported": len(good_rows), "skipped_bad": len(bad_rns),
+                "skipped_rows": skipped_rns,
+                "errors": errors[:50], "total_errors": len(errors)}
 
 
 # ---------------- 台账模板下载（与线下模板 v2 同构：分组表头/下拉/冻结/说明行） ----------------
