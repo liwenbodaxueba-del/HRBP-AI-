@@ -95,6 +95,12 @@ def init_db():
                 c.execute(f"ALTER TABLE ledger_rows ADD COLUMN {col} TEXT DEFAULT ''")
             except sqlite3.OperationalError:
                 pass  # 列已存在
+        # ---- 260724 台账行序（Excel式任意位置插行）：sort_pos 排序列，缺省=id ----
+        try:
+            c.execute("ALTER TABLE ledger_rows ADD COLUMN sort_pos REAL")
+        except sqlite3.OperationalError:
+            pass
+        c.execute("UPDATE ledger_rows SET sort_pos=id WHERE sort_pos IS NULL")
         # ---- 260723 台账日期列自动归一（历史脏数据一次性清洗，幂等：归一函数对已归一值不变）----
         from kb3_ledger import _norm_date as _nd  # 函数级导入避免模块环
         for r in c.execute("SELECT id,ask,tgt,eta,prev_eta,join_dt FROM ledger_rows").fetchall():
@@ -109,7 +115,7 @@ def init_db():
                           (*upd.values(), r["id"]))
         # ---- 260723 口径迁移（幂等）----
         # ① 链行并入实际行：项目表改名 actual、删除 chain 行（computed.chain 仍在响应里）
-        c.execute("UPDATE projects SET name='月末实际在岗/期末在岗预估', src='已发生月=KPI系统 zhaopin（待接）；未发生月=运算链' WHERE key='actual' AND name='月末实际在岗'")
+        c.execute("UPDATE projects SET name='实际/预估期末在岗', src='已发生月=KPI系统 zhaopin（待接）；未发生月=运算链' WHERE key='actual' AND name IN ('月末实际在岗','月末实际在岗/期末在岗预估')")
         c.execute("DELETE FROM projects WHERE key='chain'")
         # ② 分支不再分加减向：历史 '−' 分支等价转换为 '+'（数值取反，语义分毫不变）
         for b in c.execute("SELECT id FROM branches WHERE sign='-'").fetchall():

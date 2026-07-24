@@ -245,7 +245,7 @@ def parse_ledger(raw, filename):
 
 def _ledger_list(c, year):
     out = []
-    for r in c.execute("SELECT * FROM ledger_rows WHERE year=? ORDER BY id", (year,)):
+    for r in c.execute("SELECT * FROM ledger_rows WHERE year=? ORDER BY sort_pos, id", (year,)):
         d = dict(r)
         out.append({"id": d["id"], "c": d["center"], "own": d["owner"], "src": d["src"], "job": d["job"],
                     "jlvl": d.get("lvl", ""), "fam": d.get("fam", ""), "cls": d["cls"], "loc": d["loc"],

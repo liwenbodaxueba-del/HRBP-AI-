@@ -134,6 +134,7 @@ def get_board(year: int):
         for k in EXTRA_METRICS:  # 看板2 期初基线（fa_hc/q_init）一并下发
             metrics[k] = {"vals": vals.get(k, [None] * 12), "notes": notes.get(k, {})}
         metrics["o_nat"]["vals"] = comp["o_nat_eff"]  # 存量优先，派生只补未发生月空格
+        metrics["budget"]["vals"] = comp["budget_eff"]  # 260724 联动：预算当量=看板2父行（期初+当月调整），无数据回退存量
         # 260723 口径：链行并入实际行——未发生月空格由预估链补（月末实际在岗/期末在岗预估）
         av = list(metrics["actual"]["vals"])
         for m in range(yr["lock_month"], 12):
@@ -695,6 +696,9 @@ def export_xlsx(year: int):
 
 class LedgerEdit(BaseModel):
     fields: dict  # 前端字段名 → 新值（仅人工列；派生列不存库）
+    before: Optional[int] = None  # 260724 Excel式插行：在此行 id 上方插入
+    after: Optional[int] = None   # 在此行 id 下方插入
+    draft: bool = False           # 260724 直接加空白行：跳过必填校验（草稿），必填在行内保存时再拦
 
 
 @app.post("/api/ledger/row")
@@ -705,9 +709,10 @@ def ledger_add_row(e: LedgerEdit, x_user: str = Header("bonniewbli")):
         for f, v in (e.fields or {}).items():
             if f in LEDGER_F2DB:
                 vals[LEDGER_F2DB[f]] = _ledger_norm(f, v)
-        missing = [lab for f, lab in LEDGER_REQUIRED if not vals[LEDGER_F2DB[f]]]
-        if missing:
-            raise HTTPException(422, "必填项未填：" + "、".join(missing))
+        if not e.draft:  # 弹窗入库仍强制必填；直接加空白行(draft)跳过，待行内保存再校验
+            missing = [lab for f, lab in LEDGER_REQUIRED if not vals[LEDGER_F2DB[f]]]
+            if missing:
+                raise HTTPException(422, "必填项未填：" + "、".join(missing))
         if not vals["num"]:
             vals["num"] = "1"  # 每行=一个名额
         try:
@@ -728,7 +733,23 @@ def ledger_add_row(e: LedgerEdit, x_user: str = Header("bonniewbli")):
              vals["offer"], vals["olvl"], vals["join_dt"], vals["jmemo"], vals["who"]),
         )
         rid = c.execute("SELECT last_insert_rowid() AS i").fetchone()["i"]
-        _audit(c, x_user, "台账新增行", f"行#{rid}" + (f"（{vals['center']} · {vals['job']}）" if vals["center"] or vals["job"] else "（空行·待填）"))
+        # 260724 行序：无锚=追加末尾；before/after=夹在邻行 sort_pos 之间（Excel式插行）
+        pos = None
+        if e.before:
+            a = c.execute("SELECT sort_pos FROM ledger_rows WHERE id=? AND year=0", (e.before,)).fetchone()
+            if a:
+                prev = c.execute("SELECT MAX(sort_pos) AS p FROM ledger_rows WHERE year=0 AND sort_pos<? AND id!=?", (a["sort_pos"], rid)).fetchone()["p"]
+                pos = (prev + a["sort_pos"]) / 2 if prev is not None else a["sort_pos"] - 1
+        elif e.after:
+            a = c.execute("SELECT sort_pos FROM ledger_rows WHERE id=? AND year=0", (e.after,)).fetchone()
+            if a:
+                nxt = c.execute("SELECT MIN(sort_pos) AS p FROM ledger_rows WHERE year=0 AND sort_pos>? AND id!=?", (a["sort_pos"], rid)).fetchone()["p"]
+                pos = (a["sort_pos"] + nxt) / 2 if nxt is not None else a["sort_pos"] + 1
+        if pos is None:
+            mx = c.execute("SELECT MAX(sort_pos) AS p FROM ledger_rows WHERE year=0 AND id!=?", (rid,)).fetchone()["p"]
+            pos = (mx + 1) if mx is not None else rid
+        c.execute("UPDATE ledger_rows SET sort_pos=? WHERE id=?", (pos, rid))
+        _audit(c, x_user, "台账新增行", f"行#{rid}" + (f"（{vals['center']} · {vals['job']}）" if vals["center"] or vals["job"] else "（空行·待填）") + ("（插入到指定位置）" if (e.before or e.after) else ""))
     with db() as c:
         return {"ok": True, "id": rid, "rows": _ledger_list(c, 0)}
 
@@ -835,6 +856,7 @@ async def import_ledger(file: UploadFile = File(...), x_user: str = Header("bonn
                 (year, batch, r["dept"], r["center"], r["owner"], r["src"], r["job"], r["lvl"], r["fam"], r["cls"], r["loc"],
                  r["ask"], r["num"], r["tgt"], r["st"], r["eta"], r["prev_eta"], r["memo"], r["offer"], r["olvl"], r["join"], r["jmemo"], r["who"]),
             )
+            c.execute("UPDATE ledger_rows SET sort_pos=id WHERE sort_pos IS NULL")
         _audit(c, x_user, "导入台账",
                f"全局台账 批次#{batch}「{file.filename}」sheet「{report['sheet']}」表头第{report['header_row']}行 · "
                f"列名命中{report['hits']}项 · 有效{len(rows)}行/跳过{report['skipped']}行（整年替换）")

@@ -79,6 +79,12 @@ def compute(vals, branches, lock, prev_er=None, nat_n=NAT_N_DEFAULT):
                 o = outT[m] if isinstance(outT[m], (int, float)) else 0
                 i = inT[m] if isinstance(inT[m], (int, float)) else 0
                 chain.append(round(prev - o + i, 2))
+    # 260724 联动：看板1 预算当量 = 看板2 预算当量父行（期初 q_init + 当月「其中」调整求和）；无看板2数据回退存量 budget
+    budget_eff = []
+    for m in range(12):
+        q = _agg([g("q_init", m), bsum("预算当量·其中", m)])
+        budget_eff.append(q if q is not None else g("budget", m))
+
     def avg(a):
         n = [x for x in a if isinstance(x, (int, float))]
         return round(sum(n) / len(n), 2) if n else None
@@ -86,5 +92,5 @@ def compute(vals, branches, lock, prev_er=None, nat_n=NAT_N_DEFAULT):
     out_sum = sum(x for x in outT if isinstance(x, (int, float)))
     nat_info["pct"] = round(100 * sum(nat_nums) / out_sum, 1) if nat_nums and out_sum else None
     return {"campT": campT, "outT": outT, "inT": inT, "chain": chain,
-            "chain_avg": avg(chain), "budget_avg": avg(vals.get("budget", [None] * 12)),
+            "chain_avg": avg(chain), "budget_avg": avg(budget_eff), "budget_eff": budget_eff,
             "o_nat_eff": nat_eff, "nat": nat_info}
