@@ -146,6 +146,11 @@ th.sortable:hover{filter:brightness(1.08);}
 #kb3Tbl th.rcCol:hover,#kb3Tbl td.rcRow:hover{background:#DDE7F5;color:var(--blue);}
 #kb3Tbl th.rc.selhdr,#kb3Tbl td.rc.selhdr{background:var(--blue)!important;color:#fff!important;}
 #kb3Tbl td.selcell{background:#E8F0FB!important;}
+#kb3Tbl tr.kb3-draft td{background:#FFFBE6;}
+#kb3Tbl td.kb3-invalid{background:#FFF0ED!important;overflow:visible;}
+#kb3Tbl td.kb3-invalid input,#kb3Tbl td.kb3-invalid select{border:1px solid var(--td-error-color)!important;outline:1px solid var(--td-error-color);}
+#kb3Tbl .kb3-field-error{display:block;color:var(--td-error-color);font-size:10px;line-height:1.3;margin-top:3px;white-space:nowrap;}
+#kb3Tbl tr.kb3-editing td.ecell{padding:4px;}
 #kb3Tbl thead tr.xlhdr th{position:sticky;top:0;z-index:8;}
 #kb3Tbl td{overflow-wrap:break-word;}
 .fltarr{display:inline-block;margin-left:4px;font-size:9px;color:#7C93B5;border:1px solid var(--b100);border-radius:3px;padding:0 3px;line-height:14px;cursor:pointer;background:#fff;vertical-align:middle;}
@@ -179,7 +184,11 @@ th.sortable:hover{filter:brightness(1.08);}
 .bsc tr.sub2 td:first-child{padding-left:44px;color:var(--ink3);}
 .bsc tr.addr td,.bsc tr.addr td:first-child{background:#FAFCFF;padding-left:26px;}
 /* 260724：格子不再直点编辑（走行首✎），外观与普通格一致，不再画虚线框 */
-.bsc td.edit{}
+.bsc td.edit{cursor:cell;}
+.bsc td.bsc-selected{background:#E8F0FB!important;box-shadow:inset 0 0 0 1px var(--td-brand-color-4);}
+.bsc td.bsc-active{box-shadow:inset 0 0 0 2px var(--td-brand-color)!important;}
+.bsc td.bsc-selected input.rowed{background:#E8F0FB!important;}
+.bsc.bsc-dragging td[data-edit]{user-select:none;}
 .bsc td .memo{position:absolute;top:0;right:0;width:0;height:0;border-top:7px solid #5B21B6;border-left:7px solid transparent;pointer-events:none;}
 .bsc td.adj{position:relative;}
 .bsc td.hasnote{position:relative;}
@@ -398,7 +407,7 @@ body.navfold .navtg{left:8px;}
   <div class="progline" id="progLine"></div>
   <div class="fltbar"><input id="kb1Flt" placeholder="筛选行名（如：校招 / 社招 / 腾挪）" style="padding-left:30px" oninput="kb1Filter()"><t-icon name="search" style="margin-left:-290px;margin-right:-22px;color:var(--td-text-color-placeholder)"></t-icon><span class="hint" style="margin:0">只过滤明细行显示；结构行与运算合计不受影响</span></div>
   <div class="tblwrap"><table class="bsc" id="bscTbl"></table></div>
-  <div class="hint">灰底 = 已发生月（1-6月实际，锁定）。虚线格 = BP 可编辑（点击录入·备注必填·留痕）。悬停任意数字见来源与取数时间。
+  <div class="hint">灰底 = 已发生月（1-6月实际，锁定）。BP 可编辑格支持单击/拖选，按 Cmd/Ctrl+C 复制、Cmd/Ctrl+V 从 Excel 按行列粘贴；双击或点行首编辑图标可整行填写，右下角拖柄可填充。悬停数字见来源与取数时间。
   带 <b><t-icon name="arrow-down" size="12"></t-icon></b> 的行（预算当量、待流入·社招）双击下钻到看板2 / 看板3。年均预估 &gt; 预算当量年均时，年均格亮红灯。</div>
 </div>
 
@@ -409,7 +418,7 @@ body.navfold .navtg{left:8px;}
   <div class="yeartabs"></div>
   <div class="fltbar"><input id="kb2Flt" placeholder="筛选行名（其中分支）" style="padding-left:30px" oninput="kb2Filter()"><t-icon name="search" style="margin-left:-290px;margin-right:-22px;color:var(--td-text-color-placeholder)"></t-icon><span class="hint" style="margin:0">只过滤「其中」明细行显示；父行合计不受影响</span></div>
   <div class="tblwrap"><table class="bsc" id="kb2Tbl"></table></div>
-  <div class="hint">法定HC：集团分配编制数量（T族头部、青云可豁免）；预算当量：12月当量应=上一年12月当量。</div>
+  <div class="hint">法定HC：集团分配编制数量（T族头部、青云可豁免）；预算当量：12月当量应=上一年12月当量。可编辑格支持拖选后复制，也可从 Excel 复制多格并从选中格按原行列粘贴。</div>
 </div>
 
 <!-- 看板3 -->
@@ -421,7 +430,7 @@ body.navfold .navtg{left:8px;}
   </div>
   <div id="kb3ImpView"></div>
   <div class="tblwrap" id="kb3Wrap"><table class="plain" id="kb3Tbl"></table></div>
-  <div class="hint">四段：①需求信息 ②进展阶段 ③入选与入职（①②③=招聘系统取数+BP维护）④系统派生（勿改，自动）。归月：入职=实际月，offer/面试=预计月，Hold/取消不计入。「计入看板1」列即喂看板1 三行的自动派生。</div>
+  <div class="hint">点击「添加行」会先生成黄色空白行；部门、中心、业务负责人、招聘岗位、进展为必填，填齐后才能保存入库，取消则不留痕。四段：①需求信息 ②进展阶段 ③入选与入职（①②③=招聘系统取数+BP维护）④系统派生（勿改，自动）。</div>
 
   <h2 class="sec" style="margin-top:20px">看板3.2 · 待流入-社招面板（总结·便核对 · 喂看板1）</h2>
   <div class="yeartabs"></div>
@@ -654,8 +663,8 @@ function kb1CellMenu(td,ev){
   var key=td.getAttribute('data-edit'),m=+td.getAttribute('data-m');
   var v=gV(key,m);var txt=(v===''||v===null||v===undefined)?'':String(v);
   var items=[
-    {t:'复制',fn:function(){clipSet(txt);}},
-    {t:'粘贴',dis:CLIP.t===null||isNaN(parseFloat(CLIP.t)),fn:function(){cellWrite(key,m,parseFloat(CLIP.t),undefined);}},
+    {t:'复制',fn:function(){var t=bscSelectionContains(td)?bscSelectionTSV():txt;clipSet(t);}},
+    {t:'粘贴',dis:CLIP.t===null,fn:function(){bscPasteText(CLIP.t,td);}},
     {t:'清零该格',fn:function(){cellWrite(key,m,null,'');}},
     {t:'向右填充（至12月）',dis:txt==='',fn:function(){
       var val=parseFloat(txt),ms=[];
@@ -715,6 +724,7 @@ var DATA={
 };
 var YEARS=[2025,2026,2027], YEAR=2026, BASEYEARS=[2025,2026,2027];
 var LEDGER=[];  // 全局台账（跨年滚动·一份）
+var KB3_DRAFT=null,KB3_EDITING=null;  // 新增行先保留在前端，必填完整后才入库
 var MEMOS={2025:{},2026:{},2027:{}}, CUSTOM={2025:emptyCustom(),2026:emptyCustom(),2027:emptyCustom()};
 var D,memos,custom,LOCK,kb2base, cid=1, cmap={};
 var open_={out:true,inn:true,camp:false,hc:true,quota:true};
@@ -995,7 +1005,7 @@ function rowNameFilter(tblId,inpId){
 }
 function kb1Filter(){rowNameFilter('bscTbl','kb1Flt');}
 function kb2Filter(){rowNameFilter('kb2Tbl','kb2Flt');}
-function renderAll(){cmap={};render();renderKb2();bindCells();renderProg();colResizable('bscTbl');colResizable('kb2Tbl');kb1Filter();kb2Filter();}
+function renderAll(){cmap={};render();renderKb2();bindCells();renderProg();colResizable('bscTbl');colResizable('kb2Tbl');kb1Filter();kb2Filter();if(typeof bscPaintSelection==='function')bscPaintSelection();}
 /* ===== 看板2 ===== （kb2base 由 bindYear 按年份重建） */
 /* 260723 口径：法定HC=累计滚动（当月=上月+本月调整，期初锚定）；预算当量=当月子项求和（期初+当月调整） */
 function kb2Total(sec,cum){var t=[];for(var m=0;m<12;m++){
@@ -1023,6 +1033,112 @@ function renderKb2(){
   document.getElementById('kb2Tbl').innerHTML=h;
 }
 /* ===== 单元格交互 ===== */
+/* 看板1/2：Excel 式区域选择、TSV 复制与矩阵粘贴 */
+var BSCSEL={tableId:null,year:null,anchor:null,focus:null,dragging:false};
+function bscTd(el){return el&&el.closest?el.closest('#bscTbl td[data-edit],#kb2Tbl td[data-edit]'):null;}
+function bscRef(td){var t=td&&td.closest('table');return td&&t?{tableId:t.id,key:td.getAttribute('data-edit'),m:+td.getAttribute('data-m')}:null;}
+function bscRows(t){return Array.prototype.filter.call(t.querySelectorAll('tr'),function(tr){return tr.style.display!=='none'&&!!tr.querySelector('td[data-edit]');});}
+function bscRowKey(tr){var td=tr.querySelector('td[data-edit]');return td?td.getAttribute('data-edit'):null;}
+function bscFind(ref){return ref&&document.querySelector('#'+ref.tableId+' td[data-edit="'+ref.key+'"][data-m="'+ref.m+'"]');}
+function bscRect(){
+  if(!BSCSEL.anchor||!BSCSEL.focus||BSCSEL.year!==YEAR||BSCSEL.anchor.tableId!==BSCSEL.focus.tableId)return null;
+  var t=document.getElementById(BSCSEL.tableId);if(!t)return null;
+  var rows=bscRows(t),a=-1,b=-1;
+  rows.forEach(function(tr,i){var k=bscRowKey(tr);if(k===BSCSEL.anchor.key)a=i;if(k===BSCSEL.focus.key)b=i;});
+  if(a<0||b<0)return null;
+  return {table:t,rows:rows,r0:Math.min(a,b),r1:Math.max(a,b),m0:Math.min(BSCSEL.anchor.m,BSCSEL.focus.m),m1:Math.max(BSCSEL.anchor.m,BSCSEL.focus.m)};
+}
+function bscPaintSelection(){
+  document.querySelectorAll('#bscTbl td.bsc-selected,#kb2Tbl td.bsc-selected').forEach(function(td){td.classList.remove('bsc-selected','bsc-active');});
+  var r=bscRect();if(!r)return;
+  for(var i=r.r0;i<=r.r1;i++)for(var m=r.m0;m<=r.m1;m++){
+    var td=r.rows[i].querySelector('td[data-edit][data-m="'+m+'"]');if(td)td.classList.add('bsc-selected');
+  }
+  var active=bscFind(BSCSEL.focus);if(active)active.classList.add('bsc-active');
+}
+function bscSelect(td,extend){
+  var ref=bscRef(td);if(!ref||ROWEDIT&&ref.key!==ROWEDIT)return;
+  if(!extend||!BSCSEL.anchor||BSCSEL.anchor.tableId!==ref.tableId||BSCSEL.year!==YEAR)BSCSEL.anchor=ref;
+  BSCSEL.tableId=ref.tableId;BSCSEL.year=YEAR;BSCSEL.focus=ref;bscPaintSelection();
+}
+function bscSelectionContains(td){var r=bscRect();return !!(r&&td&&td.closest('table')===r.table&&td.classList.contains('bsc-selected'));}
+function bscCellText(td){
+  var inp=td.querySelector('input.rowed');if(inp)return inp.value;
+  var key=td.getAttribute('data-edit'),m=+td.getAttribute('data-m'),v=gV(key,m);
+  return (v===''||v===null||v===undefined)?'':String(v);
+}
+function bscSelectionTSV(){
+  var r=bscRect();if(!r)return '';
+  var out=[];
+  for(var i=r.r0;i<=r.r1;i++){
+    var line=[];for(var m=r.m0;m<=r.m1;m++){var td=r.rows[i].querySelector('td[data-edit][data-m="'+m+'"]');line.push(td?bscCellText(td):'');}
+    out.push(line.join('\t'));
+  }
+  return out.join('\n');
+}
+function bscParseTSV(text){
+  var s=String(text==null?'':text).replace(/\r\n?/g,'\n');if(s.slice(-1)==='\n')s=s.slice(0,-1);
+  var rows=s.split('\n').map(function(line){return line.split('\t');}),w=rows[0]?rows[0].length:0;
+  if(!w||rows.some(function(r){return r.length!==w;}))return {error:'复制区域每行列数不一致'};
+  var vals=[],bad=null;
+  rows.forEach(function(row,ri){vals.push(row.map(function(raw,ci){var v=raw.trim();if(v==='')return null;if(!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(v)||!isFinite(Number(v))){bad='第'+(ri+1)+'行第'+(ci+1)+'列不是数字';return null;}return Number(v);}));});
+  return bad?{error:bad}:{rows:vals,height:vals.length,width:w};
+}
+function bscCommit(changes,done){
+  (function step(i){
+    if(i>=changes.length){if(done)done();return;}
+    var x=changes[i];cellWrite(x.key,x.m,x.value,undefined,function(){step(i+1);});
+  })(0);
+}
+function bscPasteText(text,startTd){
+  var parsed=bscParseTSV(text);if(parsed.error){toast(parsed.error);return false;}
+  var td=startTd||bscFind(BSCSEL.focus);if(!td){toast('请先选中一个可编辑单元格');return false;}
+  var ref=bscRef(td),table=document.getElementById(ref.tableId),rows=bscRows(table),ri=-1;
+  rows.forEach(function(tr,i){if(bscRowKey(tr)===ref.key)ri=i;});
+  if(ri<0||ri+parsed.height>rows.length||ref.m+parsed.width>12){toast('粘贴区域超出可编辑表格范围');return false;}
+  var rowInp=td.querySelector('input.rowed');
+  if(rowInp){
+    if(parsed.height!==1){toast('整行编辑状态一次粘贴一行；保存后可继续粘贴下一行');return false;}
+    for(var c=0;c<parsed.width;c++){
+      var inp=document.querySelector('input.rowed[data-rk="'+ref.key+'"][data-m="'+(ref.m+c)+'"]');
+      if(!inp){toast('粘贴区域包含不可编辑单元格');return false;}
+      inp.value=parsed.rows[0][c]===null?'':parsed.rows[0][c];
+    }
+    BSCSEL={tableId:ref.tableId,year:YEAR,anchor:ref,focus:{tableId:ref.tableId,key:ref.key,m:ref.m+parsed.width-1},dragging:false};bscPaintSelection();
+    toast('已填入 '+parsed.width+' 格，请点“保存”提交');return true;
+  }
+  var changes=[];
+  for(var r=0;r<parsed.height;r++)for(var c2=0;c2<parsed.width;c2++){
+    var target=rows[ri+r].querySelector('td[data-edit][data-m="'+(ref.m+c2)+'"]');
+    if(!target){toast('粘贴区域包含不可编辑单元格，未写入');return false;}
+    changes.push({key:target.getAttribute('data-edit'),m:+target.getAttribute('data-m'),value:parsed.rows[r][c2]});
+  }
+  BSCSEL={tableId:ref.tableId,year:YEAR,anchor:ref,focus:{tableId:ref.tableId,key:bscRowKey(rows[ri+parsed.height-1]),m:ref.m+parsed.width-1},dragging:false};bscPaintSelection();
+  bscCommit(changes,function(){toast('已粘贴并保存 '+changes.length+' 格（审计留痕）');bscPaintSelection();});return true;
+}
+document.addEventListener('mousedown',function(e){
+  if(e.button!==0)return;var td=bscTd(e.target);if(!td)return;
+  bscSelect(td,e.shiftKey);BSCSEL.dragging=true;td.closest('table').classList.add('bsc-dragging');
+  if(!e.target.closest('input.rowed')){td.tabIndex=0;td.focus({preventScroll:true});e.preventDefault();}
+});
+document.addEventListener('mouseover',function(e){
+  if(!BSCSEL.dragging||!(e.buttons&1))return;var td=bscTd(e.target),ref=bscRef(td);if(!td||!ref||ref.tableId!==BSCSEL.tableId)return;
+  if(ROWEDIT&&ref.key!==ROWEDIT)return;BSCSEL.focus=ref;bscPaintSelection();
+});
+document.addEventListener('mouseup',function(){
+  if(!BSCSEL.dragging)return;BSCSEL.dragging=false;document.querySelectorAll('.bsc.bsc-dragging').forEach(function(t){t.classList.remove('bsc-dragging');});
+});
+document.addEventListener('copy',function(e){
+  var r=bscRect();if(!r)return;var t=e.target;
+  if(t&&t.matches&&t.matches('input:not(.rowed),textarea,select'))return;
+  var text=bscSelectionTSV();e.clipboardData.setData('text/plain',text);CLIP.t=text;e.preventDefault();toast('已复制 '+(r.r1-r.r0+1)+'×'+(r.m1-r.m0+1)+' 格');
+});
+document.addEventListener('paste',function(e){
+  var t=e.target;if(t&&t.matches&&t.matches('input:not(.rowed),textarea,select'))return;
+  var td=bscTd(t)||bscFind(BSCSEL.focus);if(!td)return;
+  var text=e.clipboardData&&e.clipboardData.getData('text/plain');if(text===undefined)return;
+  e.preventDefault();CLIP.t=text;bscPasteText(text,td);
+});
 
 /* ===== 运算格公式悬停 ===== */
 var FXKEYS={outT:1,inT:1,camp:1,chain:1,budget:1};
@@ -1187,11 +1303,10 @@ function rowEditCancel(){
   ROWEDIT=null;renderAll();
 }
 function rowEditSave(key){
-  var m=cmap[key];if(!m)return;
-  var r=m.row,sec=m.sec,isNew=!!r._new;
-  // 新建行必须先填行名
-  var nameVal=(document.getElementById('ninp_'+key)||{}).value||r.name||'';
-  nameVal=nameVal.trim();
+  var m=cmap[key]||null;
+  var r=m?m.row:null,sec=m?m.sec:null,isNew=!!(r&&r._new);
+  // 新建行必须先填行名；固定 BP 行没有 cmap，也可正常保存
+  var nameVal=isNew?(((document.getElementById('ninp_'+key)||{}).value||r.name||'').trim()):'';
   if(isNew&&!nameVal){if(typeof toast==='function')toast('请先填写行名（必填）');return;}
   // 收集数据变更
   var chg=[];
@@ -1209,10 +1324,12 @@ function rowEditSave(key){
     if(USE_API&&frontSec){
       api('POST','/api/board/'+YEAR+'/branch',{sec:frontSec,name:nameVal,sign:'+'})
         .then(function(b){
-          applyBoard(b);ROWEDIT=null;
-          if(!open_[sec])open_[sec]=true;
-          if(typeof toast==='function')toast('分支已创建（审计留痕）');
-          renderAll();
+          var created=null;(b.branches||[]).forEach(function(br){if(br.sec===frontSec&&br.name===nameVal&&br.sign==='+'&&(!created||br.id>created.id))created=br;});
+          ROWEDIT=null;if(!open_[sec])open_[sec]=true;applyBoard(b);
+          if(!created){if(typeof toast==='function')toast('分支已创建，但未定位到新行，请刷新后填写');return;}
+          if(!chg.length){if(typeof toast==='function')toast('分支已创建（审计留痕）');return;}
+          var nk='C'+created.id,changes=chg.map(function(x){return {key:nk,m:x[0],value:x[1]};});
+          bscCommit(changes,function(){if(typeof toast==='function')toast('分支已创建并保存 '+changes.length+' 格（审计留痕）');});
         }).catch(apiErr);
       return;
     }
@@ -1452,11 +1569,17 @@ document.addEventListener('mousedown',function(e){
   if(p&&p.style.display!=='none'&&!(e.target.closest&&(e.target.closest('#kb3FltPanel')||e.target.closest('.fltarr'))))kb3FltClose();
 });
 function kb3Items(){
-  return LEDGER.map(function(r){
-    var cat=kb3cat(r.st),mo=kb3mo(r),over=(r.st==='简历&面试中'||r.st==='已offer待入职')&&r.eta<'2026-07';
-    var days=(r.st==='已入职'&&r.join)?Math.round((new Date(r.join)-new Date(r.ask))/864e5):'';
-    var one=r.who+'·'+r.job+'('+r.loc+')·'+(r.st==='已入职'?r.join+'已入职':'预计'+r.eta+'到岗'+(r.memo?'·'+r.memo:''));
-    var v={_mo:moLbl(mo)||'',_cat:cat,_days:days===''?'':String(days),_over:over?'⚠超期':'',_one:one};
+  var rows=LEDGER.slice();
+  if(KB3_DRAFT){
+    var pos=rows.length,a=KB3_DRAFT._anchor;
+    if(a&&a.rid){var ai=rows.findIndex(function(x){return String(x.id)===String(a.rid);});if(ai>=0)pos=ai+(a.mode==='after'?1:0);}
+    rows.splice(pos,0,KB3_DRAFT);
+  }
+  return rows.map(function(r){
+    var draft=!!r._draft,cat=draft?'不计入':kb3cat(r.st),mo=draft?'':kb3mo(r),over=!draft&&(r.st==='简历&面试中'||r.st==='已offer待入职')&&r.eta<'2026-07';
+    var days=(!draft&&r.st==='已入职'&&r.join)?Math.round((new Date(r.join)-new Date(r.ask))/864e5):'';
+    var one=draft?'':(r.who+'·'+r.job+'('+r.loc+')·'+(r.st==='已入职'?r.join+'已入职':'预计'+r.eta+'到岗'+(r.memo?'·'+r.memo:'')));
+    var v={_mo:moLbl(mo)||'',_cat:cat,_days:days===''?'':String(days),_over:over?'超期':'',_one:one};
     KB3COLS.forEach(function(cdef){if(cdef.f[0]!=='_')v[cdef.f]=r[cdef.f]==null?'':String(r[cdef.f]);});
     return {r:r,v:v};
   });
@@ -1465,8 +1588,8 @@ function renderKb3(){
   var items=kb3Items(),totalN=items.length;
   Object.keys(KB3F).forEach(function(f){var sel=KB3F[f]&&KB3F[f].sel;if(!sel)return;
     var set={};sel.forEach(function(x){set[x]=1;});
-    items=items.filter(function(it){return set[String(it.v[f])];});});
-  if(window.KB3HIDE&&Object.keys(KB3HIDE).length)items=items.filter(function(it){return !KB3HIDE[it.r.id];});
+    items=items.filter(function(it){return it.r._draft||set[String(it.v[f])];});});
+  if(window.KB3HIDE&&Object.keys(KB3HIDE).length)items=items.filter(function(it){return it.r._draft||!KB3HIDE[it.r.id];});
   if(KB3SORT.f&&KB3SORT.dir){
     var sf=KB3SORT.f,dir=KB3SORT.dir;
     items.sort(function(a,b){var x=a.v[sf],y=b.v[sf];
@@ -1488,13 +1611,14 @@ function renderKb3(){
   var _rn=0;
   items.forEach(function(it){
     var r=it.r,v=it.v;_rn++;
+    var draft=!!r._draft,rid=draft?'draft':r.id;
     var catChip=v._cat==='不计入'?'na':(r.st==='已入职'?'ok':'todo');
-    g+='<tr data-rid="'+(r.id||'')+'">'+(EDIT?'<td class="rc rcRow" title="点击选中整行，右键操作">'+_rn+'</td>':'')+ec(r,'dept')+ec(r,'c')+ec(r,'own')+ec(r,'src')+ec(r,'job')
+    g+='<tr data-rid="'+rid+'" class="'+(draft?'kb3-draft ':'')+(String(KB3_EDITING)===String(rid)?'kb3-editing':'')+'">'+(EDIT?'<td class="rc rcRow" title="点击选中整行，右键操作">'+_rn+'</td>':'')+ec(r,'dept')+ec(r,'c')+ec(r,'own')+ec(r,'src')+ec(r,'job')
       +ec(r,'cls')+ec(r,'loc')+ec(r,'ask')+ec(r,'num','num')
       +ec(r,'st')+ec(r,'eta')+ec(r,'memo')
       +ec(r,'offer')+ec(r,'lvl')+ec(r,'join')+ec(r,'jmemo')
-      +'<td>'+(v._mo||'—')+'</td><td><span class="chip '+catChip+'">'+v._cat+'</span></td><td class="num">'+v._days+'</td><td>'+v._over+'</td><td>'+esc(v._one)+'</td>'
-      +'<td class="c" style="text-align:center;white-space:nowrap">'+(r.id?'<span class="rowtool" onclick="kb3EditRow('+r.id+')" title="编辑此行（手动列整行进入编辑态）"><t-icon name="edit-1" size="12"></t-icon></span> <span class="rowtool del" onclick="kb3DelRow('+r.id+')" title="删除此行（审计留痕）"><t-icon name="delete" size="12"></t-icon></span>':'')+'</td></tr>';
+      +'<td>'+(v._mo||'—')+'</td><td><span class="chip '+catChip+'">'+(draft?'未保存':v._cat)+'</span></td><td class="num">'+v._days+'</td><td>'+v._over+'</td><td>'+esc(v._one)+'</td>'
+      +'<td class="c" style="text-align:center;white-space:nowrap">'+(draft?'<span style="color:var(--td-warning-color,#ED7B2F)">填写后保存</span>':(r.id?'<span class="rowtool" onclick="kb3EditRow('+r.id+')" title="编辑此行（手动列整行进入编辑态）"><t-icon name="edit-1" size="12"></t-icon></span> <span class="rowtool del" onclick="kb3DelRow('+r.id+')" title="删除此行（审计留痕）"><t-icon name="delete" size="12"></t-icon></span>':''))+'</td></tr>';
   });
   if(!items.length)g+='<tr><td colspan="'+(EDIT?23:22)+'" style="text-align:center;color:#8194AE;padding:22px">'+(totalN?'当前筛选无匹配行 · 点「✕清」清除筛选':'暂无台账数据（全局一份·跨年滚动） · 点上方「导入台账文档」或接数据源')+'</td></tr>';
   document.getElementById('kb3Tbl').innerHTML=g+'</tbody>';
@@ -1503,6 +1627,7 @@ function renderKb3(){
   if(typeof kb3ApplyColHide==='function')kb3ApplyColHide();
   kb3FreezeApply();
   if(typeof kb3ApplySel==='function')kb3ApplySel();
+  if(KB3_EDITING!==null&&typeof kb3MountRowEditor==='function')kb3MountRowEditor(KB3_EDITING);
   var fi=document.getElementById('kb3FltInfo'),fActive=Object.keys(KB3F).length>0;
   var hidN=(window.KB3HIDE)?Object.keys(KB3HIDE).length:0;
   if(fi)fi.innerHTML=(fActive?('筛出 '+items.length+' / '+totalN+' 行'):(KB3SORT.f?('已排序 · '+totalN+' 行'):''))
@@ -1799,21 +1924,25 @@ function loadSources(){return api('GET','/api/sources').then(function(r){
   if(chip&&a){chip.className='chip '+(a.configured?'ok':'todo');chip.textContent=a.configured?'源已配置':'待配置（sources_config.json）';}
 }).catch(function(){});}
 /* 台账 CRUD（共享Excel式；派生列无 ecell 不响应；只读账号拒） */
-/* 260724 直接新增空白行（draft，跳过必填），立即进入行内编辑；anchor={mode:'before'/'after',rid} 决定插入位置 */
+/* 新增行先留在前端：立即显示空白可编辑行，必填完整后才调用后端入库 */
 function kb3AddBlank(anchor){
   if(!USE_API)return alert('连接后端后可添加行');
   if(RO)return alert('当前账号为只读权限');
-  var body={fields:{},draft:true};
-  if(anchor&&anchor.mode)body[anchor.mode]=anchor.rid;
-  api('POST','/api/ledger/row',body)
-    .then(function(r){LEDGER=r.rows||[];renderKb3();renderAuditApi();
-      var nid=r.id;
-      if(nid){kb3EditRow(nid);var tr=document.querySelector('#kb3Tbl tr[data-rid="'+nid+'"]');if(tr&&tr.scrollIntoView)tr.scrollIntoView({block:'center'});}
-      if(typeof toast==='function')toast('已新增空白行，填写后点保存（未填必填不予入库）');
-    }).catch(apiErr);
+  if(KB3_DRAFT){
+    KB3_EDITING='draft';renderKb3();
+    var old=document.querySelector('#kb3Tbl tr[data-rid="draft"]');if(old&&old.scrollIntoView)old.scrollIntoView({block:'center'});
+    var oldInp=old&&old.querySelector('input,select');if(oldInp)oldInp.focus();
+    if(typeof toast==='function')toast('已有一条未保存的新行，请先填完或取消');return;
+  }
+  KB3_DRAFT={id:'draft',_draft:true,_anchor:anchor||null,dept:'',c:'',own:'',src:'',job:'',cls:'',loc:'',ask:'',num:'1',st:'',eta:'',memo:'',offer:'',lvl:'',join:'',jmemo:'',who:''};
+  KB3_EDITING='draft';KB3SORT={f:null,dir:0};KB3F={};
+  renderKb3();
+  var tr=document.querySelector('#kb3Tbl tr[data-rid="draft"]');if(tr&&tr.scrollIntoView)tr.scrollIntoView({block:'center'});
+  var inp=tr&&tr.querySelector('td[data-f="dept"] input');if(inp)inp.focus();
+  if(typeof toast==='function')toast('空白行已生成：填写必填项后保存');
 }
-kb3AddRow=function(){kb3AddBlank(null);};       // 末尾追加空白行
-kb3InsertRow=function(mode,rid){kb3AddBlank({mode:mode,rid:rid});};  // 右键上/下方插入空白行
+kb3AddRow=function(){kb3AddBlank(null);};
+kb3InsertRow=function(mode,rid){kb3AddBlank({mode:mode,rid:rid});};
 saveKb3Add=function(){
   var fs={},miss=[];
   KB3_FIELDS.forEach(function(d){var el=document.getElementById('kb3f_'+d.f),v=el?el.value.trim():'';
@@ -1840,33 +1969,58 @@ function kb3RowEditor(f,old){
   ed.style.cssText='width:100%;min-width:90px;border:1px solid var(--blue-l);border-radius:4px;padding:2px 6px;font:inherit;background:#fff;';
   return ed;
 }
-kb3EditRow=function(id){
-  if(!USE_API)return alert('连接后端后可编辑');
-  if(RO)return alert('当前账号为只读权限');
-  renderKb3();
+window.kb3MountRowEditor=function(id){
   var tr=document.querySelector('#kb3Tbl tr[data-rid="'+id+'"]');if(!tr)return;
+  tr.classList.add('kb3-editing');
   tr.querySelectorAll('td.ecell').forEach(function(td){
+    if(td.querySelector('input,select'))return;
     var f=td.getAttribute('data-f'),old=td.textContent;
     td.setAttribute('data-old',old);
     var ed=kb3RowEditor(f,old);td.textContent='';td.appendChild(ed);
+    ed.addEventListener('input',function(){if(String(id)==='draft'&&KB3_DRAFT)KB3_DRAFT[f]=ed.value;td.classList.remove('kb3-invalid');var er=td.querySelector('.kb3-field-error');if(er)er.remove();ed.removeAttribute('aria-invalid');});
   });
-  tr.lastElementChild.innerHTML='<button class="btn" style="padding:2px 8px;font-size:11px" onclick="kb3SaveRow('+id+')">保存</button><button class="btn gray" style="padding:2px 8px;font-size:11px;margin-left:4px" onclick="kb3CancelRow()">取消</button>';
+  tr.lastElementChild.innerHTML='<button class="btn" style="padding:2px 8px;font-size:11px" onclick="kb3SaveRow(\''+id+'\')">保存</button><button class="btn gray" style="padding:2px 8px;font-size:11px;margin-left:4px" onclick="kb3CancelRow()">取消</button>';
 };
-kb3CancelRow=function(){renderKb3();};
+kb3EditRow=function(id){
+  if(!USE_API)return alert('连接后端后可编辑');
+  if(RO)return alert('当前账号为只读权限');
+  if(KB3_DRAFT&&String(id)!=='draft'){if(typeof toast==='function')toast('请先保存或取消当前新增行');return;}
+  KB3_EDITING=String(id);renderKb3();
+  var tr=document.querySelector('#kb3Tbl tr[data-rid="'+id+'"]'),ed=tr&&tr.querySelector('input,select');if(ed)ed.focus();
+};
+kb3CancelRow=function(){
+  var wasDraft=KB3_EDITING==='draft';KB3_EDITING=null;if(wasDraft)KB3_DRAFT=null;renderKb3();
+  if(wasDraft&&typeof toast==='function')toast('已取消新增，空白行未入库');
+};
+function kb3MarkInvalid(td,label){
+  td.classList.add('kb3-invalid');var ed=td.querySelector('input,select');if(ed)ed.setAttribute('aria-invalid','true');
+  var er=document.createElement('span');er.className='kb3-field-error';er.textContent=label+'必填';td.appendChild(er);
+}
 kb3SaveRow=function(id){
   var tr=document.querySelector('#kb3Tbl tr[data-rid="'+id+'"]');if(!tr)return;
-  var fs={},miss=[];
+  var draft=String(id)==='draft',all={},changed={},firstBad=null;
   tr.querySelectorAll('td.ecell').forEach(function(td){
-    var f=td.getAttribute('data-f'),old=td.getAttribute('data-old')||'',ed=td.querySelector('input,select');
-    if(!ed)return;
-    var nv=ed.value.trim(),def=KB3_FIELDS.find(function(d){return d.f===f;});
-    if(def&&def.req&&!nv)miss.push(def.l);
-    if(nv!==old)fs[f]=nv;
+    td.classList.remove('kb3-invalid');var oldErr=td.querySelector('.kb3-field-error');if(oldErr)oldErr.remove();
+    var f=td.getAttribute('data-f'),old=td.getAttribute('data-old')||'',ed=td.querySelector('input,select');if(!ed)return;
+    var nv=ed.value.trim(),def=KB3_FIELDS.find(function(d){return d.f===f;});all[f]=nv;
+    if(def&&def.req&&!nv){kb3MarkInvalid(td,def.l);if(!firstBad)firstBad=ed;}
+    if(nv!==old)changed[f]=nv;
   });
-  if(miss.length)return alert('必填项不能清空：'+miss.join('、'));
-  if(!Object.keys(fs).length)return kb3CancelRow();
-  api('PUT','/api/ledger/row/'+id,{fields:fs})
-    .then(function(r){LEDGER=r.rows||[];renderKb3();renderAuditApi();if(typeof toast==='function')toast('已保存整行改动（审计留痕）');})
+  if(firstBad){firstBad.focus();if(typeof toast==='function')toast('请先填写红框标出的必填项');return;}
+  if(all.num!==''&&Number(all.num)!==1){
+    var numTd=tr.querySelector('td[data-f="num"]');if(numTd){numTd.classList.add('kb3-invalid');var numEd=numTd.querySelector('input');if(numEd){numEd.setAttribute('aria-invalid','true');numEd.focus();}var ne=document.createElement('span');ne.className='kb3-field-error';ne.textContent='每行只能填1';numTd.appendChild(ne);}
+    if(typeof toast==='function')toast('招聘数量必须为 1，多名额请另起一行');return;
+  }
+  if(draft){
+    Object.keys(all).forEach(function(f){KB3_DRAFT[f]=all[f];});
+    api('POST','/api/ledger/row',{fields:all})
+      .then(function(r){KB3_DRAFT=null;KB3_EDITING=null;LEDGER=r.rows||[];renderKb3();renderAuditApi();if(typeof toast==='function')toast('新行已保存入库（审计留痕）');})
+      .catch(function(e){apiErr(e);});
+    return;
+  }
+  if(!Object.keys(changed).length){KB3_EDITING=null;renderKb3();return;}
+  api('PUT','/api/ledger/row/'+id,{fields:changed})
+    .then(function(r){KB3_EDITING=null;LEDGER=r.rows||[];renderKb3();renderAuditApi();if(typeof toast==='function')toast('已保存整行改动（审计留痕）');})
     .catch(apiErr);
 };
 kb3DelRow=function(id){
