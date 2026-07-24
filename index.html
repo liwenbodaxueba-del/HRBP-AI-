@@ -707,7 +707,7 @@ function z(){return [0,0,0,0,0,0,0,0,0,0,0,0];}
 function emptyCustom(){return {out:[],inn:[],camp:[],hc:[],quota:[]};}
 /* ===== 空态：所有数据源未接入，数字一律留空，绝不编造 ===== */
 function nb(){return ['','','','','','','','','','','','',''];}  // 12 个空格（待接入）
-function mkEmpty(status,lock){return {status:status,lock:lock,budget:nb(),actual:[],o_sys:nb(),o_nat:nb(),o_bp:nb(),o_act:nb(),i_soc:nb(),i_yy:nb(),i_bs:nb(),i_cbp:nb(),i_incr:nb(),faHC:'',q_init:nb(),kb3rows:[],pdfUrl:null,pdfName:''};}
+function mkEmpty(status,lock){return {status:status,lock:lock,budget:nb(),actual:[],o_sys:nb(),o_nat:nb(),o_bp:nb(),o_act:nb(),i_soc:nb(),i_yy:nb(),i_bs:nb(),i_cbp:nb(),i_incr:nb(),faHC:'',q_init:nb(),kb3rows:[],pdfUrl:null,pdfName:'',seed:null};}
 var DATA={
   2025:mkEmpty('待接入·历史归档',12),
   2026:mkEmpty('待接入·执行中',6),
@@ -786,7 +786,7 @@ function outflow(m){return agg([D.o_sys[m],D.o_nat[m],D.o_bp[m],D.o_act[m],cSum(
 function inflow(m){return agg([D.i_soc[m],campTot(m),D.i_incr[m],cSum('inn',m)]);}
 function chain(){var c=[];for(var m=0;m<12;m++){
   if(m<LOCK){c[m]=isN(D.actual[m])?D.actual[m]:'';}
-  else{var prev=m>0?c[m-1]:(isN(D.actual[LOCK-1])?D.actual[LOCK-1]:'');
+  else{var prev=m>0?c[m-1]:(LOCK>0?(isN(D.actual[LOCK-1])?D.actual[LOCK-1]:''):(isN(D.seed)?D.seed:''));  // LOCK=0 整年纯预估：链首=上年12月期末(跨年种子)
     if(!isN(prev)){c[m]='';}else{var o=outflow(m),i=inflow(m);c[m]=Math.round((prev-(isN(o)?o:0)+(isN(i)?i:0))*100)/100;}}
   }return c;}
 /* ===== 通用行渲染 ===== */
@@ -1656,7 +1656,7 @@ var FRONT2SEC={out:'总流出（−）',inn:'总流入（＋）',camp:'校招∇
 function nn(v){return (v===null||v===undefined)?'':v;}
 function applyBoard(b){
   var y=b.year,d=DATA[y]||(DATA[y]=mkEmpty(b.status,b.lock));
-  d.status=b.status;d.lock=b.lock;d.nat=b.nat||d.nat;
+  d.status=b.status;d.lock=b.lock;d.nat=b.nat||d.nat;d.seed=(b.seed===undefined?null:b.seed);
   if(typeof demoBanner==='function')demoBanner(!!b.demo);
   ['budget','actual','o_sys','o_nat','o_bp','o_act','i_soc','i_yy','i_bs','i_cbp','i_incr'].forEach(function(k){
     d[k]=((b.metrics[k]||{}).vals||[]).map(nn);while(d[k].length<12)d[k].push('');

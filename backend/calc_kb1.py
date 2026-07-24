@@ -47,7 +47,9 @@ def nat_forecast(vals, lock, prev_er, nat_n):
     return eff, info
 
 
-def compute(vals, branches, lock, prev_er=None, nat_n=NAT_N_DEFAULT):
+def compute(vals, branches, lock, prev_er=None, nat_n=NAT_N_DEFAULT, seed=None):
+    # seed = 上一年 12 月期末在岗（跨年链首基数）。仅当 lock=0（整年纯预估、无实际月）时启用：
+    # PRD 4.1「实际月后第一个预估月 = 上一月月末实际在岗」——1 月的「上一月」即上年 12 月。
     nat_eff, nat_info = nat_forecast(vals, lock, prev_er, nat_n)
     vals = dict(vals, o_nat=nat_eff)
 
@@ -72,7 +74,7 @@ def compute(vals, branches, lock, prev_er=None, nat_n=NAT_N_DEFAULT):
         if m < lock:
             chain.append(g("actual", m))
         else:
-            prev = chain[m - 1] if m > 0 else g("actual", lock - 1) if lock > 0 else None
+            prev = chain[m - 1] if m > 0 else (g("actual", lock - 1) if lock > 0 else seed)
             if not isinstance(prev, (int, float)):
                 chain.append(None)
             else:
