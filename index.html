@@ -5,18 +5,32 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HC Forecast Board · 人力预估看板（空态版）</title>
 <!-- TDesign 官方图标库（Web Components 原生版，M05 图标双强制：name 必须来自 tdesign-icons manifest） -->
-<script src="https://cdn.jsdelivr.net/npm/tdesign-icons-web-components@0.3.7/dist/tdesign-icons-web-components.min.js"></script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tdesign-icons-web-components@0.3.7/dist/tdesign-icons.css">
+<script type="module" src="https://cdn.jsdelivr.net/npm/tdesign-icons-web-components@0.3.7/+esm"></script>
 <style>
 /* ===== TDesign 图标基础尺寸（M05：统一 24x24 默认，继承 currentColor） ===== */
 t-icon{display:inline-flex;width:1em;height:1em;font-size:16px;vertical-align:middle;}
 /* ===== TDesign 语义 Token 注入（M02 红线：颜色走 --td-*） ===== */
 :root{
-  /* 业务品牌色 → 映射到 TDesign 品牌阶（保留你原 navy 深蓝作表头专用，但语义化） */
-  --td-brand-deep:#0A2E6E;          /* 表头深蓝（沿用业务审美） */
+  /* 本地完整兜底：即使 TDesign CDN 不可用，按钮、文字、边框也不能消失 */
+  --td-brand-color:#0052D9;
+  --td-brand-color-1:#ECF2FE;
+  --td-brand-color-4:#5E8FF7;
+  --td-text-color-primary:rgba(0,0,0,.9);
+  --td-text-color-secondary:rgba(0,0,0,.6);
+  --td-text-color-placeholder:rgba(0,0,0,.4);
+  --td-text-color-disabled:rgba(0,0,0,.26);
+  --td-text-color-anti:#fff;
+  --td-bg-color-secondarycontainer:#F3F3F3;
+  --td-bg-color-container:#fff;
+  --td-bg-color-component:#E7E7E7;
+  --td-component-stroke:#DCDCDC;
+  --td-success-color:#2BA471;
+  --td-error-color:#D54941;
+  --td-comp-size-xxxl:56px;
+  /* 业务品牌色 → 映射到 TDesign 品牌阶（保留深蓝表头） */
+  --td-brand-deep:#0A2E6E;
   --td-brand-deep-2:#1746A8;
   --td-brand-deep-3:#2B57A8;
-  /* 原自定义变量改为引用 TDesign Token，确保双主题兼容 */
   --navy:var(--td-brand-deep); --blue:var(--td-brand-color); --blue-l:var(--td-brand-color-4);
   --b100:var(--td-brand-color-1); --b50:var(--td-brand-color-1);
   --page:var(--td-bg-color-secondarycontainer); --card:var(--td-bg-color-container);
@@ -343,7 +357,7 @@ body.navfold .navtg{left:8px;}
   <span class="sync" id="syncTag"><t-icon name="check-circle-filled" style="vertical-align:-2px;margin-right:3px"></t-icon>已就绪</span>
   <div class="fresh" id="freshTag">数据源：○ 未接入 · 单元格留空待取数</div>
   <button class="btn" onclick="pullLive()"><t-icon name="refresh" style="vertical-align:-2px;margin-right:3px"></t-icon>实时刷新</button>
-  <button class="tbi" onclick="helpToggle()" title="帮助（快捷键 ?）"><t-icon name="help-circle"></t-icon></button>
+  <button class="tbi" onclick="helpToggle()" title="帮助（快捷键 ?）"><t-icon name="help-circle" style="margin-right:4px"></t-icon>帮助</button>
   <div class="tbmenu">
     <button class="tbi" onclick="tbToggle('meMenu')"><t-icon name="user-circle"></t-icon> 我的</button>
     <div class="tbdrop" id="meMenu">
@@ -353,7 +367,7 @@ body.navfold .navtg{left:8px;}
     </div>
   </div>
   <div class="tbmenu">
-    <button class="tbi" onclick="tbToggle('moreMenu')"><t-icon name="more"></t-icon></button>
+    <button class="tbi" onclick="tbToggle('moreMenu')"><t-icon name="more" style="margin-right:4px"></t-icon>更多</button>
     <div class="tbdrop" id="moreMenu">
       <a onclick="goView('ds');tbToggle()"><t-icon name="link" style="vertical-align:-2px;margin-right:6px"></t-icon>数据源接入</a>
       <a onclick="goView('audit');tbToggle()"><t-icon name="usergroup" style="vertical-align:-2px;margin-right:6px"></t-icon>审计日志</a>
@@ -712,7 +726,7 @@ function setYear(y){YEAR=y;bindYear();renderYearTabs();renderAll();renderKb3();l
 function renderYearTabs(){
   document.querySelectorAll('.yeartabs').forEach(function(box){
     box.innerHTML='<span class="ytscroll">'+YEARS.map(function(y){
-      return '<span class="ytab'+(y===YEAR?' on':'')+'" onclick="setYear('+y+')">'+y+'<span class="st">'+DATA[y].status+'</span>'+(BASEYEARS.indexOf(y)<0?'<span class="ydel" title="删除该年份页签" onclick="event.stopPropagation();delYear('+y+')"><t-icon name="close" size="12"></t-icon></span>':'')+'</span>';
+      return '<span class="ytab'+(y===YEAR?' on':'')+'" onclick="setYear('+y+')">'+y+'<span class="st">'+DATA[y].status+'</span>'+(BASEYEARS.indexOf(y)<0?'<span class="ydel" title="删除该年份页签" onclick="event.stopPropagation();delYear('+y+')"><t-icon name="delete" size="12"></t-icon></span>':'')+'</span>';
     }).join('')+'<span class="ytab add" title="生成该年份空模板并读取系统数" onclick="openYearAdd()"><t-icon name="add" size="12" style="margin-right:2px"></t-icon>新增年份</span></span>'+'<span class="tin" style="margin-left:auto"><select><option>请选择部门</option><option>云产品五部</option><option>云产品一部</option><option>云产品三部</option></select></span><span class="tctl" onclick="this.querySelector(\'.tsw\').classList.toggle(\'on\')"><span class="tsw on"></span>启用自动同步</span><button class="btn outline" onclick="exportCSV()">导出报表</button>';
     var onTab=box.querySelector('.ytab.on');
     if(onTab)onTab.parentNode.scrollLeft=Math.max(0,onTab.offsetLeft-60);
@@ -825,7 +839,7 @@ function customRows(sec,extra){
     }else{
       label=(extra.prefix||'')+'<span style="cursor:pointer" title="点击改名" onclick="openRowDef(\''+sec+'\',\''+key+'\')">'+esc(r.name)+'</span>'
         +pen(key)
-        +'<span class="rowtool del" title="删除" onclick="delRow(\''+key+'\')"><t-icon name="close" size="12"></t-icon></span>';
+        +'<span class="rowtool del" title="删除" onclick="delRow(\''+key+'\')"><t-icon name="delete" size="12"></t-icon></span>';
     }
     var avgV=extra.avgMode==='dash'?'—':(extra.avgMode==='calc'?f2(avg12(r.vals)):undefined);
     out+=tr('sub'+(extra.deep?'2':''),label,r.vals,{src:'custom',key:key,edit:true,hideZero:true,lock:extra.lock,avg:avgV,tot:(extra.noTot?undefined:tot),noTot:extra.noTot});
@@ -834,7 +848,7 @@ function customRows(sec,extra){
 }
 function addRowTr(sec,text,noTot){
   var n=noTot?13:14,cells='';for(var i=0;i<n;i++)cells+='<td></td>';
-  return '<tr class="addr"><td><span class="addrow" onclick="openRowDef(\''+sec+'\',null)"><t-icon name="add" size="12" style="vertical-align:-2px;margin-right:3px"></t-icon>'+(text||'新增分支（命名·直接录人数）')+'</span> <span class="rowtool" style="cursor:help" title="纯计人头：正数=增加本分节人数；如上方系统数需要调整，可填负数冲抵">ⓘ</span></td>'+cells+'</tr>';
+  return '<tr class="addr"><td><span class="addrow" onclick="openRowDef(\''+sec+'\',null)"><t-icon name="add" size="12" style="vertical-align:-2px;margin-right:3px"></t-icon>'+(text||'新增分支（命名·直接录人数）')+'</span> <span class="rowtool" style="cursor:help" title="纯计人头：正数=增加本分节人数；如上方系统数需要调整，可填负数冲抵"><t-icon name="info-circle" size="12"></t-icon></span></td>'+cells+'</tr>';
 }
 /* ===== 看板1 ===== */
 function render(){
@@ -918,7 +932,7 @@ function natBadge(){
   var pct=(nt.pct===null||nt.pct===undefined)?'—':nt.pct+'%';
   var tip='近'+nt.n+'个月ER实际离职合计÷'+nt.n+'，均摊到每个未发生月（源：HR数仓·上一年ER报表离职数，URL待求）'+(nt.missing&&nt.missing.length?'；窗口缺数：'+nt.missing.join('、')+'（缺数不派生，留空不编造）':'');
   return ' <span class="badge calc" title="'+esc(tip).replace(/"/g,'&quot;')+'">占总流出 '+pct+'</span>'
-    +(RO?'':' <span class="rowtool" title="调参：参考前 n 个月平均（当前 n='+nt.n+'）" onclick="openNatParam()">n='+nt.n+' ⚙</span>');
+    +(RO?'':' <span class="rowtool" title="调参：参考前 n 个月平均（当前 n='+nt.n+'）" onclick="openNatParam()">n='+nt.n+' <t-icon name="setting" size="12"></t-icon></span>');
 }
 function openNatParam(){
   var nt=D.nat||{n:6};
@@ -1466,8 +1480,8 @@ function renderKb3(){
   if(EDIT){var ls='';for(var li=0;li<KB3COLS.length;li++)ls+='<th class="rc rcCol" data-cf="'+KB3COLS[li].f+'" title="点击选中整列，右键操作">'+colLetter(li)+'</th>';ls+='<th class="rc">'+colLetter(KB3COLS.length)+'</th>';letterRow='<tr class="xlhdr"><th class="rc corner"></th>'+ls+'</tr>';}
   var g='<thead>'+letterRow+'<tr class="grp">'+cn+'<th class="g1" colspan="9">需求信息</th><th class="g2" colspan="3">进展阶段</th><th class="g3" colspan="4">入职阶段</th><th class="g4" colspan="5">系统派生（勿改）</th><th class="g2" colspan="1"></th></tr>'
     +'<tr class="col">'+cn+KB3COLS.map(function(cdef){
-      var arr=KB3SORT.f===cdef.f?('<span class="sortarr">'+(KB3SORT.dir===-1?'▼':'▲')+'</span>'):'';
-      var flt=KB3FON?('<span class="fltarr'+(KB3F[cdef.f]?' on':'')+'" onclick="kb3FltOpen(event,\''+cdef.f+'\')" title="筛选此列（Excel式值勾选）">▼</span>'):'';
+      var arr=KB3SORT.f===cdef.f?('<span class="sortarr"><t-icon name="'+(KB3SORT.dir===-1?'chevron-down':'chevron-up')+'" size="12"></t-icon></span>'):'';
+      var flt=KB3FON?('<span class="fltarr'+(KB3F[cdef.f]?' on':'')+'" onclick="kb3FltOpen(event,\''+cdef.f+'\')" title="筛选此列（Excel式值勾选）"><t-icon name="chevron-down" size="12"></t-icon></span>'):'';
       return '<th class="sortable" onclick="if(!event.target.closest(\'.colgrip\')&&!event.target.closest(\'.fltarr\'))kb3Sort(\''+cdef.f+'\')" title="点击列名排序（降/升/清除）">'+cdef.l+arr+flt+'</th>';
     }).join('')+'<th style="width:96px">操作'+(Object.keys(KB3F).length?' <span class="rowtool" onclick="kb3ClearFlt()" title="清除全部列筛选"><t-icon name="close" size="12"></t-icon>清</span>':'')+'</th></tr>';
   g+='</thead><tbody>';
@@ -1480,7 +1494,7 @@ function renderKb3(){
       +ec(r,'st')+ec(r,'eta')+ec(r,'memo')
       +ec(r,'offer')+ec(r,'lvl')+ec(r,'join')+ec(r,'jmemo')
       +'<td>'+(v._mo||'—')+'</td><td><span class="chip '+catChip+'">'+v._cat+'</span></td><td class="num">'+v._days+'</td><td>'+v._over+'</td><td>'+esc(v._one)+'</td>'
-      +'<td class="c" style="text-align:center;white-space:nowrap">'+(r.id?'<span class="rowtool" onclick="kb3EditRow('+r.id+')" title="编辑此行（手动列整行进入编辑态）"><t-icon name="edit-1" size="12"></t-icon></span> <span class="rowtool del" onclick="kb3DelRow('+r.id+')" title="删除此行（审计留痕）"><t-icon name="close" size="12"></t-icon></span>':'')+'</td></tr>';
+      +'<td class="c" style="text-align:center;white-space:nowrap">'+(r.id?'<span class="rowtool" onclick="kb3EditRow('+r.id+')" title="编辑此行（手动列整行进入编辑态）"><t-icon name="edit-1" size="12"></t-icon></span> <span class="rowtool del" onclick="kb3DelRow('+r.id+')" title="删除此行（审计留痕）"><t-icon name="delete" size="12"></t-icon></span>':'')+'</td></tr>';
   });
   if(!items.length)g+='<tr><td colspan="'+(EDIT?23:22)+'" style="text-align:center;color:#8194AE;padding:22px">'+(totalN?'当前筛选无匹配行 · 点「✕清」清除筛选':'暂无台账数据（全局一份·跨年滚动） · 点上方「导入台账文档」或接数据源')+'</td></tr>';
   document.getElementById('kb3Tbl').innerHTML=g+'</tbody>';
@@ -1536,8 +1550,8 @@ function renderAudit(){document.getElementById('auditBody').innerHTML=audit.map(
 function renderCoverage(){
   var rows=[
    ['grp','看板'],
-   ['<t-icon name="check-circle-filled" size="14" style="vertical-align:-2px;margin-right:3px"></t-icon>','看板1 · 部门人力预估表【集团】：heads(项目+1-12月+年均+总数)、key(预算当量/期末在岗预估)、已流出入分列、校招∇可展开、<t-icon name="add" size="12" style="vertical-align:-2px;margin-right:2px"></t-icon>加分支、行双击下钻、超标红灯、趋势图+瀑布'],
-   ['<t-icon name="check-circle-filled" size="14" style="vertical-align:-2px;margin-right:3px"></t-icon>','看板2 · 预算看板：法定HC/预算当量=其中求和+<t-icon name="add" size="12" style="vertical-align:-2px;margin-right:2px"></t-icon>分支+收起'],
+   ['✅','看板1 · 部门人力预估表【集团】：heads(项目+1-12月+年均+总数)、key(预算当量/期末在岗预估)、已流出入分列、校招∇可展开、<t-icon name="add" size="12" style="vertical-align:-2px;margin-right:2px"></t-icon>加分支、行双击下钻、超标红灯、趋势图+瀑布'],
+   ['✅','看板2 · 预算看板：法定HC/预算当量=其中求和+<t-icon name="add" size="12" style="vertical-align:-2px;margin-right:2px"></t-icon>分支+收起'],
    ['✅','看板3 · 台账4列组(需求/进展/入选入职/系统派生)+3.2待流入-社招面板(归月自动派生)+导入+添加行弹窗(必填★)+行级编辑保存/取消'],
    ['grp','核心功能'],
    ['✅','预估计算（上月−流出+流入+调节，不自动配平，超标红灯）'],
@@ -1942,7 +1956,7 @@ function apiTag(){var el=document.getElementById('freshTag');if(el)el.textConten
 exportCSV=function(){if(!USE_API)return ORIG.exportCSV();window.open('/api/export/'+YEAR+'.csv');};
 function addImportBtn(){
   var bar=document.querySelector('.topbar');if(!bar||document.getElementById('impSnapBtn'))return;
-  var db=document.createElement('button');db.id='demoBtn';db.className='tbi';db.textContent='◔ 导入示例数据';
+  var db=document.createElement('button');db.id='demoBtn';db.className='tbi';db.innerHTML='<t-icon name="browse" size="14" style="vertical-align:-2px;margin-right:4px"></t-icon>导入示例数据';
   db.title='功能演示用假数：demo 标签全程可溯、只填空格不覆盖真数、页面挂【示例】横幅；再点或说「删除假数」一键全清';
   db.onclick=function(){var on=document.getElementById('demoBanner').classList.contains('on');on?demoClear():demoLoad();};
   var b=document.createElement('button');b.id='impSnapBtn';b.className='tbi';b.innerHTML='<t-icon name="upload" size="14" style="vertical-align:-2px;margin-right:4px"></t-icon>导入快照CSV';b.title='上传兜底：metric,month,value；校验闸不合格整批拒绝';
@@ -1977,7 +1991,7 @@ function navFold(f){
   var n=document.querySelector('nav.side');
   if(n){if(to){n.style.cssText='width:0;flex:0 0 0px;min-width:0;padding:0;border-right:none;overflow:hidden;';}else{n.style.cssText='';}}
   var t=document.getElementById('navTg');
-  if(t){t.textContent=to?'☰':'⟨';t.title=to?'展开目录':'收起目录';t.style.left=to?'8px':'160px';}
+  if(t){t.innerHTML='<t-icon name="'+(to?'menu-unfold':'menu-fold')+'" size="16"></t-icon>';t.title=to?'展开目录':'收起目录';t.style.left=to?'8px':'160px';}
 }
 (function(){
   var btn=document.createElement('div');btn.id='navTg';btn.className='navtg';
@@ -1997,7 +2011,7 @@ function kb3ApplyClamp(){
   if(kb3Open){w.style.height='';w.style.minHeight='';w.style.overflowY='';w.style.resize='';if(drag)drag.style.display='none';}
   else{w.style.height=KB3_H+'px';w.style.minHeight='150px';w.style.overflowY='auto';w.style.resize='vertical';if(drag)drag.style.display=n>8?'':'none';}
   var b=document.getElementById('kb3ExpandBtn');
-  if(b){b.style.display=n>8?'':'none';b.textContent=kb3Open?'收起列表':'展开全部（'+n+' 行）';}
+  if(b){b.style.display=n>8?'':'none';b.innerHTML='<t-icon name="'+(kb3Open?'chevron-up':'chevron-down')+'" style="vertical-align:-2px;margin-right:4px"></t-icon>'+(kb3Open?'收起列表':'展开全部（'+n+' 行）');}
   /* 两级表头吸顶：分组行贴0，列名行贴分组行下沿 */
   var grpRow=document.querySelector('#kb3Tbl thead tr.grp');
   var gh=grpRow?grpRow.offsetHeight:0;
