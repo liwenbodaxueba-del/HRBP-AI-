@@ -176,6 +176,9 @@ th.sortable:hover{filter:brightness(1.08);}
 .colfix{table-layout:fixed;}
 .colfix td,.colfix th{overflow:hidden;text-overflow:ellipsis;}
 .bsc td.lock{background:var(--lock);color:var(--ink2);}
+.bsc td.mut{color:#AEB8C6;font-style:italic;}  /* 估/实双轨：预估行已发生月标灰（保留对比·不计入合计）；实际行未发生月标灰（暂无实际） */
+.bsc tr.actrow td:first-child{color:var(--navy);}
+.bsc tr.actrow td:first-child::before{content:'✓ ';color:var(--green);font-weight:700;}
 .bsc tr.key td{background:var(--gold);font-weight:700;}
 .bsc tr.key td:first-child{background:var(--gold);}
 .bsc tr.subtot td{background:#E8F0FB;font-weight:700;color:var(--navy);}
@@ -720,10 +723,10 @@ function kb1CellMenu(td,ev){
 <script>
 var M=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 function z(){return [0,0,0,0,0,0,0,0,0,0,0,0];}
-function emptyCustom(){return {out:[],inn:[],camp:[],hc:[],quota:[]};}
+function emptyCustom(){return {out:[],inn:[],soc:[],camp:[],hc:[],quota:[]};}
 /* ===== 空态：所有数据源未接入，数字一律留空，绝不编造 ===== */
 function nb(){return ['','','','','','','','','','','','',''];}  // 12 个空格（待接入）
-function mkEmpty(status,lock){return {status:status,lock:lock,budget:nb(),actual:[],o_sys:nb(),o_nat:nb(),o_bp:nb(),o_act:nb(),i_soc:nb(),i_yy:nb(),i_bs:nb(),i_cbp:nb(),i_incr:nb(),faHC:'',q_init:nb(),kb3rows:[],pdfUrl:null,pdfName:'',seed:null};}
+function mkEmpty(status,lock){return {status:status,lock:lock,budget:nb(),actual:[],o_sys:nb(),o_nat:nb(),o_bp:nb(),o_act:nb(),i_soc:nb(),soc_sys:nb(),soc_hs:nb(),soc_bp:nb(),i_yy:nb(),i_bs:nb(),i_cbp:nb(),i_incr:nb(),ai_soc:nb(),ai_camp:nb(),ao_lv:nb(),ao_tr:nb(),faHC:'',q_init:nb(),kb3rows:[],pdfUrl:null,pdfName:'',seed:null};}
 var DATA={
   2025:mkEmpty('待接入·历史归档',12),
   2026:mkEmpty('待接入·执行中',6),
@@ -734,7 +737,7 @@ var LEDGER=[];  // 全局台账（跨年滚动·一份）
 var KB3_DRAFT=null,KB3_EDITING=null;  // 新增行先保留在前端，必填完整后才入库
 var MEMOS={2025:{},2026:{},2027:{}}, CUSTOM={2025:emptyCustom(),2026:emptyCustom(),2027:emptyCustom()};
 var D,memos,custom,LOCK,kb2base, cid=1, cmap={};
-var open_={out:true,inn:true,camp:false,hc:true,quota:true};
+var open_={out:true,inn:true,soc:false,camp:false,hc:true,quota:true};
 function bindYear(){
   D=DATA[YEAR]; memos=MEMOS[YEAR]; custom=CUSTOM[YEAR]; LOCK=D.lock;
   kb2base={hc:{name:'期初法定HC',vals:Array(12).fill(D.faHC)},quota:{name:'期初预算当量',vals:D.q_init.slice()}};
@@ -787,6 +790,13 @@ var srcMap={
   i_soc:['招聘系统+需求系统','社招&内部活水待流入','snap'],
   i_yy:['HR数仓','校招·预约入职','snap'], i_bs:['HR数仓','校招·毕业生转聘','snap'], i_cbp:['BP 手填','校招·非系统','bp'],
   i_incr:['BP 手填','增量需求调节 · 12月预估<上年时补','bp'],
+  soc_sys:['社招系统·待接','候选人已接offer、已预约入职时间、未入职','snap'],
+  soc_hs:['活水系统·待接','接收部门负责人同意且员工确认活水、已明确活水调动时间','snap'],
+  soc_bp:['BP 手填','社招/活水非系统待流入 · PlanB=社招台账3.2 待入职-社招项数','bp'],
+  ai_soc:['招聘系统·实际','每月1号读系统当月实际社招入职数；计入已发生月合计。同月「待流入·社招」预估行标灰仅供估/实对比，不再计入。','snap'],
+  ai_camp:['HR数仓·实际','每月1号读系统当月实际校招入职数；计入已发生月合计。同月「待流入·校招」预估行标灰仅供估/实对比。','snap'],
+  ao_lv:['HR数仓·实际','每月1号读系统当月实际离职（主动+被动）；计入已发生月合计。同月流出各预估行标灰仅供估/实对比。','snap'],
+  ao_tr:['HR数仓·实际','每月1号读系统当月实际调出（活水/跨部门）；计入已发生月合计。','snap'],
   camp:['分列求和','校招=预约入职+毕业生转聘+非系统','calc'],
   custom:['BP 自定义','命名行·纯计人头(负数=调减)·右键加备注','bp'], kb2hc:['运算','法定HC：当月 = 上月 + 本月调整（累计滚动·期初锚定）','calc'], kb2quota:['运算','预算当量：当月 = 期初 + 当月「其中」调整求和','calc'], kb2base:['BP 手填','预算过程基线·HC父行=期初+累计调整；预算当量父行=同月其中求和','bp']
 };
@@ -798,9 +808,11 @@ function avg(a){var n=a.filter(isN);return n.length?n.reduce(function(x,y){retur
 function f2(x){return (x===''||x==null||isNaN(x))?'':(Math.round(x*100)/100).toFixed(2);}
 function cSum(sec,m){var s=0,any=false;custom[sec].forEach(function(r){if(isN(r.vals[m])){s+=(r.sign==='+'?1:-1)*r.vals[m];any=true;}});return any?s:null;}
 function agg(parts){var got=false,s=0;parts.forEach(function(p){if(isN(p)){s+=p;got=true;}});return got?s:'';}   // 有一个数才算，否则''
+function socTot(m){return agg([D.soc_sys[m],D.soc_hs[m],D.soc_bp[m],cSum('soc',m)]);}
 function campTot(m){return agg([D.i_yy[m],D.i_bs[m],D.i_cbp[m],cSum('camp',m)]);}
-function outflow(m){return agg([D.o_sys[m],D.o_nat[m],D.o_bp[m],D.o_act[m],cSum('out',m)]);}
-function inflow(m){return agg([D.i_soc[m],campTot(m),D.i_incr[m],cSum('inn',m)]);}
+// 估/实双轨：已发生月合计=实际口径行；未发生月合计=预估口径行+分支（与后端 calc_kb1 同口径）
+function outflow(m){return (m<LOCK)?agg([D.ao_lv[m],D.ao_tr[m]]):agg([D.o_sys[m],D.o_nat[m],D.o_bp[m],D.o_act[m],cSum('out',m)]);}
+function inflow(m){return (m<LOCK)?agg([D.ai_soc[m],D.ai_camp[m]]):agg([socTot(m),campTot(m),D.i_incr[m],cSum('inn',m)]);}
 function chain(){var c=[];for(var m=0;m<12;m++){
   if(m<LOCK){c[m]=isN(D.actual[m])?D.actual[m]:'';}
   else{var prev=m>0?c[m-1]:(LOCK>0?(isN(D.actual[LOCK-1])?D.actual[LOCK-1]:''):(isN(D.seed)?D.seed:''));  // LOCK=0 整年纯预估：链首=上年12月期末(跨年种子)
@@ -830,7 +842,8 @@ function tr(cls,label,arr,opt){
     var v=(arr&&arr[m]!==undefined&&arr[m]!==null)?arr[m]:'';
     var rowEdit=opt.key&&ROWEDIT===opt.key;
     var editable=opt.edit&&(m>=lock||rowEdit)&&!RO;  // 行编辑态放宽：全月可填（新建行/调整行不受已发生月限制）
-    var cl=(m<lock&&opt.lockShade?'lock ':'')+(editable?'edit adj ':'')+(opt.neg&&v<0?'neg ':'');
+    var mut=(opt.mute==='past'&&m<lock)||(opt.mute==='future'&&m>=lock);  // 估/实双轨标灰
+    var cl=(m<lock&&opt.lockShade?'lock ':'')+(editable?'edit adj ':'')+(opt.neg&&v<0?'neg ':'')+(mut?'mut ':'');
     var disp=(v===''||(v===0&&opt.hideZero))?'':(opt.negRow&&v!==0?'−'+v:(opt.plus&&v>0?'+'+v:v));
     if(rowEdit&&editable){disp='<input type="number" step="1" class="rowed" data-rk="'+opt.key+'" data-m="'+m+'" value="'+(v===''?'':v)+'" onkeydown="if(event.key===\'Enter\'){event.preventDefault();rowEditSave(\''+opt.key+'\');}else if(event.key===\'Escape\'){event.preventDefault();rowEditEnter(\''+opt.key+'\');}" style="width:100%;min-width:44px;border:1px solid var(--blue-l);padding:2px 4px;font:inherit;text-align:right;background:#fff">';}
     var noteTxt=memos[(opt.key||'')+'_'+m];
@@ -885,38 +898,56 @@ function render(){
     var caA=avg(c),ovA=isN(caA)&&isN(qa)&&caA>qa+0.005;
     h+=tr('key',cfgName('actual','实际/预估期末在岗')+' <span class="badge calc">链</span>',mgA,{src:'chain',avg:f2(caA),avgCls:ovA?'neg':'',lockShade:true});
   }
-  // 总流出
-  var outT=[];for(var m2=0;m2<12;m2++)outT[m2]=outflow(m2);
-  h+=tr('subtot','总流出（−） <span class="rowtool" onclick="tg(\'out\')">'+'<t-icon name="'+(open_.out?'chevron-down':'chevron-right')+'" size="12"></t-icon>'+'</span> <span class="badge snap">HR数仓</span><span class="badge bp">BP</span>',outT,{src:'outT',tot:sum(outT),lockShade:true});
-  if(open_.out){
-    if(cfgOn('o_sys'))h+=tr('sub',cfgName('o_sys','已流出/待流出 · 系统明确'),D.o_sys,{src:'o_sys',hideZero:true,tot:sum(D.o_sys),lockShade:true});
-    if(cfgOn('o_nat'))h+=tr('sub',cfgName('o_nat','已流出/待流出 · 自然流失预估')+natBadge(),D.o_nat,{src:'o_nat',hideZero:true,tot:sum(D.o_nat),lockShade:true});
-    if(cfgOn('o_bp'))h+=tr('sub',cfgName('o_bp','已流出/待流出 · 已明确非系统（BP）')+(cfgAdd('o_bp',true)?pen('o_bp'):''),D.o_bp,{src:'o_bp',key:'o_bp',edit:cfgAdd('o_bp',true),hideZero:true,tot:sum(D.o_bp),lockShade:true});
-    if(cfgOn('o_act'))h+=tr('sub',cfgName('o_act','已流出/待流出 · 主动动作（BP）（调节项）')+(cfgAdd('o_act',true)?pen('o_act'):''),D.o_act,{src:'o_act',key:'o_act',edit:cfgAdd('o_act',true),hideZero:true,tot:sum(D.o_act),lockShade:true});
-    h+=customRows('out');
-    h+=extraRows('总流出（−）');
-    if(!RO&&secAllow('总流出（−）'))h+=addRowTr('out');
-  }
-  // 总流入
+  // 总流入（＋）——260726 换位：待流入在待流出上面
   var inT=[];for(var m3=0;m3<12;m3++)inT[m3]=inflow(m3);
-  h+=tr('subtot','总流入（＋） <span class="rowtool" onclick="tg(\'inn\')">'+'<t-icon name="'+(open_.inn?'chevron-down':'chevron-right')+'" size="12"></t-icon>'+'</span> <span class="badge snap">台账/HR数仓</span><span class="badge bp">BP</span>',inT,{src:'inT',tot:sum(inT),lockShade:true});
+  h+=tr('subtot','总流入（＋） <span class="rowtool" onclick="tg(\'inn\')">'+'<t-icon name="'+(open_.inn?'chevron-down':'chevron-right')+'" size="12"></t-icon>'+'</span> <span class="badge snap">台账/HR数仓</span><span class="badge bp">BP</span> <span class="badge calc" title="已发生月合计取「实际」行；未发生月合计取「待流入」预估行">估/实</span>',inT,{src:'inT',tot:sum(inT),lockShade:true});
   if(open_.inn){
-    if(cfgOn('i_soc'))h+=tr('sub',cfgName('i_soc','已流入/待流入 · 社招')+'<span class="drill"><t-icon name="arrow-down" size="10"></t-icon></span>',D.i_soc,{src:'i_soc',hideZero:true,tot:sum(D.i_soc),drill:'kb3',lockShade:true});
+    // 实际口径（放预估上方·每月1号读系统·已发生月计入合计；未发生月标灰暂无实际）
+    if(cfgOn('ai_soc'))h+=tr('sub actrow',cfgName('ai_soc','实际社招入职'),D.ai_soc,{src:'ai_soc',hideZero:true,tot:sum(D.ai_soc),mute:'future'});
+    if(cfgOn('ai_camp'))h+=tr('sub actrow',cfgName('ai_camp','实际校招入职'),D.ai_camp,{src:'ai_camp',hideZero:true,tot:sum(D.ai_camp),mute:'future'});
+    // 预估口径（未发生月计入合计；已发生月标灰仅供估/实对比）
+    if(cfgOn('i_soc')){
+      var socA=[];for(var ms=0;ms<12;ms++)socA[ms]=socTot(ms);
+      h+=tr('sub',cfgName('i_soc','已流入/待流入 · 社招')+' <span class="rowtool" onclick="tg(\'soc\')">'+'<t-icon name="'+(open_.soc?'chevron-down':'chevron-right')+'" size="12"></t-icon>'+'</span><span class="drill"><t-icon name="arrow-down" size="10"></t-icon></span>',socA,{src:'i_soc',hideZero:true,tot:sum(socA),drill:'kb3',lockShade:true,mute:'past'});
+      if(open_.soc){
+        if(cfgOn('soc_sys'))h+=tr('sub2',cfgName('soc_sys','社招系统· 已系统预约入职'),D.soc_sys,{src:'soc_sys',hideZero:true,tot:sum(D.soc_sys),lockShade:true,mute:'past'});
+        if(cfgOn('soc_hs'))h+=tr('sub2',cfgName('soc_hs','活水· 系统候选人已接offer'),D.soc_hs,{src:'soc_hs',hideZero:true,tot:sum(D.soc_hs),lockShade:true,mute:'past'});
+        if(cfgOn('soc_bp'))h+=tr('sub2',cfgName('soc_bp','社招· 非系统（BP）')+(cfgAdd('soc_bp',true)?pen('soc_bp'):''),D.soc_bp,{src:'soc_bp',key:'soc_bp',edit:cfgAdd('soc_bp',true),hideZero:true,tot:sum(D.soc_bp),lockShade:true,mute:'past'});
+        h+=customRows('soc',{deep:true});
+        h+=extraRows('社招∇ 分列','sub2');
+      }
+    }
     if(cfgOn('camp')){
       var campA=[];for(var m4=0;m4<12;m4++)campA[m4]=campTot(m4);
-      h+=tr('sub',cfgName('camp','已流入/待流入 · 校招')+' <span class="rowtool" onclick="tg(\'camp\')">'+'<t-icon name="'+(open_.camp?'chevron-down':'chevron-right')+'" size="12"></t-icon>'+'</span>',campA,{src:'camp',hideZero:true,tot:sum(campA),lockShade:true});
+      h+=tr('sub',cfgName('camp','已流入/待流入 · 校招')+' <span class="rowtool" onclick="tg(\'camp\')">'+'<t-icon name="'+(open_.camp?'chevron-down':'chevron-right')+'" size="12"></t-icon>'+'</span>',campA,{src:'camp',hideZero:true,tot:sum(campA),lockShade:true,mute:'past'});
       if(open_.camp){
-        if(cfgOn('i_yy'))h+=tr('sub2',cfgName('i_yy','已流入/待流入 · 校招· 预约入职'),D.i_yy,{src:'i_yy',hideZero:true,tot:sum(D.i_yy),lockShade:true});
-        if(cfgOn('i_bs'))h+=tr('sub2',cfgName('i_bs','已流入/待流入 · 校招· 毕业生转聘'),D.i_bs,{src:'i_bs',hideZero:true,tot:sum(D.i_bs),lockShade:true});
-        if(cfgOn('i_cbp'))h+=tr('sub2',cfgName('i_cbp','已流入/待流入 · 校招· 非系统（BP）')+(cfgAdd('i_cbp',true)?pen('i_cbp'):''),D.i_cbp,{src:'i_cbp',key:'i_cbp',edit:cfgAdd('i_cbp',true),hideZero:true,tot:sum(D.i_cbp),lockShade:true});
+        if(cfgOn('i_yy'))h+=tr('sub2',cfgName('i_yy','已流入/待流入 · 校招· 预约入职'),D.i_yy,{src:'i_yy',hideZero:true,tot:sum(D.i_yy),lockShade:true,mute:'past'});
+        if(cfgOn('i_bs'))h+=tr('sub2',cfgName('i_bs','已流入/待流入 · 校招· 毕业生转聘'),D.i_bs,{src:'i_bs',hideZero:true,tot:sum(D.i_bs),lockShade:true,mute:'past'});
+        if(cfgOn('i_cbp'))h+=tr('sub2',cfgName('i_cbp','已流入/待流入 · 校招· 非系统（BP）')+(cfgAdd('i_cbp',true)?pen('i_cbp'):''),D.i_cbp,{src:'i_cbp',key:'i_cbp',edit:cfgAdd('i_cbp',true),hideZero:true,tot:sum(D.i_cbp),lockShade:true,mute:'past'});
         h+=customRows('camp',{deep:true});
         h+=extraRows('校招∇ 分列','sub2');
       }
     }
-    if(cfgOn('i_incr'))h+=tr('sub',cfgName('i_incr','已流入/待流入 · 增量需求（BP）（调节项）')+(cfgAdd('i_incr',true)?pen('i_incr'):''),D.i_incr,{src:'i_incr',key:'i_incr',edit:cfgAdd('i_incr',true),hideZero:true,tot:sum(D.i_incr),lockShade:true});
+    if(cfgOn('i_incr'))h+=tr('sub',cfgName('i_incr','已流入/待流入 · 增量需求（BP）（调节项）')+(cfgAdd('i_incr',true)?pen('i_incr'):''),D.i_incr,{src:'i_incr',key:'i_incr',edit:cfgAdd('i_incr',true),hideZero:true,tot:sum(D.i_incr),lockShade:true,mute:'past'});
     h+=customRows('inn');
     h+=extraRows('总流入（＋）');
     if(!RO&&secAllow('总流入（＋）'))h+=addRowTr('inn');
+  }
+  // 总流出（−）
+  var outT=[];for(var m2=0;m2<12;m2++)outT[m2]=outflow(m2);
+  h+=tr('subtot','总流出（−） <span class="rowtool" onclick="tg(\'out\')">'+'<t-icon name="'+(open_.out?'chevron-down':'chevron-right')+'" size="12"></t-icon>'+'</span> <span class="badge snap">HR数仓</span><span class="badge bp">BP</span> <span class="badge calc" title="已发生月合计取「实际」行；未发生月合计取「待流出」预估行">估/实</span>',outT,{src:'outT',tot:sum(outT),lockShade:true});
+  if(open_.out){
+    // 实际口径（放预估上方）
+    if(cfgOn('ao_lv'))h+=tr('sub actrow',cfgName('ao_lv','实际离职（主动+被动）'),D.ao_lv,{src:'ao_lv',hideZero:true,tot:sum(D.ao_lv),mute:'future'});
+    if(cfgOn('ao_tr'))h+=tr('sub actrow',cfgName('ao_tr','调出（活水/跨部门）'),D.ao_tr,{src:'ao_tr',hideZero:true,tot:sum(D.ao_tr),mute:'future'});
+    // 预估口径
+    if(cfgOn('o_sys'))h+=tr('sub',cfgName('o_sys','已流出/待流出 · 系统明确'),D.o_sys,{src:'o_sys',hideZero:true,tot:sum(D.o_sys),lockShade:true,mute:'past'});
+    if(cfgOn('o_nat'))h+=tr('sub',cfgName('o_nat','已流出/待流出 · 自然流失预估')+natBadge(),D.o_nat,{src:'o_nat',hideZero:true,tot:sum(D.o_nat),lockShade:true,mute:'past'});
+    if(cfgOn('o_bp'))h+=tr('sub',cfgName('o_bp','已流出/待流出 · 已明确非系统（BP）')+(cfgAdd('o_bp',true)?pen('o_bp'):''),D.o_bp,{src:'o_bp',key:'o_bp',edit:cfgAdd('o_bp',true),hideZero:true,tot:sum(D.o_bp),lockShade:true,mute:'past'});
+    if(cfgOn('o_act'))h+=tr('sub',cfgName('o_act','已流出/待流出 · 主动动作（BP）（调节项）')+(cfgAdd('o_act',true)?pen('o_act'):''),D.o_act,{src:'o_act',key:'o_act',edit:cfgAdd('o_act',true),hideZero:true,tot:sum(D.o_act),lockShade:true,mute:'past'});
+    h+=customRows('out');
+    h+=extraRows('总流出（−）');
+    if(!RO&&secAllow('总流出（−）'))h+=addRowTr('out');
   }
   var ca=avg(c), qa2=avg(BUD);
   // 链行已删（260723）：预估并入上方「月末实际在岗/期末在岗预估」行
@@ -945,13 +976,10 @@ function render(){
   ];
   var lightsEl=document.getElementById('lights');if(lightsEl)lightsEl.innerHTML=lights.map(function(l){return '<div class="light"><span class="dot '+(l[0]===null?'':(l[0]?'g':'r'))+'" style="'+(l[0]===null?'background:#C7B36A':'')+'"></span>'+l[1]+'</div>';}).join('');
 }
-/* 自然流失预估：占总流出% 外显 + 回看月数 n 调参（含义：主动离职&跨部门活水人数预估） */
+/* 自然流失预估：回看月数 n 调参（占总流出% 徽章已按 Bonnie 要求移除 260726） */
 function natBadge(){
-  var nt=D.nat||{n:6,pct:null,missing:[]};
-  var pct=(nt.pct===null||nt.pct===undefined)?'—':nt.pct+'%';
-  var tip='近'+nt.n+'个月ER实际离职合计÷'+nt.n+'，均摊到每个未发生月（源：HR数仓·上一年ER报表离职数，URL待求）'+(nt.missing&&nt.missing.length?'；窗口缺数：'+nt.missing.join('、')+'（缺数不派生，留空不编造）':'');
-  return ' <span class="badge calc" title="'+esc(tip).replace(/"/g,'&quot;')+'">占总流出 '+pct+'</span>'
-    +(RO?'':' <span class="rowtool" title="调参：参考前 n 个月平均（当前 n='+nt.n+'）" onclick="openNatParam()">n='+nt.n+' <t-icon name="setting" size="12"></t-icon></span>');
+  var nt=D.nat||{n:6,missing:[]};
+  return RO?'':' <span class="rowtool" title="调参：参考前 n 个月平均（当前 n='+nt.n+'）" onclick="openNatParam()">n='+nt.n+' <t-icon name="setting" size="12"></t-icon></span>';
 }
 function openNatParam(){
   var nt=D.nat||{n:6};
@@ -1165,7 +1193,7 @@ document.addEventListener('paste',function(e){
 });
 
 /* ===== 运算格公式悬停 ===== */
-var FXKEYS={outT:1,inT:1,camp:1,chain:1,budget:1};
+var FXKEYS={outT:1,inT:1,i_soc:1,camp:1,chain:1,budget:1};
 function fxN(v){return isN(v)?(Math.round(v*100)/100):'空';}
 function fxJoin(parts){var s='';parts.forEach(function(p,i){s+=(i?(p[0]==='-'?' − ':' + '):(p[0]==='-'?'− ':''))+p[1]+' '+fxN(p[2]);});return s;}
 function fxFor(key,m){
@@ -1181,15 +1209,22 @@ function fxFor(key,m){
     custom.camp.forEach(function(r){p.push([r.sign,r.name.slice(0,10),r.vals[m]]);});
     return '校招 = '+fxJoin(p)+' = '+fxN(campTot(m));
   }
+  if(key==='i_soc'){
+    var ps=[['+','系统预约入职',D.soc_sys[m]],['+','活水已offer',D.soc_hs[m]],['+','非系统(BP)',D.soc_bp[m]]];
+    custom.soc.forEach(function(r){ps.push([r.sign,r.name.slice(0,10),r.vals[m]]);});
+    return '社招 = '+fxJoin(ps)+' = '+fxN(socTot(m));
+  }
   if(key==='outT'){
+    if(m<LOCK){var pa=[['+','实际离职',D.ao_lv[m]],['+','调出',D.ao_tr[m]]];return '已发生月·实际 = '+fxJoin(pa)+' = '+fxN(outflow(m))+'（预估行标灰仅供对比，不计入）';}
     var p2=[['+','系统明确',D.o_sys[m]],['+','自然流失',D.o_nat[m]],['+','已明确非系统',D.o_bp[m]],['+','主动动作',D.o_act[m]]];
     custom.out.forEach(function(r){p2.push([r.sign,r.name.slice(0,10),r.vals[m]]);});
-    return '总流出 = '+fxJoin(p2)+' = '+fxN(outflow(m));
+    return '未发生月·预估 = '+fxJoin(p2)+' = '+fxN(outflow(m));
   }
   if(key==='inT'){
-    var p3=[['+','社招',D.i_soc[m]],['+','校招合计',campTot(m)],['+','增量需求',D.i_incr[m]]];
+    if(m<LOCK){var pi=[['+','实际社招入职',D.ai_soc[m]],['+','实际校招入职',D.ai_camp[m]]];return '已发生月·实际 = '+fxJoin(pi)+' = '+fxN(inflow(m))+'（预估行标灰仅供对比，不计入）';}
+    var p3=[['+','社招',socTot(m)],['+','校招合计',campTot(m)],['+','增量需求',D.i_incr[m]]];
     custom.inn.forEach(function(r){p3.push([r.sign,r.name.slice(0,10),r.vals[m]]);});
-    return '总流入 = '+fxJoin(p3)+' = '+fxN(inflow(m));
+    return '未发生月·预估 = '+fxJoin(p3)+' = '+fxN(inflow(m));
   }
   if(key==='chain'){
     var c2=chain();
@@ -1798,14 +1833,14 @@ bindYear();renderYearTabs();renderAll();renderAudit();renderKb3();renderCoverage
 var ORIG={saveCell:saveCell,clearCell:clearCell,saveRowDef:saveRowDef,delRowFromDef:delRowFromDef,saveYear:saveYear,setYear:setYear,renderAudit:renderAudit,exportCSV:exportCSV};
 window.USE_API=false;var API_USER='bonniewbli';
 function api(m,p,b){return fetch(p,{method:m,headers:{'Content-Type':'application/json','X-User':API_USER},body:b?JSON.stringify(b):undefined}).then(function(r){return r.json().then(function(j){if(!r.ok)throw j;return j;});});}
-var SEC2FRONT={'总流出（−）':'out','总流入（＋）':'inn','校招∇ 分列':'camp','法定HC·其中':'hc','预算当量·其中':'quota'};
-var FRONT2SEC={out:'总流出（−）',inn:'总流入（＋）',camp:'校招∇ 分列',hc:'法定HC·其中',quota:'预算当量·其中'};
+var SEC2FRONT={'总流出（−）':'out','总流入（＋）':'inn','社招∇ 分列':'soc','校招∇ 分列':'camp','法定HC·其中':'hc','预算当量·其中':'quota'};
+var FRONT2SEC={out:'总流出（−）',inn:'总流入（＋）',soc:'社招∇ 分列',camp:'校招∇ 分列',hc:'法定HC·其中',quota:'预算当量·其中'};
 function nn(v){return (v===null||v===undefined)?'':v;}
 function applyBoard(b){
   var y=b.year,d=DATA[y]||(DATA[y]=mkEmpty(b.status,b.lock));
   d.status=b.status;d.lock=b.lock;d.nat=b.nat||d.nat;d.seed=(b.seed===undefined?null:b.seed);
   if(typeof demoBanner==='function')demoBanner(!!b.demo);
-  ['budget','actual','o_sys','o_nat','o_bp','o_act','i_soc','i_yy','i_bs','i_cbp','i_incr'].forEach(function(k){
+  ['budget','actual','o_sys','o_nat','o_bp','o_act','i_soc','soc_sys','soc_hs','soc_bp','i_yy','i_bs','i_cbp','i_incr','ai_soc','ai_camp','ao_lv','ao_tr'].forEach(function(k){
     d[k]=((b.metrics[k]||{}).vals||[]).map(nn);while(d[k].length<12)d[k].push('');
   });
   // 看板2 期初基线（fa_hc 取首个非空值为年度期初；q_init 逐月）

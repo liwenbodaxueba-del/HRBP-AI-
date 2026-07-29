@@ -2,7 +2,7 @@
 """看板1/2 运算引擎：预估链（上月−流出+流入）与自然流失预估（近n月ER均值取整·跨年窗口·缺数不派生）。
 纯函数、不碰数据库——运算行不落库，读取时现算（Excel 公式思路）"""
 
-from meta import NAT_N_DEFAULT, OUT_KEYS
+from meta import NAT_N_DEFAULT, OUT_KEYS, ACT_OUT_KEYS, ACT_IN_KEYS, SOC_KEYS
 
 
 def _agg(parts):
@@ -65,11 +65,16 @@ def compute(vals, branches, lock, prev_er=None, nat_n=NAT_N_DEFAULT, seed=None):
                 any_ = True
         return s if any_ else None
 
-    campT, outT, inT, chain, budget_eff = [], [], [], [], []
+    campT, socT, outT, inT, chain, budget_eff = [], [], [], [], [], []
     for m in range(12):
         campT.append(_agg([g("i_yy", m), g("i_bs", m), g("i_cbp", m), bsum("校招∇ 分列", m)]))
-        outT.append(_agg([g(k, m) for k in OUT_KEYS] + [bsum("总流出（−）", m)]))
-        inT.append(_agg([g("i_soc", m), campT[m], g("i_incr", m), bsum("总流入（＋）", m)]))
+        socT.append(_agg([g(k, m) for k in SOC_KEYS] + [bsum("社招∇ 分列", m)]))  # 社招=系统预约+活水已offer+非系统BP
+        if m < lock:  # 已发生月：合计只算「实际」行（实际社招/校招入职、实际离职、调出）；同月预估行标灰不计入
+            outT.append(_agg([g(k, m) for k in ACT_OUT_KEYS]))
+            inT.append(_agg([g(k, m) for k in ACT_IN_KEYS]))
+        else:  # 未发生月：合计算「预估」行 + ⊕分支（实际行此时无数）
+            outT.append(_agg([g(k, m) for k in OUT_KEYS] + [bsum("总流出（−）", m)]))
+            inT.append(_agg([socT[m], campT[m], g("i_incr", m), bsum("总流入（＋）", m)]))
         # 预算当量 = 看板2 期初预算当量(q_init) + 「其中」调整分支；无则回退存量 budget（与前端 BUD 同口径）
         q = _agg([g("q_init", m), bsum("预算当量·其中", m)])
         budget_eff.append(q if q is not None else g("budget", m))
@@ -88,8 +93,10 @@ def compute(vals, branches, lock, prev_er=None, nat_n=NAT_N_DEFAULT, seed=None):
         n = [x for x in a if isinstance(x, (int, float))]
         return round(sum(n) / len(n), 2) if n else None
     nat_nums = [x for x in nat_eff if isinstance(x, (int, float))]
-    out_sum = sum(x for x in outT if isinstance(x, (int, float)))
+    # 占总流出%：自然流失为「预估」口径行，分母用全年预估总流出（各预估项+分支），与分子同口径
+    est_out = [_agg([g(k, m) for k in OUT_KEYS] + [bsum("总流出（−）", m)]) for m in range(12)]
+    out_sum = sum(x for x in est_out if isinstance(x, (int, float)))
     nat_info["pct"] = round(100 * sum(nat_nums) / out_sum, 1) if nat_nums and out_sum else None
-    return {"campT": campT, "outT": outT, "inT": inT, "chain": chain, "budget_eff": budget_eff,
+    return {"campT": campT, "socT": socT, "outT": outT, "inT": inT, "chain": chain, "budget_eff": budget_eff,
             "chain_avg": avg(chain), "budget_avg": avg(budget_eff),
             "o_nat_eff": nat_eff, "nat": nat_info}

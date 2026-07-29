@@ -11,19 +11,31 @@ CANON_PROJECTS = [
     ("o_nat", "总流出（−）", "已流出/待流出 · 自然流失预估", "运算派生", "calc", 0, 1, 1),
     ("o_bp", "总流出（−）", "已流出/待流出 · 已明确非系统（BP）", "BP 手填", "bp", 1, 1, 1),
     ("o_act", "总流出（−）", "已流出/待流出 · 主动动作（BP）（调节项）", "BP 手填", "bp", 1, 1, 1),
-    ("i_soc", "总流入（＋）", "已流入/待流入 · 社招", "招聘系统（待接）", "src", 0, 1, 1),
+    ("i_soc", "总流入（＋）", "已流入/待流入 · 社招", "分列求和", "calc", 1, 1, 1),
+    ("soc_sys", "社招∇ 分列", "社招系统· 已系统预约入职", "社招系统（待接）", "src", 0, 1, 1),
+    ("soc_hs", "社招∇ 分列", "活水· 系统候选人已接offer", "活水系统（待接）", "src", 0, 1, 1),
+    ("soc_bp", "社招∇ 分列", "社招· 非系统（BP）", "BP 手填（PlanB=社招台账待入职数）", "bp", 1, 1, 1),
     ("camp", "总流入（＋）", "已流入/待流入 · 校招", "分列求和", "calc", 1, 1, 1),
     ("i_yy", "校招∇ 分列", "校招· 预约入职", "HR数仓（待接）", "src", 0, 1, 1),
     ("i_bs", "校招∇ 分列", "校招· 毕业生转聘", "HR数仓（待接）", "src", 0, 1, 1),
     ("i_cbp", "校招∇ 分列", "校招· 非系统（BP）", "BP 手填", "bp", 1, 1, 1),
     ("i_incr", "总流入（＋）", "已流入/待流入 · 增量需求（BP）（调节项）", "BP 手填", "bp", 1, 1, 1),
+    # 260726 估/实双轨：已发生月每月1号读系统「实际」数、计入合计；同月「预估」行标灰仅供对比、不计入。
+    ("ai_soc", "总流入（＋）", "实际社招入职", "招聘系统（待接·每月1号读实际）", "src", 0, 1, 1),
+    ("ai_camp", "总流入（＋）", "实际校招入职", "HR数仓（待接·每月1号读实际）", "src", 0, 1, 1),
+    ("ao_lv", "总流出（−）", "实际离职（主动+被动）", "HR数仓（待接·每月1号读实际）", "src", 0, 1, 1),
+    ("ao_tr", "总流出（−）", "调出（活水/跨部门）", "HR数仓（待接·每月1号读实际）", "src", 0, 1, 1),
     # chain 行已删（260723）：预估并入 actual 行；computed.chain 仍保留供运算/导出/GAP 卡使用
 ]
-OUT_KEYS = ["o_sys", "o_nat", "o_bp", "o_act"]
+OUT_KEYS = ["o_sys", "o_nat", "o_bp", "o_act"]  # 预估口径（未发生月计入合计）
+ACT_OUT_KEYS = ["ao_lv", "ao_tr"]  # 实际口径（已发生月计入合计，预估行标灰）
+ACT_IN_KEYS = ["ai_soc", "ai_camp"]
 CAMP_KEYS = ["i_yy", "i_bs", "i_cbp"]
-IN_DIRECT_KEYS = ["i_soc", "i_incr"]  # + campTot + 流入分支
-BP_EDITABLE = {"o_bp", "o_act", "i_cbp", "i_incr"}  # 叶子级 BP 录入位（可被 config.add 关闭）
-IMPORTABLE = {"budget", "actual", "o_sys", "o_nat", "i_soc", "i_yy", "i_bs", "fa_hc", "q_init", "er_out"}  # 上传兜底可写
+SOC_KEYS = ["soc_sys", "soc_hs", "soc_bp"]  # 社招分列：社招系统预约+活水已接offer+非系统BP
+IN_DIRECT_KEYS = ["i_incr"]  # + socTot + campTot + 流入分支
+BP_EDITABLE = {"o_bp", "o_act", "i_cbp", "i_incr", "soc_bp"}  # 叶子级 BP 录入位（可被 config.add 关闭）
+IMPORTABLE = {"budget", "actual", "o_sys", "o_nat", "i_yy", "i_bs", "fa_hc", "q_init", "er_out",
+              "ai_soc", "ai_camp", "ao_lv", "ao_tr", "soc_sys", "soc_hs"}  # 上传兜底可写（含实际口径系统数）
 VALUE_ABS_MAX = 100000  # 量级异常闸
 PLAN_METRICS = {"budget", "fa_hc", "q_init"}  # 计划/预算类：不受"已发生月锁定"约束（预算是规划数据）
 PLAN_BRANCH_SECS = {"法定HC·其中", "预算当量·其中"}  # 看板2 计划类分支：已发生月同样可改（260723 Bonnie 定）

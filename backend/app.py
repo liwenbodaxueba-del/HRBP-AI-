@@ -474,7 +474,13 @@ def demo_load(y: YearNew, x_user: str = Header("bonniewbli")):
                 put("actual", m, base - m + rng.randint(-2, 2))  # 月末快照·随机波动
                 put("er_out", m, rng.randint(4, 9))  # ER实际离职：o_nat 已发生月由引擎从此带出，未发生月=近n月均值
                 put("o_sys", m, rng.randint(1, 4))
-                put("i_soc", m, rng.randint(1, 5))
+                put("soc_sys", m, rng.randint(1, 4))  # 社招分列：系统预约入职
+                put("soc_hs", m, rng.randint(0, 2))   # 活水已接offer
+                # 已发生月「实际」口径（每月1号读系统）：计入合计；同月上面的预估行页面标灰仅供对比
+                put("ai_soc", m, rng.randint(1, 5), "【示例】当月实际社招入职（系统读）")
+                put("ai_camp", m, rng.randint(0, 3) if m in (2, 3, 7, 8) else 0, "【示例】当月实际校招入职（系统读）")
+                put("ao_lv", m, rng.randint(2, 6), "【示例】当月实际离职·主动+被动（系统读）")
+                put("ao_tr", m, rng.randint(0, 2), "【示例】当月实际调出（系统读）")
                 if m % 3 == 2:
                     put("o_bp", m, 1, "【示例】历史月已明确离职1人")
                 if m % 4 == 0:
@@ -493,9 +499,10 @@ def demo_load(y: YearNew, x_user: str = Header("bonniewbli")):
                 put("o_sys", lock + 1, 2)
                 put("o_bp", lock + 3, 3, "【示例】某中心已明确离职3人")
                 put("o_act", lock + 4, 2, "【示例】计划优化2人")
-                put("i_soc", lock + 1, 4)
-                put("i_soc", lock + 2, 3)
-                put("i_soc", lock + 3, 2)
+                put("soc_sys", lock + 1, 3)
+                put("soc_hs", lock + 1, 1)
+                put("soc_sys", lock + 2, 3)
+                put("soc_bp", lock + 3, 2, "【示例】社招台账待入职（PlanB·BP录）")
                 put("i_yy", lock + 1, 25, "【示例】校招批次到岗")
                 put("i_bs", lock + 2, 5)
                 put("i_cbp", lock + 3, 1, "【示例】BP补录1人")
