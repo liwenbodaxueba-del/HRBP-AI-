@@ -421,7 +421,6 @@ body.navfold .navtg{left:8px;}
   </div>
   <div class="yeartabs"></div>
   <div class="progline" id="progLine"></div>
-  <div class="fltbar"><span class="fltsearch"><t-icon name="search"></t-icon><input id="kb1Flt" placeholder="筛选行名（如：校招 / 社招 / 腾挪）" oninput="kb1Filter()"></span><span class="hint" style="margin:0">只过滤明细行显示；结构行与运算合计不受影响</span></div>
   <div class="tblwrap" id="bscWrap"><table class="bsc" id="bscTbl"></table></div>
   <div class="hint">灰底 = 已发生月（1-6月实际，锁定）。BP 可编辑格支持单击/拖选，按 Cmd/Ctrl+C 复制、Cmd/Ctrl+V 从 Excel 按行列粘贴；双击或点行首编辑图标可整行填写，右下角拖柄可填充。悬停数字见来源与取数时间。
   带 <b><t-icon name="arrow-down" size="12"></t-icon></b> 的行（预算当量、待流入·社招）双击下钻到看板2 / 看板3。年均预估 &gt; 预算当量年均时，年均格亮红灯。</div>
@@ -914,7 +913,7 @@ function render(){
     // 预估口径（未发生月计入合计；已发生月标灰仅供估/实对比）
     if(cfgOn('i_soc')){
       var socA=[];for(var ms=0;ms<12;ms++)socA[ms]=socTot(ms);
-      h+=tr('sub',cfgName('i_soc','已流入/待流入 · 社招')+' <span class="rowtool" onclick="tg(\'soc\')">'+'<t-icon name="'+(open_.soc?'chevron-down':'chevron-right')+'" size="12"></t-icon>'+'</span><span class="drill"><t-icon name="arrow-down" size="10"></t-icon></span>',socA,{src:'i_soc',hideZero:true,tot:sum(socA),drill:'kb3',lockShade:true,mute:'past'});
+      h+=tr('sub',cfgName('i_soc','待流入 · 社招')+' <span class="rowtool" onclick="tg(\'soc\')">'+'<t-icon name="'+(open_.soc?'chevron-down':'chevron-right')+'" size="12"></t-icon>'+'</span><span class="drill"><t-icon name="arrow-down" size="10"></t-icon></span>',socA,{src:'i_soc',hideZero:true,tot:sum(socA),drill:'kb3',lockShade:true,mute:'past'});
       if(open_.soc){
         if(cfgOn('soc_sys'))h+=tr('sub2',cfgName('soc_sys','社招系统· 已系统预约入职'),D.soc_sys,{src:'soc_sys',hideZero:true,tot:sum(D.soc_sys),lockShade:true,mute:'past'});
         if(cfgOn('soc_hs'))h+=tr('sub2',cfgName('soc_hs','活水· 系统候选人已接offer'),D.soc_hs,{src:'soc_hs',hideZero:true,tot:sum(D.soc_hs),lockShade:true,mute:'past'});
@@ -925,16 +924,16 @@ function render(){
     }
     if(cfgOn('camp')){
       var campA=[];for(var m4=0;m4<12;m4++)campA[m4]=campTot(m4);
-      h+=tr('sub',cfgName('camp','已流入/待流入 · 校招')+' <span class="rowtool" onclick="tg(\'camp\')">'+'<t-icon name="'+(open_.camp?'chevron-down':'chevron-right')+'" size="12"></t-icon>'+'</span>',campA,{src:'camp',hideZero:true,tot:sum(campA),lockShade:true,mute:'past'});
+      h+=tr('sub',cfgName('camp','待流入 · 校招')+' <span class="rowtool" onclick="tg(\'camp\')">'+'<t-icon name="'+(open_.camp?'chevron-down':'chevron-right')+'" size="12"></t-icon>'+'</span>',campA,{src:'camp',hideZero:true,tot:sum(campA),lockShade:true,mute:'past'});
       if(open_.camp){
-        if(cfgOn('i_yy'))h+=tr('sub2',cfgName('i_yy','已流入/待流入 · 校招· 预约入职'),D.i_yy,{src:'i_yy',hideZero:true,tot:sum(D.i_yy),lockShade:true,mute:'past'});
-        if(cfgOn('i_bs'))h+=tr('sub2',cfgName('i_bs','已流入/待流入 · 校招· 毕业生转聘'),D.i_bs,{src:'i_bs',hideZero:true,tot:sum(D.i_bs),lockShade:true,mute:'past'});
-        if(cfgOn('i_cbp'))h+=tr('sub2',cfgName('i_cbp','已流入/待流入 · 校招· 非系统（BP）')+(cfgAdd('i_cbp',true)?pen('i_cbp'):''),D.i_cbp,{src:'i_cbp',key:'i_cbp',edit:cfgAdd('i_cbp',true),hideZero:true,tot:sum(D.i_cbp),lockShade:true,mute:'past'});
+        if(cfgOn('i_yy'))h+=tr('sub2',cfgName('i_yy','待流入 · 校招· 预约入职'),D.i_yy,{src:'i_yy',hideZero:true,tot:sum(D.i_yy),lockShade:true,mute:'past'});
+        if(cfgOn('i_bs'))h+=tr('sub2',cfgName('i_bs','待流入 · 校招· 毕业生转聘'),D.i_bs,{src:'i_bs',hideZero:true,tot:sum(D.i_bs),lockShade:true,mute:'past'});
+        if(cfgOn('i_cbp'))h+=tr('sub2',cfgName('i_cbp','待流入 · 校招· 非系统（BP）')+(cfgAdd('i_cbp',true)?pen('i_cbp'):''),D.i_cbp,{src:'i_cbp',key:'i_cbp',edit:cfgAdd('i_cbp',true),hideZero:true,tot:sum(D.i_cbp),lockShade:true,mute:'past'});
         h+=customRows('camp',{deep:true});
         h+=extraRows('校招∇ 分列','sub2');
       }
     }
-    if(cfgOn('i_incr'))h+=tr('sub',cfgName('i_incr','已流入/待流入 · 增量需求（BP）（调节项）')+(cfgAdd('i_incr',true)?pen('i_incr'):''),D.i_incr,{src:'i_incr',key:'i_incr',edit:cfgAdd('i_incr',true),hideZero:true,tot:sum(D.i_incr),lockShade:true,mute:'past'});
+    if(cfgOn('i_incr'))h+=tr('sub',cfgName('i_incr','待流入 · 增量需求（BP）（调节项）')+(cfgAdd('i_incr',true)?pen('i_incr'):''),D.i_incr,{src:'i_incr',key:'i_incr',edit:cfgAdd('i_incr',true),hideZero:true,tot:sum(D.i_incr),lockShade:true,mute:'past'});
     h+=customRows('inn');
     h+=extraRows('总流入（＋）');
     if(!RO&&secAllow('总流入（＋）'))h+=addRowTr('inn');
@@ -947,10 +946,10 @@ function render(){
     if(cfgOn('ao_lv'))h+=tr('sub actrow',cfgName('ao_lv','实际离职（主动+被动）'),D.ao_lv,{src:'ao_lv',hideZero:true,tot:sum(D.ao_lv),mute:'future'});
     if(cfgOn('ao_tr'))h+=tr('sub actrow',cfgName('ao_tr','调出（活水/跨部门）'),D.ao_tr,{src:'ao_tr',hideZero:true,tot:sum(D.ao_tr),mute:'future'});
     // 预估口径
-    if(cfgOn('o_sys'))h+=tr('sub',cfgName('o_sys','已流出/待流出 · 系统明确'),D.o_sys,{src:'o_sys',hideZero:true,tot:sum(D.o_sys),lockShade:true,mute:'past'});
-    if(cfgOn('o_nat'))h+=tr('sub',cfgName('o_nat','已流出/待流出 · 自然流失预估')+natBadge(),D.o_nat,{src:'o_nat',hideZero:true,tot:sum(D.o_nat),lockShade:true,mute:'past'});
-    if(cfgOn('o_bp'))h+=tr('sub',cfgName('o_bp','已流出/待流出 · 已明确非系统（BP）')+(cfgAdd('o_bp',true)?pen('o_bp'):''),D.o_bp,{src:'o_bp',key:'o_bp',edit:cfgAdd('o_bp',true),hideZero:true,tot:sum(D.o_bp),lockShade:true,mute:'past'});
-    if(cfgOn('o_act'))h+=tr('sub',cfgName('o_act','已流出/待流出 · 主动动作（BP）（调节项）')+(cfgAdd('o_act',true)?pen('o_act'):''),D.o_act,{src:'o_act',key:'o_act',edit:cfgAdd('o_act',true),hideZero:true,tot:sum(D.o_act),lockShade:true,mute:'past'});
+    if(cfgOn('o_sys'))h+=tr('sub',cfgName('o_sys','待流出 · 系统明确'),D.o_sys,{src:'o_sys',hideZero:true,tot:sum(D.o_sys),lockShade:true,mute:'past'});
+    if(cfgOn('o_nat'))h+=tr('sub',cfgName('o_nat','待流出 · 自然流失预估')+natBadge(),D.o_nat,{src:'o_nat',hideZero:true,tot:sum(D.o_nat),lockShade:true,mute:'past'});
+    if(cfgOn('o_bp'))h+=tr('sub',cfgName('o_bp','待流出 · 已明确非系统（BP）')+(cfgAdd('o_bp',true)?pen('o_bp'):''),D.o_bp,{src:'o_bp',key:'o_bp',edit:cfgAdd('o_bp',true),hideZero:true,tot:sum(D.o_bp),lockShade:true,mute:'past'});
+    if(cfgOn('o_act'))h+=tr('sub',cfgName('o_act','待流出 · 主动动作（BP）（调节项）')+(cfgAdd('o_act',true)?pen('o_act'):''),D.o_act,{src:'o_act',key:'o_act',edit:cfgAdd('o_act',true),hideZero:true,tot:sum(D.o_act),lockShade:true,mute:'past'});
     h+=customRows('out');
     h+=extraRows('总流出（−）');
     if(!RO&&secAllow('总流出（−）'))h+=addRowTr('out');

@@ -189,7 +189,7 @@ body.navfold .navtg{left:8px;}
 <div class="mask" id="maskProj"><div class="modal">
   <h3>新增项目</h3>
   <div class="meta">出现在看板1 对应分区；初始数据为空（待接数据源或 BP 手动录入，<b>不编造</b>）。</div>
-  <label>项目名称</label><input type="text" id="pName" placeholder="如：已流出/待流出 · 长期病假预估">
+  <label>项目名称</label><input type="text" id="pName" placeholder="如：待流出 · 长期病假预估">
   <label>所属分区</label>
   <select id="pSec"><option>总流出（−）</option><option>总流入（＋）</option><option>校招∇ 分列</option><option>预算阶段</option></select>
   <label>数据源</label>
@@ -211,16 +211,16 @@ var accts=[
 var projs=[
   {key:'budget',sec:'预算阶段',name:'预算当量',src:'看板2 间接取数',srcCls:'calc',add:false,unbind:false,on:true,sys:true},
   {key:'actual',sec:'预算阶段',name:'实际/预估期末在岗',src:'招聘系统zhaopin/员工信息宽表diy（待接·月末快照直接po）',srcCls:'src',add:false,unbind:false,on:true,sys:true},
-  {key:'o_sys',sec:'总流出（−）',name:'已流出/待流出 · 系统明确',src:'HR数仓（待接）',srcCls:'src',add:false,unbind:true,on:true,sys:true},
-  {key:'o_nat',sec:'总流出（−）',name:'已流出/待流出 · 自然流失预估',src:'运算派生',srcCls:'calc',add:false,unbind:true,on:true,sys:true},
-  {key:'o_bp',sec:'总流出（−）',name:'已流出/待流出 · 已明确非系统（BP）',src:'BP 手填',srcCls:'bp',add:true,unbind:true,on:true,sys:true},
-  {key:'o_act',sec:'总流出（−）',name:'已流出/待流出 · 主动动作（BP）（调节项）',src:'BP 手填',srcCls:'bp',add:true,unbind:true,on:true,sys:true},
-  {key:'i_soc',sec:'总流入（＋）',name:'已流入/待流入 · 社招',src:'招聘系统（待接）',srcCls:'src',add:false,unbind:true,on:true,sys:true},
-  {key:'camp',sec:'总流入（＋）',name:'已流入/待流入 · 校招∇',src:'分列求和',srcCls:'calc',add:true,unbind:true,on:true,sys:true},
+  {key:'o_sys',sec:'总流出（−）',name:'待流出 · 系统明确',src:'HR数仓（待接）',srcCls:'src',add:false,unbind:true,on:true,sys:true},
+  {key:'o_nat',sec:'总流出（−）',name:'待流出 · 自然流失预估',src:'运算派生',srcCls:'calc',add:false,unbind:true,on:true,sys:true},
+  {key:'o_bp',sec:'总流出（−）',name:'待流出 · 已明确非系统（BP）',src:'BP 手填',srcCls:'bp',add:true,unbind:true,on:true,sys:true},
+  {key:'o_act',sec:'总流出（−）',name:'待流出 · 主动动作（BP）（调节项）',src:'BP 手填',srcCls:'bp',add:true,unbind:true,on:true,sys:true},
+  {key:'i_soc',sec:'总流入（＋）',name:'待流入 · 社招',src:'招聘系统（待接）',srcCls:'src',add:false,unbind:true,on:true,sys:true},
+  {key:'camp',sec:'总流入（＋）',name:'待流入 · 校招∇',src:'分列求和',srcCls:'calc',add:true,unbind:true,on:true,sys:true},
   {key:'i_yy',sec:'校招∇ 分列',name:'校招· 预约入职',src:'HR数仓（待接）',srcCls:'src',add:false,unbind:true,on:true,sys:true},
   {key:'i_bs',sec:'校招∇ 分列',name:'校招· 毕业生转聘',src:'HR数仓（待接）',srcCls:'src',add:false,unbind:true,on:true,sys:true},
   {key:'i_cbp',sec:'校招∇ 分列',name:'校招· 非系统（BP）',src:'BP 手填',srcCls:'bp',add:true,unbind:true,on:true,sys:true},
-  {key:'i_incr',sec:'总流入（＋）',name:'已流入/待流入 · 增量需求（BP）（调节项）',src:'BP 手填',srcCls:'bp',add:true,unbind:true,on:true,sys:true},
+  {key:'i_incr',sec:'总流入（＋）',name:'待流入 · 增量需求（BP）（调节项）',src:'BP 手填',srcCls:'bp',add:true,unbind:true,on:true,sys:true},
   {key:'chain',sec:'结论',name:'期末在岗预估',src:'运算派生（链）',srcCls:'calc',add:false,unbind:false,on:true,sys:true}
 ];
 /* ===== 与前台看板联动：配置写入浏览器本地存储，前台打开时自动应用 ===== */
