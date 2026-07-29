@@ -416,7 +416,7 @@ body.navfold .navtg{left:8px;}
   <div class="yeartabs"></div>
   <div class="progline" id="progLine"></div>
   <div class="fltbar"><input id="kb1Flt" placeholder="筛选行名（如：校招 / 社招 / 腾挪）" style="padding-left:30px" oninput="kb1Filter()"><t-icon name="search" style="margin-left:-290px;margin-right:-22px;color:var(--td-text-color-placeholder)"></t-icon><span class="hint" style="margin:0">只过滤明细行显示；结构行与运算合计不受影响</span></div>
-  <div class="tblwrap"><table class="bsc" id="bscTbl"></table></div>
+  <div class="tblwrap" id="bscWrap"><table class="bsc" id="bscTbl"></table></div>
   <div class="hint">灰底 = 已发生月（1-6月实际，锁定）。BP 可编辑格支持单击/拖选，按 Cmd/Ctrl+C 复制、Cmd/Ctrl+V 从 Excel 按行列粘贴；双击或点行首编辑图标可整行填写，右下角拖柄可填充。悬停数字见来源与取数时间。
   带 <b><t-icon name="arrow-down" size="12"></t-icon></b> 的行（预算当量、待流入·社招）双击下钻到看板2 / 看板3。年均预估 &gt; 预算当量年均时，年均格亮红灯。</div>
 </div>
@@ -976,11 +976,8 @@ function render(){
   ];
   var lightsEl=document.getElementById('lights');if(lightsEl)lightsEl.innerHTML=lights.map(function(l){return '<div class="light"><span class="dot '+(l[0]===null?'':(l[0]?'g':'r'))+'" style="'+(l[0]===null?'background:#C7B36A':'')+'"></span>'+l[1]+'</div>';}).join('');
 }
-/* 自然流失预估：回看月数 n 调参（占总流出% 徽章已按 Bonnie 要求移除 260726） */
-function natBadge(){
-  var nt=D.nat||{n:6,missing:[]};
-  return RO?'':' <span class="rowtool" title="调参：参考前 n 个月平均（当前 n='+nt.n+'）" onclick="openNatParam()">n='+nt.n+' <t-icon name="setting" size="12"></t-icon></span>';
-}
+/* 自然流失预估：占总流出% 与 n=6 调参徽章均按 Bonnie 要求移除（260726）。行名保持干净，无附加徽章。 */
+function natBadge(){return '';}
 function openNatParam(){
   var nt=D.nat||{n:6};
   document.getElementById('natN').value=nt.n;
@@ -2260,6 +2257,25 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
   }
   var _r=renderKb3;renderKb3=function(){_r();kb3ApplyClamp();kb3FreezeApply();kb3ApplySel();};kb3ApplyClamp();  // 冻结在吸顶之后再套一次，z 才压得住滚动表头
   var _gv=goView;goView=function(v){_gv(v);if(v==='kb3'){kb3ApplyClamp();if(typeof kb3FreezeApply==='function')kb3FreezeApply();}};
+})();
+/* ===== 看板1 表体限高（可手动拖拽调节高度）+表头吸顶（.bsc th 已 sticky）===== */
+(function(){
+  var w=document.getElementById('bscWrap');if(!w)return;
+  var BSC_H=520;
+  try{var s=+localStorage.getItem('hcfb_bscH');if(s>=160)BSC_H=s;}catch(e){}
+  w.style.height=BSC_H+'px';w.style.overflowY='auto';w.style.minHeight='160px';
+  if(!document.getElementById('bscDrag')){
+    var d=document.createElement('div');d.id='bscDrag';d.title='拖拽调整表格高度';
+    d.style.cssText='height:12px;margin:2px 0 0;border-radius:6px;cursor:ns-resize;display:flex;align-items:center;justify-content:center;user-select:none;';
+    d.innerHTML='<span style="width:44px;height:4px;border-radius:2px;background:#C9D6EA;display:block"></span>';
+    d.onmouseenter=function(){d.firstChild.style.background='#7FB0F0';};
+    d.onmouseleave=function(){d.firstChild.style.background='#C9D6EA';};
+    w.parentNode.insertBefore(d,w.nextSibling);
+    var sy=0,sh=0,dragging=false;
+    d.addEventListener('mousedown',function(e){dragging=true;sy=e.clientY;sh=w.offsetHeight;e.preventDefault();document.body.style.cursor='ns-resize';});
+    document.addEventListener('mousemove',function(e){if(!dragging)return;BSC_H=Math.max(160,sh+(e.clientY-sy));w.style.height=BSC_H+'px';});
+    document.addEventListener('mouseup',function(){if(dragging){dragging=false;document.body.style.cursor='';try{localStorage.setItem('hcfb_bscH',BSC_H);}catch(e){}}});
+  }
 })();
 </script>
 <script>
