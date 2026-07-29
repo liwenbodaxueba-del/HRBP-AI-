@@ -1081,7 +1081,7 @@ function renderKb0(){
   h+='<th>'+yy+'年均</th></tr>';
   h+=tr('key','法定HC <span class="badge calc">编制上限</span>',hc,{src:'kb2hc',avg:'—',lockShade:true,noTot:true});
   h+=tr('key','预算当量 <span class="badge calc">看板2</span>',BUD,{src:'budget',avg:f2(qa),lockShade:true,noTot:true});
-  h+=tr('key','月末实际在岗/期末在岗预估 <span class="badge calc">链</span>',mgA,{src:'chain',avg:f2(caA),avgCls:ovA?'neg':'',lockShade:true,noTot:true});
+  h+=tr('key',cfgName('actual','实际/预估期末在岗')+' <span class="badge calc">链</span>',mgA,{src:'chain',avg:f2(caA),avgCls:ovA?'neg':'',lockShade:true,noTot:true});
   el.innerHTML=h;
 }
 /* ===== 单元格交互 ===== */
