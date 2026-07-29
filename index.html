@@ -969,8 +969,8 @@ function render(){
     n.textContent=estLbl+' '+f2(est)+' − '+budLbl+' '+f2(bud)+' = '+(gap>=0?'+':'')+f2(gap);
   }
   document.getElementById('kAvgL').innerHTML=YEAR+'预估年均 − 预算年均 <b style="color:var(--red)">（不许超）</b>';
-  gapCard('kAvg','kAvgN',ca,qa2,'预估年均','预算年均','GAP①');
-  gapCard('kDec','kDecN',c[11],BUD[11],'12月预估','预算12月','GAP②');
+  gapCard('kAvg','kAvgN',ca,qa2,'预估年均','预算年均','GAP');
+  gapCard('kDec','kDecN',c[11],BUD[11],'12月预估','预算12月','GAP');
   var lights=noData?[
     [null,'⏳ 数据源未接入 · 待各系统 API 连通后自动取数并重算'],
     [null,'⏳ 预算/实际/流入流出均待接入 · 未连接留空，绝不编造'],
