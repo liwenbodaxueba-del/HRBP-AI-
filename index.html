@@ -782,7 +782,7 @@ var secName={out:'总流出',inn:'总流入',camp:'校招',hc:'法定HC',quota:'
 var srcMap={
   budget:['口径快照','看板2 预算阶段间接取数','snap'],
   actual:['PBF 月末快照','zhaopin/diy · 2026-07-16 19:10','snap'],
-  chain:['运算','实际月=月末实际在岗；预估月=上月−流出+流入+调节','calc'],
+  chain:['招聘系统/员工宽表(实际) · 运算链(预估)','实际发生月=招聘系统(zhaopin·new-home)/员工信息宽表(diy)当月最后一天在岗快照 直接po（月末值·非累计·非运算）；未发生月=上月末−总流出+总流入','src'],
   outT:['运算·合计','总流出 = 各流出项求和（悬停格显示当月算式）','calc'],
   inT:['运算·合计','总流入 = 社招+校招合计+增量需求+分支（悬停格显示当月算式）','calc'],
   o_sys:['HR数仓','系统已提离职在流程','snap'], o_nat:['运算','已发生月=ER报表当月实际离职数；未发生月=近n个月ER离职合计÷n 四舍五入取整（n可调参·源：HR数仓上一年ER报表离职数·URL待求）','calc'],
@@ -1228,7 +1228,7 @@ function fxFor(key,m){
   }
   if(key==='chain'){
     var c2=chain();
-    if(m<LOCK)return '实际月：期末在岗预估 = 月末实际在岗('+(m+1)+'月) = '+fxN(c2[m]);
+    if(m<LOCK)return '实际发生月：月末实际在岗 = 招聘系统/员工信息宽表 当月最后一天在岗快照 直接po('+(m+1)+'月·非运算) = '+fxN(c2[m]);
     var prev=m>0?c2[m-1]:(LOCK>0?D.actual[LOCK-1]:null);
     if(!isN(prev))return '预估月：上月无值 → 链中断留空（不编造）';
     var o=outflow(m),i=inflow(m);
