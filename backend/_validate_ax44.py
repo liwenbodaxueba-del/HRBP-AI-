@@ -73,10 +73,41 @@ print(f"  链年均={comp_b['chain_avg']}  预算年均={comp_b['budget_avg']}  
 check("年均预估>预算 → 应亮红灯(over=True)", over, True)
 
 print("\n" + "=" * 70)
+print("测试6｜估/实双轨  已发生月合计取实际行·未发生月取预估行")
+print("=" * 70)
+# lock=2：1-2月已发生(取实际)，3-12月未发生(取预估)
+vd = {"actual": [500, 498] + [None]*10,
+      "o_nat": [9]*12, "o_act": N(), "soc_sys": [4]*12, "i_yy": N(), "i_incr": N(),
+      "ao_lv": [3, 4] + [None]*10, "ao_tr": [1, 0] + [None]*10,   # 实际流出
+      "ai_soc": [2, 5] + [None]*10, "ai_camp": [1, 0] + [None]*10,  # 实际流入
+      "budget": N()}
+cd = compute(vd, [], lock=2)
+check("1月总流出=实际(3+1)，非预估9", cd["outT"][0], 4)
+check("2月总流出=实际(4+0)", cd["outT"][1], 4)
+check("1月总流入=实际(2+1)，非预估4", cd["inT"][0], 3)
+check("3月(未发生)总流出=预估o_nat=9", cd["outT"][2], 9)
+check("3月(未发生)总流入=预估社招soc_sys=4", cd["inT"][2], 4)
+check("链首个预估月(3月)=2月实际498−9+4", cd["chain"][2], 498 - 9 + 4)
+
+print("\n" + "=" * 70)
+print("测试5｜预算当量口径  budget_eff = 看板2 期初q_init + 预算当量·其中（前后端同口径）")
+print("=" * 70)
+vb = {"actual": N(), "q_init": [500]*12, "budget": [999]*12,  # 存量budget=999应被忽略
+      "o_nat": N(), "i_soc": N(), "i_yy": N(), "i_incr": N(), "o_act": N()}
+qbranch = N(); put(qbranch, 6, 10)  # 7月「其中」+10
+cb = compute(vb, [{"id":9, "sec":"预算当量·其中", "name":"BG下发", "sign":"+", "vals":qbranch}], lock=0)
+check("预算当量 1月 = 期初500(忽略存量999)", cb["budget_eff"][0], 500)
+check("预算当量 7月 = 500 + 其中10", cb["budget_eff"][6], 510)
+check("预算年均 = (500*11+510)/12", cb["budget_avg"], round((500*11+510)/12, 2))
+# 回退：无 q_init 无其中 → 用存量 budget
+cb2 = compute({"budget":[480]*12, "actual":N(), "o_nat":N()}, [], lock=0)
+check("无看板2数据 → 回退存量budget=480", cb2["budget_eff"][3], 480)
+
+print("\n" + "=" * 70)
 print("测试4｜跨年种子  lock=0 整年纯预估时，链首=上年12月期末(seed)")
 print("=" * 70)
 # 无 seed：lock=0 时链无种子（现状边界）
-vals_s = {"actual": N(), "o_nat": [3]*12, "i_soc": [4]+[0]*11, "budget": N(),
+vals_s = {"actual": N(), "o_nat": [3]*12, "soc_sys": [4]+[0]*11, "budget": N(),
           "o_act": N(), "i_yy": N(), "i_incr": N()}
 c_noseed = compute(vals_s, [], lock=0)
 check("无seed·lock=0 → 链首留空(不派生)", c_noseed["chain"][0], None)

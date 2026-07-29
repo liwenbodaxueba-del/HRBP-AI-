@@ -32,7 +32,7 @@ def j(r):
 r = client.get("/api/health")
 check("health", r.status_code == 200 and j(r)["ok"])
 r = client.get("/api/config")
-check("config 12项目+账号(链行已并入实际行)", len(j(r)["projs"]) == 12 and j(r)["accts"][0]["id"] == "bonniewbli")
+check("config 19项目+账号(链行并入实际行·4实际口径行·社招3分列)", len(j(r)["projs"]) == 19 and j(r)["accts"][0]["id"] == "bonniewbli")
 r = client.get("/api/board/2026")
 b = j(r)
 check("空板 lock=6 识空", b["lock"] == 6 and all(v is None for v in b["computed"]["chain"]))
