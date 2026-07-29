@@ -965,7 +965,7 @@ function render(){
     if(!isN(est)||!isN(bud)){v.innerHTML='<small class="gaptag">'+tag+'</small><span style="color:#8194AE;font-size:15px">待接入</span>';v.className='val';n.textContent=budLbl+' / '+estLbl+' 数据待接入';return;}
     // 预算−预估：GAP① 正数/0 达标（预估不超预算）；GAP② 须=0（12月应相等，正负都算未达标）
     var gap=bud-est,ok=eqMode?(Math.abs(gap)<=0.005):(gap>=-0.005);
-    v.innerHTML='<small class="gaptag">'+tag+'</small>'+(gap>=0?'+':'')+f2(gap)+' <small>'+(ok?'✅ 达标':(eqMode?'⚠ 未达标':'⚠ 超标'))+'</small>';
+    v.innerHTML='<small class="gaptag">'+tag+'</small>'+(gap>=0?'+':'')+f2(gap)+' <small>'+(ok?'✅ 达标':'<span style="color:var(--red)">⚠</span> '+(eqMode?'未达标':'超标'))+'</small>';
     v.className='val '+(ok?'gok':'gbad');
     n.textContent=budLbl+' '+f2(bud)+' − '+estLbl+' '+f2(est)+' = '+(gap>=0?'+':'')+f2(gap);
   }
