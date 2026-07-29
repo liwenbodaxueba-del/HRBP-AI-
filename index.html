@@ -841,8 +841,8 @@ function isRO(){if(!CFG||!CFG.accts)return false;var ro=false;CFG.accts.forEach(
 var RO=isRO();
 function tr(cls,label,arr,opt){
   opt=opt||{};var lock=(opt.lock!==undefined?opt.lock:LOCK);
-  var kj=(opt.src&&srcMap[opt.src])?(srcMap[opt.src][1]+'　｜来源：'+srcMap[opt.src][0]):'';  // 悬停行名看口径/取数逻辑
-  var labTd='<td'+(kj?' title="'+esc(kj).replace(/"/g,'&quot;')+'" style="cursor:help"':'')+'>'+label+'</td>';
+  var hasTip=opt.src&&srcMap[opt.src];  // 悬停行名：走样式化 src-tip 框（非系统默认 title）
+  var labTd='<td'+(hasTip?' data-labsrc="'+opt.src+'" style="cursor:help"':'')+'>'+label+'</td>';
   var t='<tr class="'+cls+'"'+(opt.drill?' data-drill="'+opt.drill+'" title="双击下钻"':'')+'>'+labTd;
   for(var m=0;m<12;m++){
     var v=(arr&&arr[m]!==undefined&&arr[m]!==null)?arr[m]:'';
@@ -1247,6 +1247,16 @@ function bindCells(){
       var s=srcMap[key];
       var fxh=fxFor(key,td.cellIndex-1);
       tip.innerHTML='<div class="s1">'+s[0]+'</div><div class="s2">'+s[1]+'</div>'+(fxh?'<div class="s3">'+fxh+'</div>':'');
+      tip.style.display='block';tip.style.left=Math.min(e.clientX+14,window.innerWidth-320)+'px';tip.style.top=(e.clientY+14)+'px';
+    });
+    td.addEventListener('mouseleave',function(){tip.style.display='none';});
+  });
+  // 行名悬浮：复用样式化 src-tip 框（标题=来源、说明=口径），替代系统默认 title
+  document.querySelectorAll('#bscTbl td[data-labsrc],#kb2Tbl td[data-labsrc],#kb0Tbl td[data-labsrc]').forEach(function(td){
+    var key=td.getAttribute('data-labsrc');if(!key||!srcMap[key])return;
+    td.addEventListener('mousemove',function(e){
+      var s=srcMap[key];
+      tip.innerHTML='<div class="s1">'+s[0]+'</div><div class="s2">'+s[1]+'</div>';
       tip.style.display='block';tip.style.left=Math.min(e.clientX+14,window.innerWidth-320)+'px';tip.style.top=(e.clientY+14)+'px';
     });
     td.addEventListener('mouseleave',function(){tip.style.display='none';});
