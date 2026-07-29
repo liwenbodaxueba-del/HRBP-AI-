@@ -104,7 +104,7 @@ h2.sec{font-size:15px;color:var(--navy);margin:2px 0 4px;}
 .hint{font-size:12px;color:var(--ink3);margin:8px 2px 12px;line-height:1.6;}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:14px;}
 .card{background:var(--card);border:1px solid var(--b100);border-radius:12px;padding:14px 16px;box-shadow:0 1px 3px rgba(10,46,110,.05);}
-.kpi .lbl{font-size:12px;color:var(--ink2);}
+.kpi .lbl{font-size:14px;color:var(--ink2);font-weight:600;}
 .kpi .val{font-size:24px;font-weight:700;color:var(--blue);margin-top:2px;font-variant-numeric:tabular-nums;}
 .kpi .val small{font-size:12px;color:var(--ink2);font-weight:400;}
 .kpi .val.gok{color:#1F8A4C;}
@@ -965,9 +965,9 @@ function render(){
     var gap=est-bud,ok=gap<=0.005;
     v.innerHTML=(gap>=0?'+':'')+f2(gap)+' <small>'+(ok?'✅ 达标':'⚠ 超标')+'</small>';
     v.className='val '+(ok?'gok':'gbad');
-    n.textContent=estLbl+' '+f2(est)+' vs '+budLbl+' '+f2(bud);
+    n.textContent=estLbl+' '+f2(est)+' − '+budLbl+' '+f2(bud)+' = '+(gap>=0?'+':'')+f2(gap);
   }
-  document.getElementById('kAvgL').innerHTML='GAP① '+YEAR+'年预估年均 − 预算年均 <b style="color:var(--red)">（不许超）</b>';
+  document.getElementById('kAvgL').innerHTML='GAP① '+YEAR+'预估年均 − 预算年均 <b style="color:var(--red)">（不许超）</b>';
   gapCard('kAvg','kAvgN',ca,qa2,'预估年均','预算年均');
   gapCard('kDec','kDecN',c[11],BUD[11],'12月预估','预算12月');
   var lights=noData?[
