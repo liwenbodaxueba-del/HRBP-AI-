@@ -674,6 +674,34 @@ document.addEventListener('contextmenu',function(e){
   if(hidN)items.push({t:'取消隐藏（'+hidN+' 行）',fn:kb3Unhide});
   ctxShow(items,e.clientX,e.clientY);
 });
+/* ---- 看板3 速查矩阵格子右键：编辑各人 memo（同步 3.1 台账） ---- */
+document.addEventListener('contextmenu',function(e){
+  var td=e.target.closest?e.target.closest('#kb3Sum td[data-cat]'):null;if(!td)return;
+  e.preventDefault();var cat=td.getAttribute('data-cat'),mon=+td.getAttribute('data-mon');
+  ctxShow([{t:'编辑各人备注…',fn:function(){openKb3CellNotes(cat,mon,e.clientX,e.clientY);}}],e.clientX,e.clientY);
+});
+function openKb3CellNotes(catKey,mon,x,y){
+  var moStr=YEAR+'-'+String(mon).padStart(2,'0');
+  var rows=LEDGER.filter(function(r){return kb3cat(r.st)===catKey&&kb3mo(r)===moStr;});
+  document.getElementById('k3npTitle').textContent=catKey+' · '+mon+'月（'+rows.length+' 人 · 改 memo 同步 3.1）';
+  document.getElementById('k3npBody').innerHTML=rows.map(function(r){
+    var one=(r.who?r.who+'·':'')+r.job+(r.loc?'('+r.loc+')':'');
+    return '<div style="margin-bottom:9px"><div style="font-size:11.5px;color:var(--ink2);margin-bottom:3px">'+esc(one)+'</div>'
+      +'<input class="k3memo" data-rid="'+r.id+'" value="'+esc(r.memo||'').replace(/"/g,'&quot;')+'" placeholder="一句话备注（memo）" style="width:100%;border:1px solid var(--b100);border-radius:6px;padding:5px 8px;font:inherit;font-size:12.5px;box-sizing:border-box"></div>';
+  }).join('')||'<div style="color:var(--ink3);font-size:12px">该格无台账人（导入/派生数据无法就地改）</div>';
+  var p=document.getElementById('kb3NotePop');p.style.display='block';
+  p.style.left=Math.max(8,Math.min(x,window.innerWidth-330))+'px';
+  p.style.top=Math.max(8,Math.min(y,window.innerHeight-260))+'px';
+}
+function closeKb3NotePop(){var p=document.getElementById('kb3NotePop');if(p)p.style.display='none';}
+function saveKb3CellNotes(){
+  var list=[].slice.call(document.querySelectorAll('#kb3NotePop .k3memo')).map(function(i){return {rid:+i.getAttribute('data-rid'),v:i.value.trim()};});
+  if(!list.length){closeKb3NotePop();return;}
+  (function step(j){if(j>=list.length){closeKb3NotePop();if(typeof toast==='function')toast('已保存并同步 3.1 台账');return;}
+    kb3PutField(list[j].rid,'memo',list[j].v,function(){step(j+1);});})(0);
+}
+document.addEventListener('mousedown',function(e){var p=document.getElementById('kb3NotePop');
+  if(p&&p.style.display!=='none'&&!(e.target.closest&&e.target.closest('#kb3NotePop'))&&!(e.target.closest&&e.target.closest('#ctxMenu')))closeKb3NotePop();});
 /* ---- 看板1/2 编辑格右键（复制/粘贴/清零/向右填充/备注） ---- */
 function kb1CellMenu(td,ev){
   var key=td.getAttribute('data-edit'),m=+td.getAttribute('data-m');
@@ -705,6 +733,16 @@ function kb1CellMenu(td,ev){
     <button class="btn danger" onclick="clearCellPop()">清零该格</button>
     <button class="btn gray" onclick="closeNotePop()">取消</button>
     <button class="btn" onclick="saveNotePop()">保存备注</button>
+  </div>
+</div>
+
+<!-- 看板3 速查矩阵格子：各人 memo 就地编辑（同步 3.1 台账） -->
+<div id="kb3NotePop" style="display:none;position:fixed;z-index:95;width:320px;max-height:70vh;overflow:auto;background:#fff;border:1px solid var(--b100);box-shadow:0 10px 30px rgba(10,26,60,.25);padding:12px 14px;">
+  <div id="k3npTitle" style="font-size:12.5px;font-weight:700;color:var(--navy);margin-bottom:8px"></div>
+  <div id="k3npBody"></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+    <button class="btn gray" onclick="closeKb3NotePop()">取消</button>
+    <button class="btn" onclick="saveKb3CellNotes()">保存·同步台账</button>
   </div>
 </div>
 
@@ -1712,14 +1750,16 @@ function renderKb3(){
     if(mi>=0&&mi<12){mat[cat][mi]++;note[cat][mi].push((r.who?r.who+'·':'')+r.job+(r.loc?'('+r.loc+')':'')+'·'+(r.st==='已入职'?r.join+'已入职':'预计'+r.eta+'到岗')+(r.memo?'·'+r.memo:''));}});
   var total=Array(12).fill(0),totNote=[];for(var tm=0;tm<12;tm++){totNote[tm]=[];KB3CATS.forEach(function(c){total[tm]+=mat[c.key][tm];totNote[tm]=totNote[tm].concat(note[c.key][tm]);});}
   var s='<tr><th>计入看板1的行</th>';for(var m=0;m<12;m++)s+='<th>'+moLbl(YEAR+'-'+String(m+1).padStart(2,'0'))+'</th>';s+='<th>全年总数</th></tr>';
-  function mr(cls,n,a,nt){var t='<tr class="'+cls+'"><td>'+n+'</td>';for(var m=0;m<12;m++){var lst=nt&&nt[m]&&nt[m].length?nt[m]:null;t+='<td'+(lst?' class="hasnote" data-note="'+esc(lst.join('\n')).replace(/"/g,'&quot;')+'"':'')+'>'+(a[m]||'')+(lst?'<span class="memo"></span>':'')+'</td>';}return t+'<td>'+sum(a)+'</td></tr>';}
-  s+=mr('sub',KB3CATS[0].key,mat[KB3CATS[0].key],note[KB3CATS[0].key])+mr('sub',KB3CATS[1].key,mat[KB3CATS[1].key],note[KB3CATS[1].key])+mr('sub',KB3CATS[2].key,mat[KB3CATS[2].key],note[KB3CATS[2].key])+mr('key','待流入-社招（三项加总）',total,totNote);
+  function mr(cls,n,a,nt,catId){var t='<tr class="'+cls+'"><td>'+n+'</td>';for(var m=0;m<12;m++){var lst=nt&&nt[m]&&nt[m].length?nt[m]:null;
+    var da=(catId&&lst)?(' data-cat="'+esc(catId).replace(/"/g,'&quot;')+'" data-mon="'+(m+1)+'" style="cursor:context-menu"'):'';
+    t+='<td'+(lst?' class="hasnote" data-note="'+esc(lst.join('\n')).replace(/"/g,'&quot;')+'"'+da:'')+'>'+(a[m]||'')+(lst?'<span class="memo"></span>':'')+'</td>';}return t+'<td>'+sum(a)+'</td></tr>';}
+  s+=mr('sub',KB3CATS[0].key,mat[KB3CATS[0].key],note[KB3CATS[0].key],KB3CATS[0].key)+mr('sub',KB3CATS[1].key,mat[KB3CATS[1].key],note[KB3CATS[1].key],KB3CATS[1].key)+mr('sub',KB3CATS[2].key,mat[KB3CATS[2].key],note[KB3CATS[2].key],KB3CATS[2].key)+mr('key','待流入-社招（三项加总）',total,totNote);
   document.getElementById('kb3Sum').innerHTML=s;
-  // 紫角 + 紫色悬浮框（与看板1 备注同款）；内容为各人一句话备注（源自 3.1 台账，去台账改）
+  // 紫角 + 紫色悬浮框（与看板1 备注同款）；内容=各人一句话备注（源自 3.1，右键可就地改 memo·同步）
   var kb3nt=document.getElementById('noteTip');
   document.querySelectorAll('#kb3Sum td.hasnote').forEach(function(td){
     td.addEventListener('mouseenter',function(){var txt=td.getAttribute('data-note');if(!txt||!kb3nt)return;var arr=txt.split('\n');
-      kb3nt.innerHTML='<div class="nt-h">一句话备注（'+arr.length+' 人 · 去 3.1 台账改）</div>'+arr.map(function(x){return '· '+esc(x);}).join('\n');
+      kb3nt.innerHTML='<div class="nt-h">一句话备注（'+arr.length+' 人'+(td.getAttribute('data-cat')?' · 右键改·同步3.1':'')+'）</div>'+arr.map(function(x){return '· '+esc(x);}).join('\n');
       kb3nt.style.display='block';var rc=td.getBoundingClientRect();
       kb3nt.style.left=Math.max(8,Math.min(rc.left+rc.width/2-120,window.innerWidth-260))+'px';
       var top=rc.top-kb3nt.offsetHeight-8;kb3nt.style.top=(top>4?top:rc.bottom+8)+'px';});
