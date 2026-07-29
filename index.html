@@ -136,6 +136,9 @@ table.bsc{border-collapse:separate;border-spacing:0;width:100%;font-size:12.5px;
 .fltbar{display:flex;align-items:center;gap:12px;margin:6px 0 8px;}
 .fltbar input{border:1px solid var(--b100);border-radius:8px;padding:5px 11px;font-size:12.5px;width:300px;font-family:inherit;}
 .fltbar input:focus{outline:none;border-color:var(--blue-l);}
+.fltsearch{position:relative;display:inline-flex;align-items:center;flex:0 0 auto;}
+.fltsearch t-icon{position:absolute;left:9px;color:var(--td-text-color-placeholder);pointer-events:none;z-index:1;}
+.fltsearch input{padding-left:30px;}
 th.sortable{cursor:pointer;}
 th.sortable:hover{filter:brightness(1.08);}
 .sortarr{font-size:10px;margin-left:2px;}
@@ -321,6 +324,9 @@ nav.side a{padding:11px 12px;}
 .sync{font-size:11.5px;color:var(--green);white-space:nowrap;}
 .progline{display:flex;align-items:center;gap:10px;margin:0 0 10px;font-size:12px;color:var(--ink2);}
 .progline b{color:var(--navy);}
+.progline .attrstats{margin-left:auto;display:flex;flex-direction:column;gap:3px;text-align:right;line-height:1.45;}
+.progline .attrstats b{color:var(--red);font-size:13px;font-weight:700;}
+.progline .attrstats small{color:var(--ink3);font-weight:400;}
 .progbar{flex:0 0 160px;height:6px;border-radius:3px;background:var(--b100);overflow:hidden;}
 .progbar i{display:block;height:100%;background:var(--blue);border-radius:3px;}
 .helpdrawer{position:fixed;right:-360px;top:0;bottom:0;width:340px;z-index:80;background:#fff;border-left:1px solid var(--b100);box-shadow:-8px 0 24px rgba(10,46,110,.10);transition:right .25s;padding:18px;overflow-y:auto;}
@@ -415,7 +421,7 @@ body.navfold .navtg{left:8px;}
   </div>
   <div class="yeartabs"></div>
   <div class="progline" id="progLine"></div>
-  <div class="fltbar"><input id="kb1Flt" placeholder="筛选行名（如：校招 / 社招 / 腾挪）" style="padding-left:30px" oninput="kb1Filter()"><t-icon name="search" style="margin-left:-290px;margin-right:-22px;color:var(--td-text-color-placeholder)"></t-icon><span class="hint" style="margin:0">只过滤明细行显示；结构行与运算合计不受影响</span></div>
+  <div class="fltbar"><span class="fltsearch"><t-icon name="search"></t-icon><input id="kb1Flt" placeholder="筛选行名（如：校招 / 社招 / 腾挪）" oninput="kb1Filter()"></span><span class="hint" style="margin:0">只过滤明细行显示；结构行与运算合计不受影响</span></div>
   <div class="tblwrap" id="bscWrap"><table class="bsc" id="bscTbl"></table></div>
   <div class="hint">灰底 = 已发生月（1-6月实际，锁定）。BP 可编辑格支持单击/拖选，按 Cmd/Ctrl+C 复制、Cmd/Ctrl+V 从 Excel 按行列粘贴；双击或点行首编辑图标可整行填写，右下角拖柄可填充。悬停数字见来源与取数时间。
   带 <b><t-icon name="arrow-down" size="12"></t-icon></b> 的行（预算当量、待流入·社招）双击下钻到看板2 / 看板3。年均预估 &gt; 预算当量年均时，年均格亮红灯。</div>
@@ -426,7 +432,7 @@ body.navfold .navtg{left:8px;}
   <h2 class="sec">看板2 · 预算看板（逐月：期初 vs 现行）</h2>
   <div class="hint"><b>法定HC</b> 与 <b>预算当量</b> 各为可展开父行：<b>法定HC 当月 = 上月 + 本月调整</b>（累计滚动，期初锚定）；<b>预算当量 = 当月「其中」求和</b>。点 <t-icon name="chevron-down" size="12"></t-icon> 收起（父行仍=合计）；点 <b><t-icon name="add" size="12"></t-icon> 新增其中分支</b> 自定义命名、选 <b>＋加项/−减项</b>、逐月录入（备注必填）——即 PRD「<t-icon name="add" size="12"></t-icon> +/−（人工手动加分支）」。看板1 的「预算当量」行双击进入本页。</div>
   <div class="yeartabs"></div>
-  <div class="fltbar"><input id="kb2Flt" placeholder="筛选行名（其中分支）" style="padding-left:30px" oninput="kb2Filter()"><t-icon name="search" style="margin-left:-290px;margin-right:-22px;color:var(--td-text-color-placeholder)"></t-icon><span class="hint" style="margin:0">只过滤「其中」明细行显示；父行合计不受影响</span></div>
+  <div class="fltbar"><span class="fltsearch"><t-icon name="search"></t-icon><input id="kb2Flt" placeholder="筛选行名（其中分支）" oninput="kb2Filter()"></span><span class="hint" style="margin:0">只过滤「其中」明细行显示；父行合计不受影响</span></div>
   <div class="tblwrap"><table class="bsc" id="kb2Tbl"></table></div>
   <div class="hint">法定HC：集团分配编制数量（T族头部、青云可豁免）；预算当量：12月当量应=上一年12月当量。可编辑格支持拖选后复制，也可从 Excel 复制多格并从选中格按原行列粘贴。</div>
 </div>
@@ -1809,7 +1815,20 @@ function helpToggle(v){var d=document.getElementById('helpDrawer');d.classList.t
 function syncTick(){var t=new Date(),el=document.getElementById('syncTag');if(el)el.innerHTML='<t-icon name="check-circle-filled" style="vertical-align:-2px;margin-right:3px"></t-icon>已保存 '+String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0');}
 var _log=log;log=function(u,a,d){_log(u,a,d);syncTick();};
 function renderProg(){var el=document.getElementById('progLine');if(!el)return;var pct=Math.round(LOCK/12*100);
-  el.innerHTML='<span>'+YEAR+' 年进度：已确认 <b>'+LOCK+'/12</b> 个月</span><span class="progbar"><i style="width:'+pct+'%"></i></span><span>'+(LOCK<12?'剩余 '+(12-LOCK)+' 个月待确认':'全年已确认')+'</span>';}
+  // 流失率统计（分母=预算年均）：自然主动流失=自然流失预估(o_nat)行；被动流失=主动动作(o_act)行
+  var qL=kb2Total('quota',false),BUD=[];for(var m=0;m<12;m++)BUD[m]=isN(qL[m])?qL[m]:D.budget[m];var P=avg(BUD);
+  function rate(x){return (isN(x)&&isN(P)&&P)?(Math.round(x/P*1000)/10).toFixed(1)+'%':'—';}
+  // ① 自然主动流失率：近6个月(锚定最后确认月)合计÷6×12 ÷ 预算年均
+  var natSum=0,natHas=false;for(var i=Math.max(0,LOCK-6);i<LOCK;i++)if(isN(D.o_nat[i])){natSum+=D.o_nat[i];natHas=true;}
+  var natAnnual=natHas?(natSum/6)*12:null;
+  // ② 被动流失率：实际月主动动作 YTD 合计 ÷ 预算年均；全年预估=YTD按比例年化
+  var oactYtd=0,oactHas=false;for(var j=0;j<LOCK;j++)if(isN(D.o_act[j])){oactYtd+=D.o_act[j];oactHas=true;}
+  var ytd=(LOCK>0)?oactYtd:null,full=(LOCK>0)?(oactYtd/LOCK*12):null,monLbl=(LOCK>0)?('1-'+LOCK+'月'):'—';
+  el.innerHTML='<span>'+YEAR+' 年进度：已确认 <b>'+LOCK+'/12</b> 个月</span><span class="progbar"><i style="width:'+pct+'%"></i></span><span>'+(LOCK<12?'剩余 '+(12-LOCK)+' 个月待确认':'全年已确认')+'</span>'
+    +'<span class="attrstats">'
+    +'<span>自然主动流失率 <small>(近6月年化÷预算年均)</small>：<b>'+rate(natAnnual)+'</b></span>'
+    +'<span>被动流失率 <small>'+monLbl+' YTD</small>：<b>'+rate(ytd)+'</b> ｜ <small>全年预估</small>：<b>'+rate(full)+'</b></span>'
+    +'</span>';}
 document.addEventListener('keydown',function(e){
   var tag=(e.target.tagName||'').toLowerCase();
   if(tag==='input'||tag==='textarea'||tag==='select')return;
