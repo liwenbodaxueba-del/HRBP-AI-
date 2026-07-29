@@ -104,9 +104,10 @@ h2.sec{font-size:15px;color:var(--navy);margin:2px 0 4px;}
 .hint{font-size:12px;color:var(--ink3);margin:8px 2px 12px;line-height:1.6;}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:14px;}
 .card{background:var(--card);border:1px solid var(--b100);border-radius:12px;padding:14px 16px;box-shadow:0 1px 3px rgba(10,46,110,.05);}
-.kpi .lbl{font-size:12px;color:var(--ink2);}
+.kpi .lbl{font-size:14px;color:var(--ink2);font-weight:600;}
 .kpi .val{font-size:24px;font-weight:700;color:var(--blue);margin-top:2px;font-variant-numeric:tabular-nums;}
 .kpi .val small{font-size:12px;color:var(--ink2);font-weight:400;}
+.kpi .val small.gaptag{font-size:12px;color:var(--ink3);font-weight:700;margin-right:6px;vertical-align:4px;}
 .kpi .val.gok{color:#1F8A4C;}
 .kpi .val.gbad{color:var(--red);}
 .kpi .note{font-size:11px;color:var(--ink3);margin-top:2px;}
@@ -136,6 +137,9 @@ table.bsc{border-collapse:separate;border-spacing:0;width:100%;font-size:12.5px;
 .fltbar{display:flex;align-items:center;gap:12px;margin:6px 0 8px;}
 .fltbar input{border:1px solid var(--b100);border-radius:8px;padding:5px 11px;font-size:12.5px;width:300px;font-family:inherit;}
 .fltbar input:focus{outline:none;border-color:var(--blue-l);}
+.fltsearch{position:relative;display:inline-flex;align-items:center;flex:0 0 auto;}
+.fltsearch t-icon{position:absolute;left:9px;color:var(--td-text-color-placeholder);pointer-events:none;z-index:1;}
+.fltsearch input{padding-left:30px;}
 th.sortable{cursor:pointer;}
 th.sortable:hover{filter:brightness(1.08);}
 .sortarr{font-size:10px;margin-left:2px;}
@@ -321,6 +325,9 @@ nav.side a{padding:11px 12px;}
 .sync{font-size:11.5px;color:var(--green);white-space:nowrap;}
 .progline{display:flex;align-items:center;gap:10px;margin:0 0 10px;font-size:12px;color:var(--ink2);}
 .progline b{color:var(--navy);}
+.progline .attrstats{margin-left:auto;display:flex;flex-direction:column;gap:3px;text-align:right;line-height:1.45;}
+.progline .attrstats b{color:var(--red);font-size:13px;font-weight:700;}
+.progline .attrstats small{color:var(--ink3);font-weight:400;}
 .progbar{flex:0 0 160px;height:6px;border-radius:3px;background:var(--b100);overflow:hidden;}
 .progbar i{display:block;height:100%;background:var(--blue);border-radius:3px;}
 .helpdrawer{position:fixed;right:-360px;top:0;bottom:0;width:340px;z-index:80;background:#fff;border-left:1px solid var(--b100);box-shadow:-8px 0 24px rgba(10,46,110,.10);transition:right .25s;padding:18px;overflow-y:auto;}
@@ -411,11 +418,10 @@ body.navfold .navtg{left:8px;}
   </div>
   <div class="kpis">
     <div class="card kpi"><div class="lbl" id="kAvgL">GAP① 预估年均 − 预算年均<b style="color:var(--red)">（不许超）</b></div><div class="val" id="kAvg">—</div><div class="note" id="kAvgN">预估年均 vs 预算年均</div></div>
-    <div class="card kpi"><div class="lbl">GAP② 12月预估 − 预算12月<b style="color:var(--red)">（不许超）</b></div><div class="val" id="kDec">—</div><div class="note" id="kDecN">年末预估 vs 预算12月</div></div>
+    <div class="card kpi"><div class="lbl">12月预估 − 预算12月<b style="color:var(--red)">（应相等）</b></div><div class="val" id="kDec">—</div><div class="note" id="kDecN">年末预估 vs 预算12月</div></div>
   </div>
   <div class="yeartabs"></div>
   <div class="progline" id="progLine"></div>
-  <div class="fltbar"><input id="kb1Flt" placeholder="筛选行名（如：校招 / 社招 / 腾挪）" style="padding-left:30px" oninput="kb1Filter()"><t-icon name="search" style="margin-left:-290px;margin-right:-22px;color:var(--td-text-color-placeholder)"></t-icon><span class="hint" style="margin:0">只过滤明细行显示；结构行与运算合计不受影响</span></div>
   <div class="tblwrap" id="bscWrap"><table class="bsc" id="bscTbl"></table></div>
   <div class="hint">灰底 = 已发生月（1-6月实际，锁定）。BP 可编辑格支持单击/拖选，按 Cmd/Ctrl+C 复制、Cmd/Ctrl+V 从 Excel 按行列粘贴；双击或点行首编辑图标可整行填写，右下角拖柄可填充。悬停数字见来源与取数时间。
   带 <b><t-icon name="arrow-down" size="12"></t-icon></b> 的行（预算当量、待流入·社招）双击下钻到看板2 / 看板3。年均预估 &gt; 预算当量年均时，年均格亮红灯。</div>
@@ -426,7 +432,7 @@ body.navfold .navtg{left:8px;}
   <h2 class="sec">看板2 · 预算看板（逐月：期初 vs 现行）</h2>
   <div class="hint"><b>法定HC</b> 与 <b>预算当量</b> 各为可展开父行：<b>法定HC 当月 = 上月 + 本月调整</b>（累计滚动，期初锚定）；<b>预算当量 = 当月「其中」求和</b>。点 <t-icon name="chevron-down" size="12"></t-icon> 收起（父行仍=合计）；点 <b><t-icon name="add" size="12"></t-icon> 新增其中分支</b> 自定义命名、选 <b>＋加项/−减项</b>、逐月录入（备注必填）——即 PRD「<t-icon name="add" size="12"></t-icon> +/−（人工手动加分支）」。看板1 的「预算当量」行双击进入本页。</div>
   <div class="yeartabs"></div>
-  <div class="fltbar"><input id="kb2Flt" placeholder="筛选行名（其中分支）" style="padding-left:30px" oninput="kb2Filter()"><t-icon name="search" style="margin-left:-290px;margin-right:-22px;color:var(--td-text-color-placeholder)"></t-icon><span class="hint" style="margin:0">只过滤「其中」明细行显示；父行合计不受影响</span></div>
+  <div class="fltbar"><span class="fltsearch"><t-icon name="search"></t-icon><input id="kb2Flt" placeholder="筛选行名（其中分支）" oninput="kb2Filter()"></span><span class="hint" style="margin:0">只过滤「其中」明细行显示；父行合计不受影响</span></div>
   <div class="tblwrap"><table class="bsc" id="kb2Tbl"></table></div>
   <div class="hint">法定HC：集团分配编制数量（T族头部、青云可豁免）；预算当量：12月当量应=上一年12月当量。可编辑格支持拖选后复制，也可从 Excel 复制多格并从选中格按原行列粘贴。</div>
 </div>
@@ -835,8 +841,8 @@ function isRO(){if(!CFG||!CFG.accts)return false;var ro=false;CFG.accts.forEach(
 var RO=isRO();
 function tr(cls,label,arr,opt){
   opt=opt||{};var lock=(opt.lock!==undefined?opt.lock:LOCK);
-  var kj=(opt.src&&srcMap[opt.src])?(srcMap[opt.src][1]+'　｜来源：'+srcMap[opt.src][0]):'';  // 悬停行名看口径/取数逻辑
-  var labTd='<td'+(kj?' title="'+esc(kj).replace(/"/g,'&quot;')+'" style="cursor:help"':'')+'>'+label+'</td>';
+  var hasTip=opt.src&&srcMap[opt.src];  // 悬停行名：走样式化 src-tip 框（非系统默认 title）
+  var labTd='<td'+(hasTip?' data-labsrc="'+opt.src+'" style="cursor:help"':'')+'>'+label+'</td>';
   var t='<tr class="'+cls+'"'+(opt.drill?' data-drill="'+opt.drill+'" title="双击下钻"':'')+'>'+labTd;
   for(var m=0;m<12;m++){
     var v=(arr&&arr[m]!==undefined&&arr[m]!==null)?arr[m]:'';
@@ -908,7 +914,7 @@ function render(){
     // 预估口径（未发生月计入合计；已发生月标灰仅供估/实对比）
     if(cfgOn('i_soc')){
       var socA=[];for(var ms=0;ms<12;ms++)socA[ms]=socTot(ms);
-      h+=tr('sub',cfgName('i_soc','已流入/待流入 · 社招')+' <span class="rowtool" onclick="tg(\'soc\')">'+'<t-icon name="'+(open_.soc?'chevron-down':'chevron-right')+'" size="12"></t-icon>'+'</span><span class="drill"><t-icon name="arrow-down" size="10"></t-icon></span>',socA,{src:'i_soc',hideZero:true,tot:sum(socA),drill:'kb3',lockShade:true,mute:'past'});
+      h+=tr('sub',cfgName('i_soc','待流入 · 社招')+' <span class="rowtool" onclick="tg(\'soc\')">'+'<t-icon name="'+(open_.soc?'chevron-down':'chevron-right')+'" size="12"></t-icon>'+'</span><span class="drill"><t-icon name="arrow-down" size="10"></t-icon></span>',socA,{src:'i_soc',hideZero:true,tot:sum(socA),drill:'kb3',lockShade:true,mute:'past'});
       if(open_.soc){
         if(cfgOn('soc_sys'))h+=tr('sub2',cfgName('soc_sys','社招系统· 已系统预约入职'),D.soc_sys,{src:'soc_sys',hideZero:true,tot:sum(D.soc_sys),lockShade:true,mute:'past'});
         if(cfgOn('soc_hs'))h+=tr('sub2',cfgName('soc_hs','活水· 系统候选人已接offer'),D.soc_hs,{src:'soc_hs',hideZero:true,tot:sum(D.soc_hs),lockShade:true,mute:'past'});
@@ -919,16 +925,16 @@ function render(){
     }
     if(cfgOn('camp')){
       var campA=[];for(var m4=0;m4<12;m4++)campA[m4]=campTot(m4);
-      h+=tr('sub',cfgName('camp','已流入/待流入 · 校招')+' <span class="rowtool" onclick="tg(\'camp\')">'+'<t-icon name="'+(open_.camp?'chevron-down':'chevron-right')+'" size="12"></t-icon>'+'</span>',campA,{src:'camp',hideZero:true,tot:sum(campA),lockShade:true,mute:'past'});
+      h+=tr('sub',cfgName('camp','待流入 · 校招')+' <span class="rowtool" onclick="tg(\'camp\')">'+'<t-icon name="'+(open_.camp?'chevron-down':'chevron-right')+'" size="12"></t-icon>'+'</span>',campA,{src:'camp',hideZero:true,tot:sum(campA),lockShade:true,mute:'past'});
       if(open_.camp){
-        if(cfgOn('i_yy'))h+=tr('sub2',cfgName('i_yy','已流入/待流入 · 校招· 预约入职'),D.i_yy,{src:'i_yy',hideZero:true,tot:sum(D.i_yy),lockShade:true,mute:'past'});
-        if(cfgOn('i_bs'))h+=tr('sub2',cfgName('i_bs','已流入/待流入 · 校招· 毕业生转聘'),D.i_bs,{src:'i_bs',hideZero:true,tot:sum(D.i_bs),lockShade:true,mute:'past'});
-        if(cfgOn('i_cbp'))h+=tr('sub2',cfgName('i_cbp','已流入/待流入 · 校招· 非系统（BP）')+(cfgAdd('i_cbp',true)?pen('i_cbp'):''),D.i_cbp,{src:'i_cbp',key:'i_cbp',edit:cfgAdd('i_cbp',true),hideZero:true,tot:sum(D.i_cbp),lockShade:true,mute:'past'});
+        if(cfgOn('i_yy'))h+=tr('sub2',cfgName('i_yy','待流入 · 校招· 预约入职'),D.i_yy,{src:'i_yy',hideZero:true,tot:sum(D.i_yy),lockShade:true,mute:'past'});
+        if(cfgOn('i_bs'))h+=tr('sub2',cfgName('i_bs','待流入 · 校招· 毕业生转聘'),D.i_bs,{src:'i_bs',hideZero:true,tot:sum(D.i_bs),lockShade:true,mute:'past'});
+        if(cfgOn('i_cbp'))h+=tr('sub2',cfgName('i_cbp','待流入 · 校招· 非系统（BP）')+(cfgAdd('i_cbp',true)?pen('i_cbp'):''),D.i_cbp,{src:'i_cbp',key:'i_cbp',edit:cfgAdd('i_cbp',true),hideZero:true,tot:sum(D.i_cbp),lockShade:true,mute:'past'});
         h+=customRows('camp',{deep:true});
         h+=extraRows('校招∇ 分列','sub2');
       }
     }
-    if(cfgOn('i_incr'))h+=tr('sub',cfgName('i_incr','已流入/待流入 · 增量需求（BP）（调节项）')+(cfgAdd('i_incr',true)?pen('i_incr'):''),D.i_incr,{src:'i_incr',key:'i_incr',edit:cfgAdd('i_incr',true),hideZero:true,tot:sum(D.i_incr),lockShade:true,mute:'past'});
+    if(cfgOn('i_incr'))h+=tr('sub',cfgName('i_incr','待流入 · 增量需求（BP）（调节项）')+(cfgAdd('i_incr',true)?pen('i_incr'):''),D.i_incr,{src:'i_incr',key:'i_incr',edit:cfgAdd('i_incr',true),hideZero:true,tot:sum(D.i_incr),lockShade:true,mute:'past'});
     h+=customRows('inn');
     h+=extraRows('总流入（＋）');
     if(!RO&&secAllow('总流入（＋）'))h+=addRowTr('inn');
@@ -941,10 +947,10 @@ function render(){
     if(cfgOn('ao_lv'))h+=tr('sub actrow',cfgName('ao_lv','实际离职（主动+被动）'),D.ao_lv,{src:'ao_lv',hideZero:true,tot:sum(D.ao_lv),mute:'future'});
     if(cfgOn('ao_tr'))h+=tr('sub actrow',cfgName('ao_tr','调出（活水/跨部门）'),D.ao_tr,{src:'ao_tr',hideZero:true,tot:sum(D.ao_tr),mute:'future'});
     // 预估口径
-    if(cfgOn('o_sys'))h+=tr('sub',cfgName('o_sys','已流出/待流出 · 系统明确'),D.o_sys,{src:'o_sys',hideZero:true,tot:sum(D.o_sys),lockShade:true,mute:'past'});
-    if(cfgOn('o_nat'))h+=tr('sub',cfgName('o_nat','已流出/待流出 · 自然流失预估')+natBadge(),D.o_nat,{src:'o_nat',hideZero:true,tot:sum(D.o_nat),lockShade:true,mute:'past'});
-    if(cfgOn('o_bp'))h+=tr('sub',cfgName('o_bp','已流出/待流出 · 已明确非系统（BP）')+(cfgAdd('o_bp',true)?pen('o_bp'):''),D.o_bp,{src:'o_bp',key:'o_bp',edit:cfgAdd('o_bp',true),hideZero:true,tot:sum(D.o_bp),lockShade:true,mute:'past'});
-    if(cfgOn('o_act'))h+=tr('sub',cfgName('o_act','已流出/待流出 · 主动动作（BP）（调节项）')+(cfgAdd('o_act',true)?pen('o_act'):''),D.o_act,{src:'o_act',key:'o_act',edit:cfgAdd('o_act',true),hideZero:true,tot:sum(D.o_act),lockShade:true,mute:'past'});
+    if(cfgOn('o_sys'))h+=tr('sub',cfgName('o_sys','待流出 · 系统明确'),D.o_sys,{src:'o_sys',hideZero:true,tot:sum(D.o_sys),lockShade:true,mute:'past'});
+    if(cfgOn('o_nat'))h+=tr('sub',cfgName('o_nat','待流出 · 自然流失预估')+natBadge(),D.o_nat,{src:'o_nat',hideZero:true,tot:sum(D.o_nat),lockShade:true,mute:'past'});
+    if(cfgOn('o_bp'))h+=tr('sub',cfgName('o_bp','待流出 · 已明确非系统（BP）')+(cfgAdd('o_bp',true)?pen('o_bp'):''),D.o_bp,{src:'o_bp',key:'o_bp',edit:cfgAdd('o_bp',true),hideZero:true,tot:sum(D.o_bp),lockShade:true,mute:'past'});
+    if(cfgOn('o_act'))h+=tr('sub',cfgName('o_act','待流出 · 主动动作（BP）（调节项）')+(cfgAdd('o_act',true)?pen('o_act'):''),D.o_act,{src:'o_act',key:'o_act',edit:cfgAdd('o_act',true),hideZero:true,tot:sum(D.o_act),lockShade:true,mute:'past'});
     h+=customRows('out');
     h+=extraRows('总流出（−）');
     if(!RO&&secAllow('总流出（−）'))h+=addRowTr('out');
@@ -954,17 +960,18 @@ function render(){
   document.getElementById('bscTbl').innerHTML=h;
   // KPI：两条硬约束的 GAP 突出显示（GAP>0=超标红 / ≤0=达标绿；空态显示待接入）
   var noData=!isN(ca);
-  function gapCard(valId,noteId,est,bud,estLbl,budLbl){
+  function gapCard(valId,noteId,est,bud,estLbl,budLbl,tag,eqMode){
     var v=document.getElementById(valId),n=document.getElementById(noteId);
-    if(!isN(est)||!isN(bud)){v.innerHTML='<span style="color:#8194AE;font-size:15px">待接入</span>';v.className='val';n.textContent=estLbl+' / '+budLbl+' 数据待接入';return;}
-    var gap=est-bud,ok=gap<=0.005;
-    v.innerHTML=(gap>=0?'+':'')+f2(gap)+' <small>'+(ok?'✅ 达标':'⚠ 超标')+'</small>';
+    if(!isN(est)||!isN(bud)){v.innerHTML='<small class="gaptag">'+tag+'</small><span style="color:#8194AE;font-size:15px">待接入</span>';v.className='val';n.textContent=budLbl+' / '+estLbl+' 数据待接入';return;}
+    // 预算−预估：GAP① 正数/0 达标（预估不超预算）；GAP② 须=0（12月应相等，正负都算未达标）
+    var gap=bud-est,ok=eqMode?(Math.abs(gap)<=0.005):(gap>=-0.005);
+    v.innerHTML='<small class="gaptag">'+tag+'</small>'+(gap>=0?'+':'')+f2(gap)+' <small>'+(ok?'✅ 达标':'<span style="color:var(--red)">⚠</span> '+(eqMode?'未达标':'超标'))+'</small>';
     v.className='val '+(ok?'gok':'gbad');
-    n.textContent=estLbl+' '+f2(est)+' vs '+budLbl+' '+f2(bud);
+    n.textContent=budLbl+' '+f2(bud)+' − '+estLbl+' '+f2(est)+' = '+(gap>=0?'+':'')+f2(gap);
   }
-  document.getElementById('kAvgL').innerHTML='GAP① '+YEAR+'年预估年均 − 预算年均 <b style="color:var(--red)">（不许超）</b>';
-  gapCard('kAvg','kAvgN',ca,qa2,'预估年均','预算年均');
-  gapCard('kDec','kDecN',c[11],BUD[11],'12月预估','预算12月');
+  document.getElementById('kAvgL').innerHTML=YEAR+'预估年均 − 预算年均 <b style="color:var(--red)">（不许超）</b>';
+  gapCard('kAvg','kAvgN',ca,qa2,'预估年均','预算年均','GAP',false);
+  gapCard('kDec','kDecN',c[11],BUD[11],'12月预估','预算12月','GAP',true);
   var lights=noData?[
     [null,'⏳ 数据源未接入 · 待各系统 API 连通后自动取数并重算'],
     [null,'⏳ 预算/实际/流入流出均待接入 · 未连接留空，绝不编造'],
@@ -1241,6 +1248,16 @@ function bindCells(){
       var s=srcMap[key];
       var fxh=fxFor(key,td.cellIndex-1);
       tip.innerHTML='<div class="s1">'+s[0]+'</div><div class="s2">'+s[1]+'</div>'+(fxh?'<div class="s3">'+fxh+'</div>':'');
+      tip.style.display='block';tip.style.left=Math.min(e.clientX+14,window.innerWidth-320)+'px';tip.style.top=(e.clientY+14)+'px';
+    });
+    td.addEventListener('mouseleave',function(){tip.style.display='none';});
+  });
+  // 行名悬浮：复用样式化 src-tip 框（标题=来源、说明=口径），替代系统默认 title
+  document.querySelectorAll('#bscTbl td[data-labsrc],#kb2Tbl td[data-labsrc],#kb0Tbl td[data-labsrc]').forEach(function(td){
+    var key=td.getAttribute('data-labsrc');if(!key||!srcMap[key])return;
+    td.addEventListener('mousemove',function(e){
+      var s=srcMap[key];
+      tip.innerHTML='<div class="s1">'+s[0]+'</div><div class="s2">'+s[1]+'</div>';
       tip.style.display='block';tip.style.left=Math.min(e.clientX+14,window.innerWidth-320)+'px';tip.style.top=(e.clientY+14)+'px';
     });
     td.addEventListener('mouseleave',function(){tip.style.display='none';});
@@ -1809,7 +1826,33 @@ function helpToggle(v){var d=document.getElementById('helpDrawer');d.classList.t
 function syncTick(){var t=new Date(),el=document.getElementById('syncTag');if(el)el.innerHTML='<t-icon name="check-circle-filled" style="vertical-align:-2px;margin-right:3px"></t-icon>已保存 '+String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0');}
 var _log=log;log=function(u,a,d){_log(u,a,d);syncTick();};
 function renderProg(){var el=document.getElementById('progLine');if(!el)return;var pct=Math.round(LOCK/12*100);
-  el.innerHTML='<span>'+YEAR+' 年进度：已确认 <b>'+LOCK+'/12</b> 个月</span><span class="progbar"><i style="width:'+pct+'%"></i></span><span>'+(LOCK<12?'剩余 '+(12-LOCK)+' 个月待确认':'全年已确认')+'</span>';}
+  // 流失率统计（分母=预算年均）：自然主动流失=自然流失预估(o_nat)行；被动流失=主动动作(o_act)行
+  var qL=kb2Total('quota',false),BUD=[];for(var m=0;m<12;m++)BUD[m]=isN(qL[m])?qL[m]:D.budget[m];var P=avg(BUD);
+  function rate(x){return (isN(x)&&isN(P)&&P)?(Math.round(x/P*1000)/10).toFixed(1)+'%':'—';}
+  // ① 自然主动流失率：近6个月(锚定最后确认月)合计÷6×12 ÷ 预算年均
+  var natSum=0,natHas=false;for(var i=Math.max(0,LOCK-6);i<LOCK;i++)if(isN(D.o_nat[i])){natSum+=D.o_nat[i];natHas=true;}
+  var natAnnual=natHas?(natSum/6)*12:null;
+  // ② 被动流失率：实际月主动动作 YTD 合计 ÷ 预算年均；全年预估=YTD按比例年化
+  var oactYtd=0,oactHas=false;for(var j=0;j<LOCK;j++)if(isN(D.o_act[j])){oactYtd+=D.o_act[j];oactHas=true;}
+  var ytd=(LOCK>0)?oactYtd:null,full=(LOCK>0)?(oactYtd/LOCK*12):null,monLbl=(LOCK>0)?('1-'+LOCK+'月'):'—';
+  el.innerHTML='<span>'+YEAR+' 年进度：已确认 <b>'+LOCK+'/12</b> 个月</span><span class="progbar"><i style="width:'+pct+'%"></i></span><span>'+(LOCK<12?'剩余 '+(12-LOCK)+' 个月待确认':'全年已确认')+'</span>'
+    +'<span class="attrstats">'
+    +'<span id="attr1" style="cursor:help">自然主动流失率 <small>(近6月年化÷预算年均)</small>：<b>'+rate(natAnnual)+'</b></span>'
+    +'<span id="attr2" style="cursor:help">被动流失率 <small>'+monLbl+' YTD</small>：<b>'+rate(ytd)+'</b> ｜ <small>全年预估</small>：<b>'+rate(full)+'</b></span>'
+    +'</span>';
+  // 悬浮显示算式（复用样式化 src-tip 框）
+  var tipC={
+    attr1:['自然主动流失率','主动离职+活水（自然流失），近6月实际年化 ÷ 预算年均',
+      '近6月自然流失合计 '+natSum+' ÷ 6 × 12 = '+f2(natAnnual)+'（年化）<br>'+f2(natAnnual)+' ÷ 预算年均 '+f2(P)+' = <b>'+rate(natAnnual)+'</b>'],
+    attr2:['被动流失率','管理侧主动动作（劝退/组织优化），实际月累计 ÷ 预算年均',
+      'YTD：'+monLbl+'主动动作合计 '+oactYtd+' ÷ 预算年均 '+f2(P)+' = <b>'+rate(ytd)+'</b><br>全年预估：（'+oactYtd+' ÷ '+LOCK+' × 12）÷ '+f2(P)+' = <b>'+rate(full)+'</b>']};
+  ['attr1','attr2'].forEach(function(id){
+    var sp=document.getElementById(id);if(!sp)return;var t=tipC[id],tp=document.getElementById('srcTip');
+    sp.addEventListener('mousemove',function(e){
+      tp.innerHTML='<div class="s1">'+t[0]+'</div><div class="s2">'+t[1]+'</div><div class="s3">'+t[2]+'</div>';
+      tp.style.display='block';tp.style.left=Math.min(e.clientX+14,window.innerWidth-320)+'px';tp.style.top=(e.clientY+14)+'px';});
+    sp.addEventListener('mouseleave',function(){tp.style.display='none';});
+  });}
 document.addEventListener('keydown',function(e){
   var tag=(e.target.tagName||'').toLowerCase();
   if(tag==='input'||tag==='textarea'||tag==='select')return;
