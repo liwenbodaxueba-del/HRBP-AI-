@@ -73,6 +73,20 @@ print(f"  链年均={comp_b['chain_avg']}  预算年均={comp_b['budget_avg']}  
 check("年均预估>预算 → 应亮红灯(over=True)", over, True)
 
 print("\n" + "=" * 70)
+print("测试5｜预算当量口径  budget_eff = 看板2 期初q_init + 预算当量·其中（前后端同口径）")
+print("=" * 70)
+vb = {"actual": N(), "q_init": [500]*12, "budget": [999]*12,  # 存量budget=999应被忽略
+      "o_nat": N(), "i_soc": N(), "i_yy": N(), "i_incr": N(), "o_act": N()}
+qbranch = N(); put(qbranch, 6, 10)  # 7月「其中」+10
+cb = compute(vb, [{"id":9, "sec":"预算当量·其中", "name":"BG下发", "sign":"+", "vals":qbranch}], lock=0)
+check("预算当量 1月 = 期初500(忽略存量999)", cb["budget_eff"][0], 500)
+check("预算当量 7月 = 500 + 其中10", cb["budget_eff"][6], 510)
+check("预算年均 = (500*11+510)/12", cb["budget_avg"], round((500*11+510)/12, 2))
+# 回退：无 q_init 无其中 → 用存量 budget
+cb2 = compute({"budget":[480]*12, "actual":N(), "o_nat":N()}, [], lock=0)
+check("无看板2数据 → 回退存量budget=480", cb2["budget_eff"][3], 480)
+
+print("\n" + "=" * 70)
 print("测试4｜跨年种子  lock=0 整年纯预估时，链首=上年12月期末(seed)")
 print("=" * 70)
 # 无 seed：lock=0 时链无种子（现状边界）

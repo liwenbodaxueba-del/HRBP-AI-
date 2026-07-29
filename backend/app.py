@@ -155,6 +155,7 @@ def get_board(year: int):
         for k in EXTRA_METRICS:  # 看板2 期初基线（fa_hc/q_init）一并下发
             metrics[k] = {"vals": vals.get(k, [None] * 12), "notes": notes.get(k, {})}
         metrics["o_nat"]["vals"] = comp["o_nat_eff"]  # 存量优先，派生只补未发生月空格
+        metrics["budget"]["vals"] = comp["budget_eff"]  # 预算当量 = 看板2 期初+其中（前后端/导出同一口径）
         # 260723 口径：链行并入实际行——未发生月空格由预估链补（月末实际在岗/期末在岗预估）
         av = list(metrics["actual"]["vals"])
         for m in range(yr["lock_month"], 12):
@@ -460,9 +461,13 @@ def demo_load(y: YearNew, x_user: str = Header("bonniewbli")):
                 filled += 1
 
             for m in range(1, 13):
-                put("budget", m, 550 + (2026 - yy) * 5)
+                # 预算当量口径统一(budget=q_init)：若该月已有真数(非示例)则镜像真数，示例绝不遮蔽真实预算
+                real = c.execute("SELECT value FROM cells WHERE year=? AND metric IN('budget','q_init') "
+                                 "AND month=? AND source!='demo' AND value IS NOT NULL", (yy, m)).fetchone()
+                bval = real["value"] if real else 550 + (2026 - yy) * 5
+                put("budget", m, bval)
                 put("fa_hc", m, 479)
-                put("q_init", m, 550 + (2026 - yy) * 5)
+                put("q_init", m, bval)
             # 历史实际月：只随机填「源」单元格（Excel 思路——运算行 o_nat/总流出/总流入/链 由引擎公式现算，不落库）
             rng = random.Random(yy * 97 + 7)  # 每年固定种子：重复导入结果一致（幂等）
             for m in range(1, lock + 1):

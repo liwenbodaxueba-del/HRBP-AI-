@@ -353,6 +353,7 @@ body.navfold .navtg{left:8px;}
     <div class="bn">HC Forecast<small>人力预估看板 · V2</small></div>
   </div>
   <div class="grp">看板</div>
+  <a data-v="kb0" onclick="go(this)">看板0 · PM 速览</a>
   <a class="on" data-v="kb1" onclick="go(this)">看板1 · 部门人力预估表【集团】</a>
   <a data-v="kb2" onclick="go(this)">看板2 · 预算看板</a>
   <a data-v="kb3" onclick="go(this)">看板3 · 社招滚动台账</a>
@@ -388,6 +389,12 @@ body.navfold .navtg{left:8px;}
 </div>
 
 <main>
+<!-- 看板0 · PM 速览（只读三行） -->
+<div class="view" id="v-kb0">
+  <div style="margin:2px 0 12px"><b style="font-size:16px;color:var(--navy)">看板0 · PM 速览</b><span style="color:var(--ink3);font-size:12.5px;margin-left:10px">给 PM 的快捷视图 · 只读：法定HC / 预算当量 / 月末实际在岗·期末在岗预估 三行（悬停行名看口径）</span></div>
+  <div class="yeartabs"></div>
+  <div class="tblwrap"><table class="bsc" id="kb0Tbl"></table></div>
+</div>
 <!-- 看板1 -->
 <div class="view on" id="v-kb1">
   <div class="banner" id="demoBanner" style="background:#FDECEC;border-color:#F3B4B4;color:#8C2B2B">
@@ -816,7 +823,9 @@ function isRO(){if(!CFG||!CFG.accts)return false;var ro=false;CFG.accts.forEach(
 var RO=isRO();
 function tr(cls,label,arr,opt){
   opt=opt||{};var lock=(opt.lock!==undefined?opt.lock:LOCK);
-  var t='<tr class="'+cls+'"'+(opt.drill?' data-drill="'+opt.drill+'" title="双击下钻"':'')+'><td>'+label+'</td>';
+  var kj=(opt.src&&srcMap[opt.src])?(srcMap[opt.src][1]+'　｜来源：'+srcMap[opt.src][0]):'';  // 悬停行名看口径/取数逻辑
+  var labTd='<td'+(kj?' title="'+esc(kj).replace(/"/g,'&quot;')+'" style="cursor:help"':'')+'>'+label+'</td>';
+  var t='<tr class="'+cls+'"'+(opt.drill?' data-drill="'+opt.drill+'" title="双击下钻"':'')+'>'+labTd;
   for(var m=0;m<12;m++){
     var v=(arr&&arr[m]!==undefined&&arr[m]!==null)?arr[m]:'';
     var rowEdit=opt.key&&ROWEDIT===opt.key;
@@ -931,7 +940,7 @@ function render(){
     [null, LOCK===0?'规划年 · 全月为 BP 录入位':(LOCK===12?'历史归档年':'已发生月(1-'+LOCK+')待接 PBF/HR数仓')]
   ]:[
     [isN(ca)&&isN(qa2)&&ca<=qa2+0.005,'全年均预估 ≤ 预算年均'],
-    [isN(c[11])&&isN(D.budget[11])&&c[11]<=D.budget[11],'12月预估 ≤ 预算12月'],
+    [isN(c[11])&&isN(BUD[11])&&c[11]<=BUD[11],'12月预估 ≤ 预算12月'],
     [true,'预估链逐月闭合（上月−流出+流入）']
   ];
   var lightsEl=document.getElementById('lights');if(lightsEl)lightsEl.innerHTML=lights.map(function(l){return '<div class="light"><span class="dot '+(l[0]===null?'':(l[0]?'g':'r'))+'" style="'+(l[0]===null?'background:#C7B36A':'')+'"></span>'+l[1]+'</div>';}).join('');
@@ -1005,7 +1014,7 @@ function rowNameFilter(tblId,inpId){
 }
 function kb1Filter(){rowNameFilter('bscTbl','kb1Flt');}
 function kb2Filter(){rowNameFilter('kb2Tbl','kb2Flt');}
-function renderAll(){cmap={};render();renderKb2();bindCells();renderProg();colResizable('bscTbl');colResizable('kb2Tbl');kb1Filter();kb2Filter();if(typeof bscPaintSelection==='function')bscPaintSelection();}
+function renderAll(){cmap={};render();renderKb2();renderKb0();bindCells();renderProg();colResizable('bscTbl');colResizable('kb2Tbl');kb1Filter();kb2Filter();if(typeof bscPaintSelection==='function')bscPaintSelection();}
 /* ===== 看板2 ===== （kb2base 由 bindYear 按年份重建） */
 /* 260723 口径：法定HC=累计滚动（当月=上月+本月调整，期初锚定）；预算当量=当月子项求和（期初+当月调整） */
 function kb2Total(sec,cum){var t=[];for(var m=0;m<12;m++){
@@ -1031,6 +1040,21 @@ function renderKb2(){
   h+=block('hc','法定HC',true);
   h+=block('quota','预算当量',false);
   document.getElementById('kb2Tbl').innerHTML=h;
+}
+/* ===== 看板0 · PM 速览（只读三行：法定HC / 预算当量 / 期末在岗预估） ===== */
+function renderKb0(){
+  var el=document.getElementById('kb0Tbl');if(!el)return;
+  var qL=kb2Total('quota',false),BUD=[];for(var mQ=0;mQ<12;mQ++)BUD[mQ]=isN(qL[mQ])?qL[mQ]:D.budget[mQ];
+  var hc=kb2Total('hc',true),qa=avg(BUD);
+  var c=chain(),mgA=[];for(var mA=0;mA<12;mA++)mgA[mA]=(mA<LOCK)?D.actual[mA]:c[mA];
+  var caA=avg(c),ovA=isN(caA)&&isN(qa)&&caA>qa+0.005;
+  var yy=String(YEAR).slice(2),h='<tr><th>项目</th>';
+  for(var m=0;m<12;m++)h+='<th class="'+(m<LOCK?'':'fut')+'">'+M[m]+(m<LOCK?'<span class="lockic"></span>':'')+'</th>';
+  h+='<th>'+yy+'年均</th></tr>';
+  h+=tr('key','法定HC <span class="badge calc">编制上限</span>',hc,{src:'kb2hc',avg:'—',lockShade:true,noTot:true});
+  h+=tr('key','预算当量 <span class="badge calc">看板2</span>',BUD,{src:'budget',avg:f2(qa),lockShade:true,noTot:true});
+  h+=tr('key','月末实际在岗/期末在岗预估 <span class="badge calc">链</span>',mgA,{src:'chain',avg:f2(caA),avgCls:ovA?'neg':'',lockShade:true,noTot:true});
+  el.innerHTML=h;
 }
 /* ===== 单元格交互 ===== */
 /* 看板1/2：Excel 式区域选择、TSV 复制与矩阵粘贴 */

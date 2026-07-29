@@ -65,11 +65,14 @@ def compute(vals, branches, lock, prev_er=None, nat_n=NAT_N_DEFAULT, seed=None):
                 any_ = True
         return s if any_ else None
 
-    campT, outT, inT, chain = [], [], [], []
+    campT, outT, inT, chain, budget_eff = [], [], [], [], []
     for m in range(12):
         campT.append(_agg([g("i_yy", m), g("i_bs", m), g("i_cbp", m), bsum("校招∇ 分列", m)]))
         outT.append(_agg([g(k, m) for k in OUT_KEYS] + [bsum("总流出（−）", m)]))
         inT.append(_agg([g("i_soc", m), campT[m], g("i_incr", m), bsum("总流入（＋）", m)]))
+        # 预算当量 = 看板2 期初预算当量(q_init) + 「其中」调整分支；无则回退存量 budget（与前端 BUD 同口径）
+        q = _agg([g("q_init", m), bsum("预算当量·其中", m)])
+        budget_eff.append(q if q is not None else g("budget", m))
     for m in range(12):
         if m < lock:
             chain.append(g("actual", m))
@@ -87,6 +90,6 @@ def compute(vals, branches, lock, prev_er=None, nat_n=NAT_N_DEFAULT, seed=None):
     nat_nums = [x for x in nat_eff if isinstance(x, (int, float))]
     out_sum = sum(x for x in outT if isinstance(x, (int, float)))
     nat_info["pct"] = round(100 * sum(nat_nums) / out_sum, 1) if nat_nums and out_sum else None
-    return {"campT": campT, "outT": outT, "inT": inT, "chain": chain,
-            "chain_avg": avg(chain), "budget_avg": avg(vals.get("budget", [None] * 12)),
+    return {"campT": campT, "outT": outT, "inT": inT, "chain": chain, "budget_eff": budget_eff,
+            "chain_avg": avg(chain), "budget_avg": avg(budget_eff),
             "o_nat_eff": nat_eff, "nat": nat_info}
