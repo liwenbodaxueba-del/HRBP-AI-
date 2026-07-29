@@ -107,6 +107,7 @@ h2.sec{font-size:15px;color:var(--navy);margin:2px 0 4px;}
 .kpi .lbl{font-size:14px;color:var(--ink2);font-weight:600;}
 .kpi .val{font-size:24px;font-weight:700;color:var(--blue);margin-top:2px;font-variant-numeric:tabular-nums;}
 .kpi .val small{font-size:12px;color:var(--ink2);font-weight:400;}
+.kpi .val small.gaptag{font-size:12px;color:var(--ink3);font-weight:700;margin-right:6px;vertical-align:4px;}
 .kpi .val.gok{color:#1F8A4C;}
 .kpi .val.gbad{color:var(--red);}
 .kpi .note{font-size:11px;color:var(--ink3);margin-top:2px;}
@@ -417,7 +418,7 @@ body.navfold .navtg{left:8px;}
   </div>
   <div class="kpis">
     <div class="card kpi"><div class="lbl" id="kAvgL">GAP① 预估年均 − 预算年均<b style="color:var(--red)">（不许超）</b></div><div class="val" id="kAvg">—</div><div class="note" id="kAvgN">预估年均 vs 预算年均</div></div>
-    <div class="card kpi"><div class="lbl">GAP② 12月预估 − 预算12月<b style="color:var(--red)">（不许超）</b></div><div class="val" id="kDec">—</div><div class="note" id="kDecN">年末预估 vs 预算12月</div></div>
+    <div class="card kpi"><div class="lbl">12月预估 − 预算12月<b style="color:var(--red)">（不许超）</b></div><div class="val" id="kDec">—</div><div class="note" id="kDecN">年末预估 vs 预算12月</div></div>
   </div>
   <div class="yeartabs"></div>
   <div class="progline" id="progLine"></div>
@@ -959,17 +960,17 @@ function render(){
   document.getElementById('bscTbl').innerHTML=h;
   // KPI：两条硬约束的 GAP 突出显示（GAP>0=超标红 / ≤0=达标绿；空态显示待接入）
   var noData=!isN(ca);
-  function gapCard(valId,noteId,est,bud,estLbl,budLbl){
+  function gapCard(valId,noteId,est,bud,estLbl,budLbl,tag){
     var v=document.getElementById(valId),n=document.getElementById(noteId);
-    if(!isN(est)||!isN(bud)){v.innerHTML='<span style="color:#8194AE;font-size:15px">待接入</span>';v.className='val';n.textContent=estLbl+' / '+budLbl+' 数据待接入';return;}
+    if(!isN(est)||!isN(bud)){v.innerHTML='<small class="gaptag">'+tag+'</small><span style="color:#8194AE;font-size:15px">待接入</span>';v.className='val';n.textContent=estLbl+' / '+budLbl+' 数据待接入';return;}
     var gap=est-bud,ok=gap<=0.005;
-    v.innerHTML=(gap>=0?'+':'')+f2(gap)+' <small>'+(ok?'✅ 达标':'⚠ 超标')+'</small>';
+    v.innerHTML='<small class="gaptag">'+tag+'</small>'+(gap>=0?'+':'')+f2(gap)+' <small>'+(ok?'✅ 达标':'⚠ 超标')+'</small>';
     v.className='val '+(ok?'gok':'gbad');
     n.textContent=estLbl+' '+f2(est)+' − '+budLbl+' '+f2(bud)+' = '+(gap>=0?'+':'')+f2(gap);
   }
-  document.getElementById('kAvgL').innerHTML='GAP① '+YEAR+'预估年均 − 预算年均 <b style="color:var(--red)">（不许超）</b>';
-  gapCard('kAvg','kAvgN',ca,qa2,'预估年均','预算年均');
-  gapCard('kDec','kDecN',c[11],BUD[11],'12月预估','预算12月');
+  document.getElementById('kAvgL').innerHTML=YEAR+'预估年均 − 预算年均 <b style="color:var(--red)">（不许超）</b>';
+  gapCard('kAvg','kAvgN',ca,qa2,'预估年均','预算年均','GAP①');
+  gapCard('kDec','kDecN',c[11],BUD[11],'12月预估','预算12月','GAP②');
   var lights=noData?[
     [null,'⏳ 数据源未接入 · 待各系统 API 连通后自动取数并重算'],
     [null,'⏳ 预算/实际/流入流出均待接入 · 未连接留空，绝不编造'],
@@ -1835,9 +1836,22 @@ function renderProg(){var el=document.getElementById('progLine');if(!el)return;v
   var ytd=(LOCK>0)?oactYtd:null,full=(LOCK>0)?(oactYtd/LOCK*12):null,monLbl=(LOCK>0)?('1-'+LOCK+'月'):'—';
   el.innerHTML='<span>'+YEAR+' 年进度：已确认 <b>'+LOCK+'/12</b> 个月</span><span class="progbar"><i style="width:'+pct+'%"></i></span><span>'+(LOCK<12?'剩余 '+(12-LOCK)+' 个月待确认':'全年已确认')+'</span>'
     +'<span class="attrstats">'
-    +'<span>自然主动流失率 <small>(近6月年化÷预算年均)</small>：<b>'+rate(natAnnual)+'</b></span>'
-    +'<span>被动流失率 <small>'+monLbl+' YTD</small>：<b>'+rate(ytd)+'</b> ｜ <small>全年预估</small>：<b>'+rate(full)+'</b></span>'
-    +'</span>';}
+    +'<span id="attr1" style="cursor:help">自然主动流失率 <small>(近6月年化÷预算年均)</small>：<b>'+rate(natAnnual)+'</b></span>'
+    +'<span id="attr2" style="cursor:help">被动流失率 <small>'+monLbl+' YTD</small>：<b>'+rate(ytd)+'</b> ｜ <small>全年预估</small>：<b>'+rate(full)+'</b></span>'
+    +'</span>';
+  // 悬浮显示算式（复用样式化 src-tip 框）
+  var tipC={
+    attr1:['自然主动流失率','主动离职+活水（自然流失），近6月实际年化 ÷ 预算年均',
+      '近6月自然流失合计 '+natSum+' ÷ 6 × 12 = '+f2(natAnnual)+'（年化）<br>'+f2(natAnnual)+' ÷ 预算年均 '+f2(P)+' = <b>'+rate(natAnnual)+'</b>'],
+    attr2:['被动流失率','管理侧主动动作（劝退/组织优化），实际月累计 ÷ 预算年均',
+      'YTD：'+monLbl+'主动动作合计 '+oactYtd+' ÷ 预算年均 '+f2(P)+' = <b>'+rate(ytd)+'</b><br>全年预估：（'+oactYtd+' ÷ '+LOCK+' × 12）÷ '+f2(P)+' = <b>'+rate(full)+'</b>']};
+  ['attr1','attr2'].forEach(function(id){
+    var sp=document.getElementById(id);if(!sp)return;var t=tipC[id],tp=document.getElementById('srcTip');
+    sp.addEventListener('mousemove',function(e){
+      tp.innerHTML='<div class="s1">'+t[0]+'</div><div class="s2">'+t[1]+'</div><div class="s3">'+t[2]+'</div>';
+      tp.style.display='block';tp.style.left=Math.min(e.clientX+14,window.innerWidth-320)+'px';tp.style.top=(e.clientY+14)+'px';});
+    sp.addEventListener('mouseleave',function(){tp.style.display='none';});
+  });}
 document.addEventListener('keydown',function(e){
   var tag=(e.target.tagName||'').toLowerCase();
   if(tag==='input'||tag==='textarea'||tag==='select')return;
