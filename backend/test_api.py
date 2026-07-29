@@ -269,7 +269,7 @@ check("只读账号存偏好403", client.put("/api/prefs/hcfb_colw", json={"valu
 
 # ========== 导出 ==========
 r = client.get("/api/export/2026.csv")
-check("导出CSV", r.status_code == 200 and "期末在岗预估" in r.text)
+check("导出CSV", r.status_code == 200 and "期末在岗" in r.text)
 r = client.get("/api/export/2026.xlsx")
 check("导出xlsx", r.status_code == 200 and r.headers["content-type"].startswith("application/vnd.openxmlformats") and len(r.content) > 4000)
 

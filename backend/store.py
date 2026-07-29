@@ -116,6 +116,8 @@ def init_db():
         c.execute("DELETE FROM projects WHERE key='chain'")
         # 260726 口径澄清：实际发生月月末在岗=招聘系统/员工信息宽表 直接po（非运算）
         c.execute("UPDATE projects SET src='已发生月=招聘系统zhaopin/员工信息宽表diy 月末快照直接po（待接·非运算）；未发生月=运算链' WHERE key='actual'")
+        # 260726 行名统一为「实际/预估期末在岗」（幂等·强制刷，兼容历史库存的旧名月末实际在岗/期末在岗预估）
+        c.execute("UPDATE projects SET name='实际/预估期末在岗' WHERE key='actual'")
         # ② 分支不再分加减向：历史 '−' 分支等价转换为 '+'（数值取反，语义分毫不变）
         for b in c.execute("SELECT id FROM branches WHERE sign='-'").fetchall():
             c.execute("UPDATE branch_cells SET value=-value WHERE branch_id=? AND value IS NOT NULL", (b["id"],))
