@@ -156,11 +156,10 @@ th.sortable:hover{filter:brightness(1.08);}
 #kb3Tbl .kb3-field-error{display:block;color:var(--td-error-color);font-size:10px;line-height:1.3;margin-top:3px;white-space:nowrap;}
 #kb3Tbl tr.kb3-editing td.ecell{padding:4px;}
 #kb3Tbl thead tr.xlhdr th{position:sticky;top:0;z-index:8;}
-/* 操作列固定在右侧（保证新增行的 保存/取消 始终可见，不被横向滚动切掉） */
-#kb3Tbl td:last-child{position:sticky;right:0;z-index:6;background:#fff;box-shadow:-4px 0 6px -4px rgba(10,26,60,.18);}
-#kb3Tbl tr.kb3-draft td:last-child{background:#FFFBE6;}
-#kb3Tbl tr.kb3-editing td:last-child{background:#fff;}
-#kb3Tbl thead th:last-child{position:sticky;right:0;z-index:9;box-shadow:-4px 0 6px -4px rgba(10,26,60,.18);}
+/* 编辑/新增行时的固定浮条（保存/取消 始终可见，不受表格横向滚动影响） */
+#kb3EditBar{display:none;position:fixed;z-index:96;bottom:26px;left:50%;transform:translateX(-50%);background:#fff;border:1px solid var(--b100);box-shadow:0 10px 30px rgba(10,26,60,.28);border-radius:10px;padding:9px 14px;align-items:center;gap:12px;}
+#kb3EditBar.on{display:flex;}
+#kb3EditBar .lbl{font-size:12.5px;color:var(--ink2);}
 #kb3Tbl td{overflow-wrap:break-word;}
 .fltarr{display:inline-block;margin-left:4px;font-size:9px;color:#7C93B5;border:1px solid var(--b100);border-radius:3px;padding:0 3px;line-height:14px;cursor:pointer;background:#fff;vertical-align:middle;}
 .fltarr:hover{color:var(--blue);border-color:var(--blue-l);}
@@ -653,6 +652,9 @@ function kb3PutField(rid,f,v,cb){
     .then(function(j){LEDGER=j.rows||[];renderKb3();if(typeof renderAuditApi==='function')renderAuditApi();if(cb)cb();})
     .catch(function(e){var d=e&&e.detail;alert('后端拒绝：'+(typeof d==='string'?d:JSON.stringify(d||e)));});
 }
+function kb3EditBarShow(id){var b=document.getElementById('kb3EditBar');if(!b)return;b.setAttribute('data-id',String(id));b.classList.add('on');}
+function kb3EditBarHide(){var b=document.getElementById('kb3EditBar');if(b)b.classList.remove('on');}
+function kb3EditBarSave(){var b=document.getElementById('kb3EditBar');if(b&&typeof kb3SaveRow==='function')kb3SaveRow(b.getAttribute('data-id'));}
 function kb3Unhide(){KB3HIDE={};try{localStorage.setItem('hcfb_kb3hide','{}');}catch(e){}renderKb3();}
 function kb3HideRow(rid){KB3HIDE[rid]=1;try{localStorage.setItem('hcfb_kb3hide',JSON.stringify(KB3HIDE));}catch(e){}renderKb3();}
 function kb3InsertRow(mode,rid){KB3ANCHOR={mode:mode,rid:rid};openKb3Add();if(typeof toast==='function')toast('保存后将插入到所选行'+(mode==='before'?'上方':'下方'));}
@@ -728,6 +730,9 @@ function kb1CellMenu(td,ev){
 
 <!-- 备注独立悬浮气泡（悬停紫角标格显示；与来源信息卡分离，后者未来可整体移除） -->
 <div id="noteTip"></div>
+
+<!-- 看板3 新增/编辑行的固定浮条：保存/取消 始终可见（不受表格横向滚动切掉） -->
+<div id="kb3EditBar"><span class="lbl">正在编辑此行</span><button class="btn" onclick="kb3EditBarSave()">保存</button><button class="btn gray" onclick="kb3CancelRow()">取消</button></div>
 
 <!-- BP/分支格右键备注浮层（260723 Excel式直填配套） -->
 <div id="notePop" style="display:none;position:fixed;z-index:95;width:280px;background:#fff;border:1px solid var(--b100);box-shadow:0 10px 30px rgba(10,26,60,.25);padding:12px 14px;">
@@ -1750,7 +1755,7 @@ function renderKb3(){
   if(typeof kb3ApplyColHide==='function')kb3ApplyColHide();
   kb3FreezeApply();
   if(typeof kb3ApplySel==='function')kb3ApplySel();
-  if(KB3_EDITING!==null&&typeof kb3MountRowEditor==='function')kb3MountRowEditor(KB3_EDITING);
+  if(KB3_EDITING!==null&&typeof kb3MountRowEditor==='function'){kb3MountRowEditor(KB3_EDITING);kb3EditBarShow(KB3_EDITING);}else kb3EditBarHide();
   var fi=document.getElementById('kb3FltInfo'),fActive=Object.keys(KB3F).length>0;
   var hidN=(window.KB3HIDE)?Object.keys(KB3HIDE).length:0;
   if(fi)fi.innerHTML=(fActive?('筛出 '+items.length+' / '+totalN+' 行'):(KB3SORT.f?('已排序 · '+totalN+' 行'):''))
