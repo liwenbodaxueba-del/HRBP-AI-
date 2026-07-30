@@ -1890,18 +1890,21 @@ function renderProg(){var el=document.getElementById('progLine');if(!el)return;v
   // ① 自然主动流失率：近6个月(锚定最后确认月)合计÷6×12 ÷ 预算年均
   var natSum=0,natHas=false;for(var i=Math.max(0,LOCK-6);i<LOCK;i++)if(isN(D.o_nat[i])){natSum+=D.o_nat[i];natHas=true;}
   var natAnnual=natHas?(natSum/6)*12:null;
+  // 实际月自然流失：全部已发生月(1..lock)自然流失合计÷lock×12 ÷ 预算年均
+  var actNatSum=0,actNatHas=false;for(var ni=0;ni<LOCK;ni++)if(isN(D.o_nat[ni])){actNatSum+=D.o_nat[ni];actNatHas=true;}
+  var actNatAnnual=(actNatHas&&LOCK>0)?(actNatSum/LOCK)*12:null;
   // ② 被动流失率：实际月主动动作 YTD 合计 ÷ 预算年均；全年预估=YTD按比例年化
   var oactYtd=0,oactHas=false;for(var j=0;j<LOCK;j++)if(isN(D.o_act[j])){oactYtd+=D.o_act[j];oactHas=true;}
   var ytd=(LOCK>0)?oactYtd:null,full=(LOCK>0)?(oactYtd/LOCK*12):null,monLbl=(LOCK>0)?('1-'+LOCK+'月'):'—';
   el.innerHTML='<span>'+YEAR+' 年进度：已确认 <b>'+LOCK+'/12</b> 个月</span><span class="progbar"><i style="width:'+pct+'%"></i></span><span>'+(LOCK<12?'剩余 '+(12-LOCK)+' 个月待确认':'全年已确认')+'</span>'
     +'<span class="attrstats">'
-    +'<span id="attr1" style="cursor:help">自然主动流失率 <small>(近6月年化÷预算年均)</small>：<b>'+rate(natAnnual)+'</b></span>'
+    +'<span id="attr1" style="cursor:help">自然主动流失率 <small>(近6月年化÷预算年均)</small>：<b>'+rate(natAnnual)+'</b> ｜ <small>实际月自然流失(已发生月年化)</small>：<b>'+rate(actNatAnnual)+'</b></span>'
     +'<span id="attr2" style="cursor:help">被动流失率 <small>'+monLbl+' YTD</small>：<b>'+rate(ytd)+'</b> ｜ <small>全年预估</small>：<b>'+rate(full)+'</b></span>'
     +'</span>';
   // 悬浮显示算式（复用样式化 src-tip 框）
   var tipC={
-    attr1:['自然主动流失率','主动离职+活水（自然流失），近6月实际年化 ÷ 预算年均',
-      '近6月自然流失合计 '+natSum+' ÷ 6 × 12 = '+f2(natAnnual)+'（年化）<br>'+f2(natAnnual)+' ÷ 预算年均 '+f2(P)+' = <b>'+rate(natAnnual)+'</b>'],
+    attr1:['自然主动流失率','主动离职+活水（自然流失）。近6月年化 与 实际月(1-'+LOCK+'月)年化，均 ÷ 预算年均',
+      '近6月：合计 '+natSum+' ÷ 6 × 12 = '+f2(natAnnual)+' ÷ 预算年均 '+f2(P)+' = <b>'+rate(natAnnual)+'</b><br>实际月：1-'+LOCK+'月合计 '+actNatSum+' ÷ '+LOCK+' × 12 = '+f2(actNatAnnual)+' ÷ 预算年均 '+f2(P)+' = <b>'+rate(actNatAnnual)+'</b>'],
     attr2:['被动流失率','管理侧主动动作（劝退/组织优化），实际月累计 ÷ 预算年均',
       'YTD：'+monLbl+'主动动作合计 '+oactYtd+' ÷ 预算年均 '+f2(P)+' = <b>'+rate(ytd)+'</b><br>全年预估：（'+oactYtd+' ÷ '+LOCK+' × 12）÷ '+f2(P)+' = <b>'+rate(full)+'</b>']};
   ['attr1','attr2'].forEach(function(id){
