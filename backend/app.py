@@ -487,6 +487,11 @@ def demo_load(y: YearNew, x_user: str = Header("bonniewbli")):
                     put("o_act", m, 1, "【示例】历史月计划优化1人")
                 if m % 6 == 4:
                     put("i_incr", m, 1, "【示例】历史月增量补位1人")
+            # 每项每月都有一点（示例·便演示）：社招·已入职(soc_join)/社招系统(soc_sys)/活水(soc_hs) 全 12 月都给点数（put 跳过已有格·幂等）
+            for m in range(1, 13):
+                put("soc_join", m, rng.randint(1, 3), "【示例】系统·实际社招已入职")
+                put("soc_sys", m, rng.randint(1, 4), "【示例】社招系统·待入职")
+                put("soc_hs", m, rng.randint(0, 2), "【示例】活水系统·已offer")
             if lock >= 2:
                 put("i_yy", 2, 3, "【示例】春季批次到岗")
             if lock >= 3:
@@ -531,6 +536,12 @@ def demo_load(y: YearNew, x_user: str = Header("bonniewbli")):
                           "VALUES(0,?,?,?,?,?,?,'','','深圳',?,'1','',?,?,?,?,'',?,'',?)",
                           (DEMO_LEDGER_BATCH, "【示例】云产品五部", "【示例】某中心", "【示例】负责人", "【示例】演示行",
                            job, f"{y.year}-{max(lock - 1, 1):02d}-01", st, eta, "【示例】", who, join_dt or jd, who))
+            # 每月放一条「简历&面试中」示例台账，使「社招·简历面试中」（读3.1台账）每月都有一点
+            for mo in range(1, 13):
+                c.execute("INSERT INTO ledger_rows(year,batch,dept,center,owner,src,job,lvl,cls,loc,ask,num,tgt,st,eta,memo,offer,olvl,join_dt,jmemo,who) "
+                          "VALUES(0,?,?,?,?,?,?,'','','深圳',?,'1','','简历&面试中',?,?,'','',?,'',?)",
+                          (DEMO_LEDGER_BATCH, "【示例】云产品五部", "【示例】某中心", "【示例】负责人", "【示例】面试演示",
+                           f"面试岗{mo}", f"{y.year}-{max(mo - 1, 1):02d}-01", f"{y.year}-{mo:02d}-20", "【示例】", "", f"【示例】面试人{mo}"))
         _audit(c, x_user, "导入示例数据",
                f"全部年份页签（含历史归档年填满实际月）：示例(demo标签)填充 {filled} 格（跳过已有数据 {skipped} 格·不覆盖真实数）+ 示例分支/台账4行；页面挂【示例】横幅，说「删除假数」一键全清")
     return get_board(y.year)
