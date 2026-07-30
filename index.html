@@ -983,7 +983,7 @@ function render(){
   if(open_.out){
     // 实际口径（放预估上方）
     if(cfgOn('ao_lv')||cfgOn('ao_tr')){var aoC=[];for(var mac=0;mac<12;mac++)aoC[mac]=agg([D.ao_lv[mac],D.ao_tr[mac]]);
-      h+=tr('sub actrow','实际离职/调出',aoC,{src:'ao_comb',hideZero:true,tot:sum(aoC),mute:'future'});}
+      h+=tr('sub actrow','已流出 · 实际离职/调出',aoC,{src:'ao_comb',hideZero:true,tot:sum(aoC),mute:'future'});}
     // 预估口径
     if(cfgOn('o_sys'))h+=tr('sub',cfgName('o_sys','待流出 · 系统明确'),D.o_sys,{src:'o_sys',hideZero:true,tot:sum(D.o_sys),lockShade:true,mute:'past'});
     if(cfgOn('o_nat'))h+=tr('sub',cfgName('o_nat','待流出 · 自然流失预估')+natBadge(),D.o_nat,{src:'o_nat',hideZero:true,tot:sum(D.o_nat),lockShade:true,mute:'past'});
