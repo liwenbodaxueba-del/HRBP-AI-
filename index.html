@@ -2062,7 +2062,7 @@ cellWrite=function(key,m,v,note,cb){  // Excel式直填/右键备注 → 走同�
   var metric=(key&&key[0]==='C'&&cmap[key])?('branch:'+cmap[key].row.id):key;
   var body={metric:metric,month:m+1,value:v,note:(note!==undefined?note:(memos[key+'_'+m]||''))};
   api('POST','/api/board/'+YEAR+'/cell',body)
-    .then(function(b){applyBoard(b);renderAuditApi();syncTick();if(cb)cb();})
+    .then(function(b){applyBoard(b);renderAuditApi();syncTick();if(typeof toast==='function')toast('已保存 · '+labOf(key)+' '+M[m]+' = '+(v===null||v===''?'清空':v)+'（已写入服务端）');if(cb)cb();})
     .catch(function(e){apiErr(e);renderAll();});
 };
 saveCell=function(){
