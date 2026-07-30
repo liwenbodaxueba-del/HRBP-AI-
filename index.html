@@ -458,6 +458,7 @@ body.navfold .navtg{left:8px;}
   </div>
   <div id="kb3ImpView"></div>
   <div class="tblwrap" id="kb3Wrap"><table class="plain" id="kb3Tbl"></table></div>
+  <div class="hint" id="kb3CountInfo" style="color:var(--ink2);font-weight:600;margin-bottom:2px"></div>
   <div class="hint">点击「添加行」会先生成黄色空白行；部门、中心、业务负责人、招聘岗位、进展为必填，填齐后才能保存入库，取消则不留痕。四段：①需求信息 ②进展阶段 ③入选与入职（①②③=招聘系统取数+BP维护）④系统派生（勿改，自动）。</div>
 
   <h2 class="sec" style="margin-top:20px">看板3.2 · 待流入-社招面板（总结·便核对 · 喂看板1）</h2>
@@ -1847,6 +1848,9 @@ function renderKb3(){
   kb3FreezeApply();
   if(typeof kb3ApplySel==='function')kb3ApplySel();
   if(KB3_EDITING!==null&&typeof kb3MountRowEditor==='function'){kb3MountRowEditor(KB3_EDITING);}
+  var ci=document.getElementById('kb3CountInfo');
+  if(ci){var dataN=(typeof LEDGER!=='undefined'&&LEDGER)?LEDGER.length:0,colN=KB3COLS.length+1+(EDIT?1:0);
+    ci.innerHTML='台账共 <b>'+dataN+'</b> 行数据 · <b>'+colN+'</b> 列（'+KB3COLS.length+' 列字段 + 操作列'+(EDIT?' + 行号列':'')+'）';}
   var fi=document.getElementById('kb3FltInfo'),fActive=Object.keys(KB3F).length>0;
   var hidN=(window.KB3HIDE)?Object.keys(KB3HIDE).length:0;
   if(fi)fi.innerHTML=(fActive?('筛出 '+items.length+' / '+totalN+' 行'):(KB3SORT.f?('已排序 · '+totalN+' 行'):''))
