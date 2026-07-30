@@ -1132,10 +1132,14 @@ function renderKb2(){
     var tgl=' <span class="rowtool" onclick="tg(\''+sec+'\')">'+'<t-icon name="'+(open_[sec]?'chevron-down':'chevron-right')+'" size="12"></t-icon>'+'</span>';
     var s=tr('key',name+tgl+' <span class="badge calc">'+(isHC?'期初+当月调整':'其中求和')+'</span>',tot,{src:isHC?'kb2hc':'kb2quota',avg:isHC?'—':f2(avg12(tot)),lock:0,noTot:true});
     if(open_[sec]){
-      // 期初法定HC(当月)=上月法定HC（滚动）；首月=期初锚定值直接取数。当月法定HC=期初+当月子项(分支)求和。预算当量期初仍取 q_init。
-      var baseVals=kb2base[sec].vals;
-      if(isHC){baseVals=[];for(var bm=0;bm<12;bm++)baseVals[bm]=(bm===0)?kb2base.hc.vals[0]:tot[bm-1];}
-      s+=tr('sub',kb2base[sec].name,baseVals,{src:isHC?'hc_init':'kb2base',avg:isHC?'—':f2(avg12(kb2base[sec].vals)),lock:0,noTot:true});
+      if(isHC){
+        // 期初法定HC：1月=期初锚定直接取数；2–12月=上月法定HC滚结（只读派生）
+        var baseVals=[];for(var bm=0;bm<12;bm++)baseVals[bm]=(bm===0)?kb2base.hc.vals[0]:tot[bm-1];
+        s+=tr('sub',kb2base.hc.name,baseVals,{src:'hc_init',avg:'—',lock:0,noTot:true});
+      }else{
+        // 期初预算当量：全行手填（每月独立·可不同），落 q_init（PLAN_METRICS·全月可编辑）
+        s+=tr('sub',kb2base.quota.name,kb2base.quota.vals,{src:'kb2base',key:'q_init',edit:true,avg:f2(avg12(kb2base.quota.vals)),lock:0,noTot:true});
+      }
       s+=customRows(sec,{lock:0,noTot:true,avgMode:isHC?'dash':'calc'});
       s+=addRowTr(sec,'新增分支（填缘由·直接录人数）',true);
     }
