@@ -843,6 +843,7 @@ var srcMap={
   o_bp:['BP 手填','人工沟通已明确要走','bp'], o_act:['BP 手填','计划劝退 · 收敛主杠杆 · 人事节奏','bp'],
   i_soc:['招聘系统+需求系统','社招&内部活水待流入','snap'],
   i_yy:['HR数仓','校招·预约入职','snap'], i_bs:['HR数仓','校招·毕业生转聘','snap'], i_cbp:['BP 手填','校招·非系统','bp'],
+  camp_yb:['HR数仓·两项求和','校招待流入（除BP）本行 = 预约入职 ＋ 毕业生转聘（均取自 HR数仓·校招待流入预估）；未发生月标灰仅供估/实对比。悬停格看当月算式。','calc'],
   i_incr:['BP 手填','增量需求调节 · 12月预估<上年时补','bp'],
   soc_sys:['社招系统·待接','候选人已接offer、已预约入职时间、未入职','snap'],
   soc_hs:['活水系统·待接','接收部门负责人同意且员工确认活水、已明确活水调动时间','snap'],
@@ -978,7 +979,7 @@ function render(){
       if(open_.camp){
         h+=tr('sub2','校招· 已入职',D.ai_camp,{src:'ai_camp',hideZero:true,tot:sum(D.ai_camp),lockShade:true,mute:'future'});
         var campYB=[];for(var _cm=0;_cm<12;_cm++)campYB[_cm]=agg([D.i_yy[_cm],D.i_bs[_cm]]);  // 预约入职+毕业生转聘 合并显示（空态感知，不编造）
-        if(cfgOn('i_yy')||cfgOn('i_bs'))h+=tr('sub2','校招· 预约入职/毕业生转聘',campYB,{hideZero:true,tot:sum(campYB),lockShade:true,mute:'past'});
+        if(cfgOn('i_yy')||cfgOn('i_bs'))h+=tr('sub2','校招· 预约入职/毕业生转聘',campYB,{src:'camp_yb',hideZero:true,tot:sum(campYB),lockShade:true,mute:'past'});
         if(cfgOn('i_cbp'))h+=tr('sub2',cfgName('i_cbp','待流入 · 校招· 非系统（BP）')+(cfgAdd('i_cbp',true)?pen('i_cbp'):''),D.i_cbp,{src:'i_cbp',key:'i_cbp',edit:cfgAdd('i_cbp',true),hideZero:true,tot:sum(D.i_cbp),lockShade:true,mute:'past'});
         h+=customRows('camp',{deep:true});
         h+=extraRows('校招∇ 分列','sub2');
@@ -1254,7 +1255,7 @@ document.addEventListener('paste',function(e){
 });
 
 /* ===== 运算格公式悬停 ===== */
-var FXKEYS={outT:1,inT:1,i_soc:1,camp:1,chain:1,budget:1};
+var FXKEYS={outT:1,inT:1,i_soc:1,camp:1,camp_yb:1,chain:1,budget:1};
 function fxN(v){return isN(v)?(Math.round(v*100)/100):'空';}
 function fxJoin(parts){var s='';parts.forEach(function(p,i){s+=(i?(p[0]==='-'?' − ':' + '):(p[0]==='-'?'− ':''))+p[1]+' '+fxN(p[2]);});return s;}
 function fxFor(key,m){
@@ -1269,6 +1270,10 @@ function fxFor(key,m){
     var p=[['+','预约入职',D.i_yy[m]],['+','毕业生转聘',D.i_bs[m]],['+','非系统(BP)',D.i_cbp[m]]];
     custom.camp.forEach(function(r){p.push([r.sign,r.name.slice(0,10),r.vals[m]]);});
     return '校招 = '+fxJoin(p)+' = '+fxN(campTot(m));
+  }
+  if(key==='camp_yb'){
+    var pyb=[['+','预约入职',D.i_yy[m]],['+','毕业生转聘',D.i_bs[m]]];
+    return '校招待流入（除BP）= '+fxJoin(pyb)+' = '+fxN(agg([D.i_yy[m],D.i_bs[m]]));
   }
   if(key==='i_soc'){
     var ps=[['+','系统预约入职',D.soc_sys[m]],['+','活水已offer',D.soc_hs[m]],['+','非系统(BP)',D.soc_bp[m]]];
