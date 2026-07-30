@@ -997,18 +997,24 @@ function render(){
   document.getElementById('bscTbl').innerHTML=h;
   // KPI：两条硬约束的 GAP 突出显示（GAP>0=超标红 / ≤0=达标绿；空态显示待接入）
   var noData=!isN(ca);
-  function gapCard(valId,noteId,est,bud,estLbl,budLbl,tag,eqMode){
+  function gapCard(valId,noteId,est,bud,estLbl,budLbl,tag,mode){
     var v=document.getElementById(valId),n=document.getElementById(noteId);
-    if(!isN(est)||!isN(bud)){v.innerHTML='<small class="gaptag">'+tag+'</small><span style="color:#8194AE;font-size:15px">待接入</span>';v.className='val';n.textContent=budLbl+' / '+estLbl+' 数据待接入';return;}
-    // 预算−预估：GAP① 正数/0 达标（预估不超预算）；GAP② 须=0（12月应相等，正负都算未达标）
-    var gap=bud-est,ok=eqMode?(Math.abs(gap)<=0.005):(gap>=-0.005);
-    v.innerHTML='<small class="gaptag">'+tag+'</small>'+(gap>=0?'+':'')+f2(gap)+' <small>'+(ok?'✅ 达标':'<span style="color:var(--red)">⚠</span> '+(eqMode?'未达标':'超标'))+'</small>';
+    if(!isN(est)||!isN(bud)){v.innerHTML='<small class="gaptag">'+tag+'</small><span style="color:#8194AE;font-size:15px">待接入</span>';v.className='val';n.textContent=estLbl+' / '+budLbl+' 数据待接入';return;}
+    var gap,ok,fail,formula;
+    if(mode==='eq'){  // GAP②：预算−预估，须=0（12月应相等，正负都算未达标）
+      gap=bud-est;ok=Math.abs(gap)<=0.005;fail='未达标';
+      formula=budLbl+' '+f2(bud)+' − '+estLbl+' '+f2(est)+' = '+(gap>=0?'+':'')+f2(gap);
+    }else{  // GAP①：预估−预算，应≤0（预估不超预算）
+      gap=est-bud;ok=gap<=0.005;fail='超标';
+      formula=estLbl+' '+f2(est)+' − '+budLbl+' '+f2(bud)+' = '+(gap>=0?'+':'')+f2(gap)+'（应≤0）';
+    }
+    v.innerHTML='<small class="gaptag">'+tag+'</small>'+(gap>=0?'+':'')+f2(gap)+' <small>'+(ok?'✅ 达标':'<span style="color:var(--red)">⚠</span> '+fail)+'</small>';
     v.className='val '+(ok?'gok':'gbad');
-    n.textContent=budLbl+' '+f2(bud)+' − '+estLbl+' '+f2(est)+' = '+(gap>=0?'+':'')+f2(gap);
+    n.textContent=formula;
   }
-  document.getElementById('kAvgL').innerHTML=YEAR+'预估年均 − 预算年均 <b style="color:var(--red)">（不许超）</b>';
-  gapCard('kAvg','kAvgN',ca,qa2,'预估年均','预算年均','GAP',false);
-  gapCard('kDec','kDecN',c[11],BUD[11],'12月预估','预算12月','GAP',true);
+  document.getElementById('kAvgL').innerHTML=YEAR+'全年平均人力当量';
+  gapCard('kAvg','kAvgN',ca,qa2,'预估年均','预算年均','GAP','le');
+  gapCard('kDec','kDecN',c[11],BUD[11],'12月预估','预算12月','GAP','eq');
   var lights=noData?[
     [null,'⏳ 数据源未接入 · 待各系统 API 连通后自动取数并重算'],
     [null,'⏳ 预算/实际/流入流出均待接入 · 未连接留空，绝不编造'],
