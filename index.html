@@ -372,6 +372,7 @@ body.navfold .navtg{left:8px;}
   <a class="on" data-v="kb1" onclick="go(this)">看板1 · 部门人力预估表【集团】</a>
   <a data-v="kb2" onclick="go(this)">看板2 · 预算看板</a>
   <a data-v="kb3" onclick="go(this)">看板3 · 社招滚动台账</a>
+  <a data-v="kb4" onclick="go(this)">看板4 · 云智&外包</a>
   <div class="user" data-comment-anchor="b9591073d3-div">iOA：<b>bonniewbli</b><br>（HRBP·可编辑）</div>
 </nav>
 
@@ -409,6 +410,12 @@ body.navfold .navtg{left:8px;}
   <div style="margin:2px 0 12px"><b style="font-size:16px;color:var(--navy)">看板0 · PM 速览</b><span style="color:var(--ink3);font-size:12.5px;margin-left:10px">给 PM 的快捷视图 · 只读：法定HC / 预算当量 / 月末实际在岗·期末在岗预估 三行（悬停行名看口径）</span></div>
   <div class="yeartabs"></div>
   <div id="kb0Host"></div>
+</div>
+<!-- 看板4 · 云智&外包（两张表·结构同看板1；总流入/总流出仅手填「新增分支」；预算当量/期末在岗待接入留空） -->
+<div class="view" id="v-kb4">
+  <div style="margin:2px 0 12px"><b style="font-size:16px;color:var(--navy)">看板4 · 云智&外包</b><span style="color:var(--ink3);font-size:12.5px;margin-left:10px">两张表结构同看板1 · 总流入/总流出仅手填「新增分支」· 预算当量/期末在岗待接入留空</span></div>
+  <div class="yeartabs"></div>
+  <div id="kb4Host"></div>
 </div>
 <!-- 看板1 -->
 <div class="view on" id="v-kb1">
@@ -777,7 +784,7 @@ function kb1CellMenu(td,ev){
 <script>
 var M=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 function z(){return [0,0,0,0,0,0,0,0,0,0,0,0];}
-function emptyCustom(){return {out:[],inn:[],soc:[],camp:[],hc:[],quota:[]};}
+function emptyCustom(){return {out:[],inn:[],soc:[],camp:[],hc:[],quota:[],yz_inn:[],yz_out:[],wb_inn:[],wb_out:[]};}  // 看板4 云智/外包 各自的流入/流出手填分支
 /* ===== 空态：所有数据源未接入，数字一律留空，绝不编造 ===== */
 function nb(){return ['','','','','','','','','','','','',''];}  // 12 个空格（待接入）
 function mkEmpty(status,lock){return {status:status,lock:lock,budget:nb(),actual:[],o_sys:nb(),o_nat:nb(),o_bp:nb(),o_act:nb(),i_soc:nb(),soc_sys:nb(),soc_hs:nb(),soc_bp:nb(),i_yy:nb(),i_bs:nb(),i_cbp:nb(),i_incr:nb(),ai_soc:nb(),ai_camp:nb(),ao_lv:nb(),ao_tr:nb(),faHC:'',q_init:nb(),kb3rows:[],pdfUrl:null,pdfName:'',seed:null};}
@@ -791,7 +798,7 @@ var LEDGER=[];  // 全局台账（跨年滚动·一份）
 var KB3_DRAFT=null,KB3_EDITING=null;  // 新增行先保留在前端，必填完整后才入库
 var MEMOS={2025:{},2026:{},2027:{}}, CUSTOM={2025:emptyCustom(),2026:emptyCustom(),2027:emptyCustom()};
 var D,memos,custom,LOCK,kb2base, cid=1, cmap={};
-var open_={out:true,inn:true,soc:false,camp:false,hc:true,quota:true};
+var open_={out:true,inn:true,soc:false,camp:false,hc:true,quota:true,yz_inn:true,yz_out:true,wb_inn:true,wb_out:true};
 function bindYear(){
   D=DATA[YEAR]; memos=MEMOS[YEAR]; custom=CUSTOM[YEAR]; LOCK=D.lock;
   kb2base={hc:{name:'期初法定HC',vals:Array(12).fill(D.faHC)},quota:{name:'期初预算当量',vals:D.q_init.slice()}};
@@ -1107,7 +1114,7 @@ function rowNameFilter(tblId,inpId){
 }
 function kb1Filter(){rowNameFilter('bscTbl','kb1Flt');}
 function kb2Filter(){rowNameFilter('kb2Tbl','kb2Flt');}
-function renderAll(){cmap={};render();renderKb2();renderKb0();bindCells();renderProg();colResizable('bscTbl');colResizable('kb2Tbl');kb1Filter();kb2Filter();if(typeof bscPaintSelection==='function')bscPaintSelection();}
+function renderAll(){cmap={};render();renderKb2();renderKb0();renderKb4();bindCells();renderProg();colResizable('bscTbl');colResizable('kb2Tbl');kb1Filter();kb2Filter();if(typeof bscPaintSelection==='function')bscPaintSelection();}
 /* ===== 看板2 ===== （kb2base 由 bindYear 按年份重建） */
 /* 260723 口径：法定HC=累计滚动（当月=上月+本月调整，期初锚定）；预算当量=当月子项求和（期初+当月调整） */
 function kb2Total(sec,cum){var t=[];for(var m=0;m<12;m++){
@@ -1146,6 +1153,30 @@ function renderKb0(){
   host.innerHTML=kb0Table('集团',hc,BUD,mgA,f2(qa),f2(caA),ovA)
     +kb0Table('云智',EMPTY,EMPTY,EMPTY,'','',false)
     +kb0Table('外包',EMPTY,EMPTY,EMPTY,'','',false);
+}
+/* ===== 看板4 · 云智&外包（两张表，结构同看板1；预算当量/期末在岗留空待接入；总流入/总流出仅手填分支） ===== */
+function renderKb4(){
+  var host=document.getElementById('kb4Host');if(!host)return;
+  host.innerHTML=kb4Table('yz','云智')+kb4Table('wb','外包');
+}
+function kb4Table(prefix,label){
+  var yy=String(YEAR).slice(2),innSec=prefix+'_inn',outSec=prefix+'_out';
+  var inT=[],outT=[];for(var m=0;m<12;m++){inT[m]=cSum(innSec,m);outT[m]=cSum(outSec,m);}
+  var h='<div style="font-size:14px;font-weight:700;color:var(--navy);margin:16px 0 6px">'+label+'</div>';
+  h+='<div class="tblwrap"><table class="bsc kb4tbl"><tr><th>项目</th>';
+  for(var mm=0;mm<12;mm++)h+='<th class="'+(mm<LOCK?'':'fut')+'">'+M[mm]+(mm<LOCK?'<span class="lockic"></span>':'')+'</th>';
+  h+='<th>'+yy+'年均</th><th>总数</th></tr>';
+  // 数据两行：留空·待接入（无分主体数据源，不编造）
+  h+=tr('key','预算当量 <span class="badge calc">看板2</span>',nb(),{avg:'',lockShade:true,tot:''});
+  h+=tr('key','实际/预估期末在岗 <span class="badge calc">链</span>',nb(),{avg:'',lockShade:true,tot:''});
+  // 总流入（＋）：仅手填分支
+  h+=tr('subtot','总流入（＋） <span class="rowtool" onclick="tg(\''+innSec+'\')"><t-icon name="'+(open_[innSec]?'chevron-down':'chevron-right')+'" size="12"></t-icon></span> <span class="badge bp">BP·手填</span>',inT,{tot:sum(inT),lockShade:true});
+  if(open_[innSec]){h+=customRows(innSec);if(!RO)h+=addRowTr(innSec);}
+  // 总流出（−）：仅手填分支
+  h+=tr('subtot','总流出（−） <span class="rowtool" onclick="tg(\''+outSec+'\')"><t-icon name="'+(open_[outSec]?'chevron-down':'chevron-right')+'" size="12"></t-icon></span> <span class="badge bp">BP·手填</span>',outT,{tot:sum(outT),lockShade:true});
+  if(open_[outSec]){h+=customRows(outSec);if(!RO)h+=addRowTr(outSec);}
+  h+='</table></div>';
+  return h;
 }
 function kb0Table(label,hc,BUD,mgA,budAvg,chainAvg,ovA){
   var yy=String(YEAR).slice(2);
@@ -1979,8 +2010,8 @@ bindYear();renderYearTabs();renderAll();renderAudit();renderKb3();renderCoverage
 var ORIG={saveCell:saveCell,clearCell:clearCell,saveRowDef:saveRowDef,delRowFromDef:delRowFromDef,saveYear:saveYear,setYear:setYear,renderAudit:renderAudit,exportCSV:exportCSV};
 window.USE_API=false;var API_USER='bonniewbli';
 function api(m,p,b){return fetch(p,{method:m,headers:{'Content-Type':'application/json','X-User':API_USER},body:b?JSON.stringify(b):undefined}).then(function(r){return r.json().then(function(j){if(!r.ok)throw j;return j;});});}
-var SEC2FRONT={'总流出（−）':'out','总流入（＋）':'inn','社招∇ 分列':'soc','校招∇ 分列':'camp','法定HC·其中':'hc','预算当量·其中':'quota'};
-var FRONT2SEC={out:'总流出（−）',inn:'总流入（＋）',soc:'社招∇ 分列',camp:'校招∇ 分列',hc:'法定HC·其中',quota:'预算当量·其中'};
+var SEC2FRONT={'总流出（−）':'out','总流入（＋）':'inn','社招∇ 分列':'soc','校招∇ 分列':'camp','法定HC·其中':'hc','预算当量·其中':'quota','云智·总流入（＋）':'yz_inn','云智·总流出（−）':'yz_out','外包·总流入（＋）':'wb_inn','外包·总流出（−）':'wb_out'};
+var FRONT2SEC={out:'总流出（−）',inn:'总流入（＋）',soc:'社招∇ 分列',camp:'校招∇ 分列',hc:'法定HC·其中',quota:'预算当量·其中',yz_inn:'云智·总流入（＋）',yz_out:'云智·总流出（−）',wb_inn:'外包·总流入（＋）',wb_out:'外包·总流出（−）'};
 function nn(v){return (v===null||v===undefined)?'':v;}
 function applyBoard(b){
   var y=b.year,d=DATA[y]||(DATA[y]=mkEmpty(b.status,b.lock));
