@@ -417,7 +417,7 @@ body.navfold .navtg{left:8px;}
   </div>
   <div class="kpis">
     <div class="card kpi"><div class="lbl" id="kAvgL">GAP① 预估年均 − 预算年均<b style="color:var(--red)">（不许超）</b></div><div class="val" id="kAvg">—</div><div class="note" id="kAvgN">预估年均 vs 预算年均</div></div>
-    <div class="card kpi"><div class="lbl">12月预估 − 预算12月<b style="color:var(--red)">（应相等）</b></div><div class="val" id="kDec">—</div><div class="note" id="kDecN">年末预估 vs 预算12月</div></div>
+    <div class="card kpi"><div class="lbl" id="kDecL">12月预估人力当量</div><div class="val" id="kDec">—</div><div class="note" id="kDecN">年末预估 vs 预算12月</div></div>
   </div>
   <div class="yeartabs"></div>
   <div class="progline" id="progLine"></div>
@@ -1003,7 +1003,7 @@ function render(){
     var gap,ok,fail,formula;
     if(mode==='eq'){  // GAP②：预算−预估，须=0（12月应相等，正负都算未达标）
       gap=bud-est;ok=Math.abs(gap)<=0.005;fail='未达标';
-      formula=budLbl+' '+f2(bud)+' − '+estLbl+' '+f2(est)+' = '+(gap>=0?'+':'')+f2(gap);
+      formula=budLbl+' '+f2(bud)+' − '+estLbl+' '+f2(est)+' = '+(gap>=0?'+':'')+f2(gap)+'（应=0）';
     }else{  // GAP①：预估−预算，应≤0（预估不超预算）
       gap=est-bud;ok=gap<=0.005;fail='超标';
       formula=estLbl+' '+f2(est)+' − '+budLbl+' '+f2(bud)+' = '+(gap>=0?'+':'')+f2(gap)+'（应≤0）';
@@ -1013,6 +1013,7 @@ function render(){
     n.textContent=formula;
   }
   document.getElementById('kAvgL').innerHTML=YEAR+'全年平均人力当量';
+  document.getElementById('kDecL').innerHTML=YEAR+' 12月预估人力当量';
   gapCard('kAvg','kAvgN',ca,qa2,'预估年均','预算年均','GAP','le');
   gapCard('kDec','kDecN',c[11],BUD[11],'12月预估','预算12月','GAP','eq');
   var lights=noData?[
