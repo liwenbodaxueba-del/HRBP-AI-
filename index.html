@@ -863,7 +863,8 @@ var srcMap={
   ao_tr:['HR数仓·实际','每月1号读系统上月实际调出（活水/跨部门）；计入已发生月合计。','snap'],
   ao_comb:['HR数仓·实际（两口径求和）','本行由两个口径求和：① 离职口径＝实际离职（主动+被动）；② 调出口径＝调出（活水/跨部门）。二者均每月1号读系统上月实际数，相加后计入已发生月总流出。','snap'],
   camp:['分列求和','校招=预约入职+毕业生转聘+非系统','calc'],
-  custom:['BP 自定义','命名行·纯计人头(负数=调减)·右键加备注','bp'], kb2hc:['运算','法定HC：期初(当月)=上月法定HC；当月法定HC=期初+当月子项(分支)求和；首月直接取数（期初锚定）','calc'], kb2quota:['运算','预算当量：当月 = 期初 + 当月「其中」调整求和','calc'], kb2base:['BP 手填','预算过程基线·HC父行=期初+累计调整；预算当量父行=同月其中求和','bp']
+  custom:['BP 自定义','命名行·纯计人头(负数=调减)·右键加备注','bp'], kb2hc:['运算','法定HC：期初(当月)=上月法定HC；当月法定HC=期初+当月子项(分支)求和；首月直接取数（期初锚定）','calc'], kb2quota:['运算','预算当量：当月 = 期初 + 当月「其中」调整求和','calc'], kb2base:['BP 手填','预算过程基线·HC父行=期初+累计调整；预算当量父行=同月其中求和','bp'],
+  hc_init:['BP手填(1月)+上月结转','期初法定HC取数：1月=BP手动输入（期初锚定·直接取数）；2–12月=上月「法定HC」父行结转。悬停格看当月取数。','bp']
 };
 /* ===== 运算（识空：无源数据留空，绝不当0编造） ===== */
 function isN(x){return typeof x==='number';}
@@ -1134,7 +1135,7 @@ function renderKb2(){
       // 期初法定HC(当月)=上月法定HC（滚动）；首月=期初锚定值直接取数。当月法定HC=期初+当月子项(分支)求和。预算当量期初仍取 q_init。
       var baseVals=kb2base[sec].vals;
       if(isHC){baseVals=[];for(var bm=0;bm<12;bm++)baseVals[bm]=(bm===0)?kb2base.hc.vals[0]:tot[bm-1];}
-      s+=tr('sub',kb2base[sec].name,baseVals,{src:'kb2base',avg:isHC?'—':f2(avg12(kb2base[sec].vals)),lock:0,noTot:true});
+      s+=tr('sub',kb2base[sec].name,baseVals,{src:isHC?'hc_init':'kb2base',avg:isHC?'—':f2(avg12(kb2base[sec].vals)),lock:0,noTot:true});
       s+=customRows(sec,{lock:0,noTot:true,avgMode:isHC?'dash':'calc'});
       s+=addRowTr(sec,'新增分支（填缘由·直接录人数）',true);
     }
@@ -1306,7 +1307,7 @@ document.addEventListener('paste',function(e){
 });
 
 /* ===== 运算格公式悬停 ===== */
-var FXKEYS={outT:1,inT:1,i_soc:1,soc_wait:1,camp:1,camp_yb:1,chain:1,budget:1};
+var FXKEYS={outT:1,inT:1,i_soc:1,soc_wait:1,camp:1,camp_yb:1,chain:1,budget:1,hc_init:1};
 function fxN(v){return isN(v)?(Math.round(v*100)/100):'空';}
 function fxJoin(parts){var s='';parts.forEach(function(p,i){s+=(i?(p[0]==='-'?' − ':' + '):(p[0]==='-'?'− ':''))+p[1]+' '+fxN(p[2]);});return s;}
 function fxFor(key,m){
@@ -1317,6 +1318,11 @@ function fxFor(key,m){
     return '';
   }
   if(m<0||m>11)return '';
+  if(key==='hc_init'){
+    if(m===0)return '1月期初 = BP 手动输入（期初锚定·直接取数） = '+fxN(kb2base.hc.vals[0]);
+    var hcTot=kb2Total('hc',true);
+    return (m+1)+'月期初 = 上月（'+m+'月）法定HC = '+fxN(hcTot[m-1]);
+  }
   if(key==='camp'){
     var p=[['+','已入职',D.ai_camp[m]],['+','预约入职/毕业生转聘',agg([D.i_yy[m],D.i_bs[m]])],['+','非系统(BP)',D.i_cbp[m]]];
     custom.camp.forEach(function(r){p.push([r.sign,r.name.slice(0,10),r.vals[m]]);});
