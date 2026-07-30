@@ -1641,7 +1641,7 @@ function openKb3Add(){
   document.getElementById('maskKb3').classList.add('on');
 }
 function closeKb3Add(){document.getElementById('maskKb3').classList.remove('on');if(window.KB3ANCHOR!==undefined)KB3ANCHOR=null;}
-var KB3CATS=[{key:'实际社招（已入职）',st:'已入职'},{key:'待流入（待入职+活水已offer）',st:'已offer待入职'},{key:'待流入（简历面试中）',st:'简历&面试中'}];
+var KB3CATS=[{key:'社招· 已入职',st:'已入职'},{key:'社招· 待入职/活水已offer',st:'已offer待入职'},{key:'社招· 简历面试中',st:'简历&面试中'}];
 function kb3cat(st){var f=KB3CATS.find(function(x){return x.st===st;});return f?f.key:'不计入';}
 function kb3mo(r){if(r.st==='Hold'||r.st==='取消')return '';var d=(r.st==='已入职'?r.join:r.eta);return d?d.slice(0,7):'';}
 function moLbl(ym){if(!ym)return '';var mm=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return mm[+ym.slice(5,7)-1]+'-'+ym.slice(2,4);}
