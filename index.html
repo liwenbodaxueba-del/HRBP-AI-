@@ -1278,7 +1278,11 @@ function bscPasteText(text,startTd){
   bscCommit(changes,function(){toast('已粘贴并保存 '+changes.length+' 格（审计留痕）');bscPaintSelection();});return true;
 }
 document.addEventListener('mousedown',function(e){
-  if(e.button!==0)return;var td=bscTd(e.target);if(!td)return;
+  if(e.button!==0)return;var td=bscTd(e.target);
+  if(!td){  // 点击任何非可编辑格的位置 → 取消选中（清除蓝框高亮）
+    if(BSCSEL.anchor||BSCSEL.focus){BSCSEL.anchor=null;BSCSEL.focus=null;BSCSEL.tableId=null;bscPaintSelection();}
+    return;
+  }
   bscSelect(td,e.shiftKey);BSCSEL.dragging=true;td.closest('table').classList.add('bsc-dragging');
   if(!e.target.closest('input.rowed')){td.tabIndex=0;td.focus({preventScroll:true});e.preventDefault();}
 });
@@ -1580,7 +1584,9 @@ function saveRowDef(){var name=document.getElementById('dName').value.trim();
   if(!name){document.getElementById('dErr').style.display='block';return;}
   if(curDef.key){var r=cmap[curDef.key].row,o=r.name;r.name=name;log('bonniewbli','改分支定义',o+' → '+name);}
   closeDef();renderAll();}
-function delRow(key){curDef={sec:cmap[key].sec,key:key};delRowFromDef();}
+function delRow(key){if(!cmap[key])return;var r=cmap[key].row;
+  if(!window.confirm('确定删除分支「'+(r.name||'未命名')+'」？删除后写入审计日志、不可撤销。'))return;
+  curDef={sec:cmap[key].sec,key:key};delRowFromDef();}
 function delRowFromDef(){var key=curDef.key;if(!key||!cmap[key])return;var sec=cmap[key].sec,r=cmap[key].row;
   custom[sec]=custom[sec].filter(function(x){return x!==r;});for(var m=0;m<12;m++)delete memos[key+'_'+m];
   log('bonniewbli','删除分支',(secName[sec]||sec)+' · '+r.name);closeDef();renderAll();}
