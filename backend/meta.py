@@ -35,14 +35,15 @@ SOC_KEYS = ["soc_sys", "soc_hs", "soc_bp"]  # 社招分列：社招系统预约+
 IN_DIRECT_KEYS = ["i_incr"]  # + socTot + campTot + 流入分支
 BP_EDITABLE = {"o_bp", "o_act", "i_cbp", "i_incr", "soc_bp"}  # 叶子级 BP 录入位（可被 config.add 关闭）
 IMPORTABLE = {"budget", "actual", "o_sys", "o_nat", "i_yy", "i_bs", "fa_hc", "q_init", "er_out",
-              "ai_soc", "ai_camp", "ao_lv", "ao_tr", "soc_sys", "soc_hs"}  # 上传兜底可写（含实际口径系统数）
+              "ai_soc", "ai_camp", "ao_lv", "ao_tr", "soc_sys", "soc_hs", "camp_off_tot"}  # 上传兜底可写（含实际口径系统数；camp_off_tot=校招数仓总数接口预留）
 VALUE_ABS_MAX = 100000  # 量级异常闸
-PLAN_METRICS = {"budget", "fa_hc", "q_init"}  # 计划/预算类：不受"已发生月锁定"约束（预算是规划数据）
+PLAN_METRICS = {"budget", "fa_hc", "q_init", "camp_off_tot"}  # 计划/预算类：不受"已发生月锁定"约束（预算是规划数据；camp_off_tot=校招数仓年度总数，非月度实际）
 PLAN_BRANCH_SECS = {"法定HC·其中", "预算当量·其中"}  # 看板2 计划类分支：已发生月同样可改（260723 Bonnie 定）
 EXTRA_METRICS = {  # 看板2 预算过程基线（不在看板1 行内，但可存取/编辑/导入）
     "fa_hc": "其中：期初法定HC（看板2）",
     "q_init": "其中：期初预算当量（看板2）",
     "camp_off": "待流入·校招（数仓总数·BP按月分配，仅未发生月可填）",  # 不入 PLAN_METRICS → 已发生月锁定，未发生月 BP 手填
+    "camp_off_tot": "校招·已offer待入职·数仓总数（接口预留·待接入）",  # 数仓/导入下发的年度总数，供 BP 按月分配时对齐；前端只读展示
 }
 # er_out = ER报表·月实际离职数（HR数仓，URL 待求）：自然流失预估的运算源。
 # 仅走导入/API（不入 EXTRA_METRICS 手填口——系统数拒手填）。可跨年取数（窗口回看上一年）。
