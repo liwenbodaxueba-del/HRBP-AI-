@@ -976,8 +976,9 @@ function render(){
       var campA=[];for(var m4=0;m4<12;m4++)campA[m4]=campTot(m4);
       h+=tr('sub',cfgName('camp','待流入 · 校招')+' <span class="rowtool" onclick="tg(\'camp\')">'+'<t-icon name="'+(open_.camp?'chevron-down':'chevron-right')+'" size="12"></t-icon>'+'</span>',campA,{src:'camp',hideZero:true,tot:sum(campA),lockShade:true,mute:'past'});
       if(open_.camp){
-        if(cfgOn('i_yy'))h+=tr('sub2',cfgName('i_yy','待流入 · 校招· 预约入职'),D.i_yy,{src:'i_yy',hideZero:true,tot:sum(D.i_yy),lockShade:true,mute:'past'});
-        if(cfgOn('i_bs'))h+=tr('sub2',cfgName('i_bs','待流入 · 校招· 毕业生转聘'),D.i_bs,{src:'i_bs',hideZero:true,tot:sum(D.i_bs),lockShade:true,mute:'past'});
+        h+=tr('sub2','校招· 已入职',D.ai_camp,{src:'ai_camp',hideZero:true,tot:sum(D.ai_camp),lockShade:true,mute:'future'});
+        var campYB=[];for(var _cm=0;_cm<12;_cm++)campYB[_cm]=agg([D.i_yy[_cm],D.i_bs[_cm]]);  // 预约入职+毕业生转聘 合并显示（空态感知，不编造）
+        if(cfgOn('i_yy')||cfgOn('i_bs'))h+=tr('sub2','校招· 预约入职/毕业生转聘',campYB,{hideZero:true,tot:sum(campYB),lockShade:true,mute:'past'});
         if(cfgOn('i_cbp'))h+=tr('sub2',cfgName('i_cbp','待流入 · 校招· 非系统（BP）')+(cfgAdd('i_cbp',true)?pen('i_cbp'):''),D.i_cbp,{src:'i_cbp',key:'i_cbp',edit:cfgAdd('i_cbp',true),hideZero:true,tot:sum(D.i_cbp),lockShade:true,mute:'past'});
         h+=customRows('camp',{deep:true});
         h+=extraRows('校招∇ 分列','sub2');
