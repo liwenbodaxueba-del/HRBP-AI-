@@ -1530,17 +1530,17 @@ function delRowFromDef(){var key=curDef.key;if(!key||!cmap[key])return;var sec=c
 /* ===== 看板3 ===== */
 /* 台账 Excel 式编辑辅助：ec=可编辑格（派生列不套）；无后端时占位提示 */
 function ec(r,f,cls){var v=r[f]==null?'':String(r[f]);return '<td class="ecell'+(cls?' '+cls:'')+'" data-f="'+f+'" title="双击编辑">'+esc(v)+'</td>';}
-/* 进展（当前状态）配色：与「系统派生·计入看板1(自动)」列口径一一对应，字色+底色都跟派生列 chip 同款
-   实际社招(已入职)=绿 / 待流入(简历面试中·已offer待入职)=橙 / 不计入(需求确认·Hold·取消)=灰 */
-function kb3StStyle(st){
-  if(!st)return null;
-  if(st==='已入职')return {fg:'#2BA471',bg:'#E7F6EF'};   // 实际社招 → 绿（同派生列 ok）
+/* 进展（当前状态）：与「系统派生·计入看板1(自动)」列完全同款 chip 胶囊（复用 .chip 的 ok/todo/na）
+   实际社招(已入职)=ok绿 / 待流入(简历面试中·已offer待入职)=todo橙 / 不计入(需求确认·Hold·取消)=na灰 */
+function kb3StChip(st){
+  if(!st)return '';
+  if(st==='已入职')return 'ok';                          // 实际社招 → 绿（同派生列）
   var cat=(typeof kb3cat==='function')?kb3cat(st):'';
-  if(cat==='不计入')return {fg:'#8194AE',bg:'#EEF2F8'};  // 不计入   → 灰（同派生列 na）
-  return {fg:'#92400E',bg:'#FEF3C7'};                    // 待流入   → 橙（同派生列 todo）
+  if(cat==='不计入')return 'na';                         // 不计入   → 灰（同派生列）
+  return 'todo';                                         // 待流入   → 橙（同派生列）
 }
-function ecSt(r){var v=r.st==null?'':String(r.st);var s=kb3StStyle(v);
-  return '<td class="ecell" data-f="st" title="双击编辑"'+(s?' style="color:'+s.fg+';background:'+s.bg+';font-weight:600"':'')+'>'+esc(v)+'</td>';}
+function ecSt(r){var v=r.st==null?'':String(r.st);
+  return '<td class="ecell" data-f="st" title="双击编辑">'+(v?'<span class="chip '+kb3StChip(v)+'">'+esc(v)+'</span>':'')+'</td>';}
 function kb3DelRow(id){alert('连接后端后可删除（当前为本地演示模式）');}
 function kb3AddRow(){alert('连接后端后可添加行（当前为本地演示模式）');}
 function kb3EditRow(id){alert('连接后端后可编辑（当前为本地演示模式）');}
