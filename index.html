@@ -408,7 +408,7 @@ body.navfold .navtg{left:8px;}
 <div class="view" id="v-kb0">
   <div style="margin:2px 0 12px"><b style="font-size:16px;color:var(--navy)">看板0 · PM 速览</b><span style="color:var(--ink3);font-size:12.5px;margin-left:10px">给 PM 的快捷视图 · 只读：法定HC / 预算当量 / 月末实际在岗·期末在岗预估 三行（悬停行名看口径）</span></div>
   <div class="yeartabs"></div>
-  <div class="tblwrap"><table class="bsc" id="kb0Tbl"></table></div>
+  <div id="kb0Host"></div>
 </div>
 <!-- 看板1 -->
 <div class="view on" id="v-kb1">
@@ -1136,18 +1136,28 @@ function renderKb2(){
 }
 /* ===== 看板0 · PM 速览（只读三行：法定HC / 预算当量 / 期末在岗预估） ===== */
 function renderKb0(){
-  var el=document.getElementById('kb0Tbl');if(!el)return;
+  var host=document.getElementById('kb0Host');if(!host)return;
+  // 集团 = 当前部门口径数据
   var qL=kb2Total('quota',false),BUD=[];for(var mQ=0;mQ<12;mQ++)BUD[mQ]=isN(qL[mQ])?qL[mQ]:D.budget[mQ];
   var hc=kb2Total('hc',true),qa=avg(BUD);
   var c=chain(),mgA=[];for(var mA=0;mA<12;mA++)mgA[mA]=(mA<LOCK)?D.actual[mA]:c[mA];
   var caA=avg(c),ovA=isN(caA)&&isN(qa)&&caA>qa+0.005;
-  var yy=String(YEAR).slice(2),h='<tr><th>项目</th>';
+  var EMPTY=nb();  // 云智/外包 暂无分主体数据源 → 空态（未接入不编造）
+  host.innerHTML=kb0Table('集团',hc,BUD,mgA,f2(qa),f2(caA),ovA)
+    +kb0Table('云智',EMPTY,EMPTY,EMPTY,'','',false)
+    +kb0Table('外包',EMPTY,EMPTY,EMPTY,'','',false);
+}
+function kb0Table(label,hc,BUD,mgA,budAvg,chainAvg,ovA){
+  var yy=String(YEAR).slice(2);
+  var h='<div style="font-size:14px;font-weight:700;color:var(--navy);margin:16px 0 6px">'+label+'</div>';
+  h+='<div class="tblwrap"><table class="bsc kb0tbl"><tr><th>项目</th>';
   for(var m=0;m<12;m++)h+='<th class="'+(m<LOCK?'':'fut')+'">'+M[m]+(m<LOCK?'<span class="lockic"></span>':'')+'</th>';
   h+='<th>'+yy+'年均</th></tr>';
   h+=tr('key','法定HC <span class="badge calc">编制上限</span>',hc,{src:'kb2hc',avg:'—',lockShade:true,noTot:true});
-  h+=tr('key','预算当量 <span class="badge calc">看板2</span>',BUD,{src:'budget',avg:f2(qa),lockShade:true,noTot:true});
-  h+=tr('key',cfgName('actual','实际/预估期末在岗')+' <span class="badge calc">链</span>',mgA,{src:'chain',avg:f2(caA),avgCls:ovA?'neg':'',lockShade:true,noTot:true});
-  el.innerHTML=h;
+  h+=tr('key','预算当量 <span class="badge calc">看板2</span>',BUD,{src:'budget',avg:budAvg,lockShade:true,noTot:true});
+  h+=tr('key',cfgName('actual','实际/预估期末在岗')+' <span class="badge calc">链</span>',mgA,{src:'chain',avg:chainAvg,avgCls:ovA?'neg':'',lockShade:true,noTot:true});
+  h+='</table></div>';
+  return h;
 }
 /* ===== 单元格交互 ===== */
 /* 看板1/2：Excel 式区域选择、TSV 复制与矩阵粘贴 */
@@ -1322,7 +1332,7 @@ function bindCells(){
     td.addEventListener('mouseleave',function(){tip.style.display='none';});
   });
   // 行名悬浮：复用样式化 src-tip 框（标题=来源、说明=口径），替代系统默认 title
-  document.querySelectorAll('#bscTbl td[data-labsrc],#kb2Tbl td[data-labsrc],#kb0Tbl td[data-labsrc]').forEach(function(td){
+  document.querySelectorAll('#bscTbl td[data-labsrc],#kb2Tbl td[data-labsrc],#kb0Host td[data-labsrc]').forEach(function(td){
     var key=td.getAttribute('data-labsrc');if(!key||!srcMap[key])return;
     td.addEventListener('mousemove',function(e){
       var s=srcMap[key];
