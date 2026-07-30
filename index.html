@@ -156,6 +156,8 @@ th.sortable:hover{filter:brightness(1.08);}
 #kb3Tbl .kb3-field-error{display:block;color:var(--td-error-color);font-size:10px;line-height:1.3;margin-top:3px;white-space:nowrap;}
 #kb3Tbl tr.kb3-editing td.ecell{padding:4px;}
 #kb3Tbl thead tr.xlhdr th{position:sticky;top:0;z-index:8;}
+/* 操作列不裁切内容：编辑/新增行的「保存＋取消」两个按钮必须都能完整显示（列宽由 124px 保证，见 kb3DefaultWidths / loadPrefs 兜底） */
+#kb3Tbl tbody td:last-child{overflow:visible;}
 /* 编辑/新增行时的固定浮条（保存/取消 始终可见，不受表格横向滚动影响） */
 #kb3EditBar{display:none;position:fixed;z-index:96;bottom:26px;left:50%;transform:translateX(-50%);background:#fff;border:1px solid var(--b100);box-shadow:0 10px 30px rgba(10,26,60,.28);border-radius:10px;padding:9px 14px;align-items:center;gap:12px;}
 #kb3EditBar.on{display:flex;}
@@ -731,8 +733,7 @@ function kb1CellMenu(td,ev){
 <!-- 备注独立悬浮气泡（悬停紫角标格显示；与来源信息卡分离，后者未来可整体移除） -->
 <div id="noteTip"></div>
 
-<!-- 看板3 新增/编辑行的固定浮条：保存/取消 始终可见（不受表格横向滚动切掉） -->
-<div id="kb3EditBar"><span class="lbl">正在编辑此行</span><button class="btn" onclick="kb3EditBarSave()">保存</button><button class="btn gray" onclick="kb3CancelRow()">取消</button></div>
+<!-- 看板3 编辑行的固定浮条已移除：保存/取消 直接用行内操作列按钮（操作列已加宽 124px 常显两键） -->
 
 <!-- BP/分支格右键备注浮层（260723 Excel式直填配套） -->
 <div id="notePop" style="display:none;position:fixed;z-index:95;width:280px;background:#fff;border:1px solid var(--b100);box-shadow:0 10px 30px rgba(10,26,60,.25);padding:12px 14px;">
@@ -1529,6 +1530,17 @@ function delRowFromDef(){var key=curDef.key;if(!key||!cmap[key])return;var sec=c
 /* ===== 看板3 ===== */
 /* 台账 Excel 式编辑辅助：ec=可编辑格（派生列不套）；无后端时占位提示 */
 function ec(r,f,cls){var v=r[f]==null?'':String(r[f]);return '<td class="ecell'+(cls?' '+cls:'')+'" data-f="'+f+'" title="双击编辑">'+esc(v)+'</td>';}
+/* 进展（当前状态）配色：与「系统派生·计入看板1(自动)」列口径一一对应
+   实际社招(已入职)=绿 / 待流入(简历面试中·已offer待入职)=橙 / 不计入(需求确认·Hold·取消)=灰 */
+function kb3StColor(st){
+  if(!st)return '';
+  var cat=(typeof kb3cat==='function')?kb3cat(st):'';
+  if(st==='已入职')return '#2BA471';   // 实际社招 → 绿（同派生列 ok）
+  if(cat==='不计入')return '#8194AE';  // 不计入   → 灰（同派生列 na）
+  return '#92400E';                    // 待流入   → 橙（同派生列 todo）
+}
+function ecSt(r){var v=r.st==null?'':String(r.st);var col=kb3StColor(v);
+  return '<td class="ecell" data-f="st" title="双击编辑"'+(col?' style="color:'+col+';font-weight:600"':'')+'>'+esc(v)+'</td>';}
 function kb3DelRow(id){alert('连接后端后可删除（当前为本地演示模式）');}
 function kb3AddRow(){alert('连接后端后可添加行（当前为本地演示模式）');}
 function kb3EditRow(id){alert('连接后端后可编辑（当前为本地演示模式）');}
@@ -1574,7 +1586,7 @@ var KB3_FROZEN_N=5;  // 冻结列：部门~招聘岗位（滑动时固定并覆�
 var KB3_DEFW={dept:90,c:110,own:96,src:132,job:150,cls:120,loc:72,ask:112,num:80,
   st:120,eta:112,memo:113,offer:104,lvl:80,join:112,jmemo:113,
   _mo:80,_cat:150,_days:120,_over:80,_one:220};
-function kb3DefaultWidths(){var w=KB3COLS.map(function(c){return KB3_DEFW[c.f]||100;}).concat([96]);if(KB3EDIT)w=[44].concat(w);return w;}  // +操作列（编辑态前置行号列44）
+function kb3DefaultWidths(){var w=KB3COLS.map(function(c){return KB3_DEFW[c.f]||100;}).concat([124]);if(KB3EDIT)w=[44].concat(w);return w;}  // +操作列124（容纳「保存/取消」两个按钮，编辑态前置行号列44）
 /* 260724 编辑态：Excel 网格视图——左侧行号 + 顶部列号(A/B/C…) */
 var KB3EDIT=false;
 function colLetter(i){var s='';i++;while(i>0){var m=(i-1)%26;s=String.fromCharCode(65+m)+s;i=Math.floor((i-1)/26);}return s;}
@@ -1734,7 +1746,7 @@ function renderKb3(){
       var arr=KB3SORT.f===cdef.f?('<span class="sortarr"><t-icon name="'+(KB3SORT.dir===-1?'chevron-down':'chevron-up')+'" size="12"></t-icon></span>'):'';
       var flt=KB3FON?('<span class="fltarr'+(KB3F[cdef.f]?' on':'')+'" onclick="kb3FltOpen(event,\''+cdef.f+'\')" title="筛选此列（Excel式值勾选）"><t-icon name="chevron-down" size="12"></t-icon></span>'):'';
       return '<th class="sortable" onclick="if(!event.target.closest(\'.colgrip\')&&!event.target.closest(\'.fltarr\'))kb3Sort(\''+cdef.f+'\')" title="点击列名排序（降/升/清除）">'+cdef.l+arr+flt+'</th>';
-    }).join('')+'<th style="width:96px">操作'+(Object.keys(KB3F).length?' <span class="rowtool" onclick="kb3ClearFlt()" title="清除全部列筛选"><t-icon name="close" size="12"></t-icon>清</span>':'')+'</th></tr>';
+    }).join('')+'<th style="width:124px">操作'+(Object.keys(KB3F).length?' <span class="rowtool" onclick="kb3ClearFlt()" title="清除全部列筛选"><t-icon name="close" size="12"></t-icon>清</span>':'')+'</th></tr>';
   g+='</thead><tbody>';
   var _rn=0;
   items.forEach(function(it){
@@ -1743,7 +1755,7 @@ function renderKb3(){
     var catChip=v._cat==='不计入'?'na':(r.st==='已入职'?'ok':'todo');
     g+='<tr data-rid="'+rid+'" class="'+(draft?'kb3-draft ':'')+(String(KB3_EDITING)===String(rid)?'kb3-editing':'')+'">'+(EDIT?'<td class="rc rcRow" title="点击选中整行，右键操作">'+_rn+'</td>':'')+ec(r,'dept')+ec(r,'c')+ec(r,'own')+ec(r,'src')+ec(r,'job')
       +ec(r,'cls')+ec(r,'loc')+ec(r,'ask')+ec(r,'num','num')
-      +ec(r,'st')+ec(r,'eta')+ec(r,'memo')
+      +ecSt(r)+ec(r,'eta')+ec(r,'memo')
       +ec(r,'offer')+ec(r,'lvl')+ec(r,'join')+ec(r,'jmemo')
       +'<td>'+(v._mo||'—')+'</td><td><span class="chip '+catChip+'">'+(draft?'未保存':v._cat)+'</span></td><td class="num">'+v._days+'</td><td>'+v._over+'</td><td>'+esc(v._one)+'</td>'
       +'<td class="c" style="text-align:center;white-space:nowrap">'+(draft?'<span style="color:var(--td-warning-color,#ED7B2F)">填写后保存</span>':(r.id?'<span class="rowtool" onclick="kb3EditRow('+r.id+')" title="编辑此行（手动列整行进入编辑态）"><t-icon name="edit-1" size="12"></t-icon></span> <span class="rowtool del" onclick="kb3DelRow('+r.id+')" title="删除此行（审计留痕）"><t-icon name="delete" size="12"></t-icon></span>':''))+'</td></tr>';
@@ -1755,7 +1767,7 @@ function renderKb3(){
   if(typeof kb3ApplyColHide==='function')kb3ApplyColHide();
   kb3FreezeApply();
   if(typeof kb3ApplySel==='function')kb3ApplySel();
-  if(KB3_EDITING!==null&&typeof kb3MountRowEditor==='function'){kb3MountRowEditor(KB3_EDITING);kb3EditBarShow(KB3_EDITING);}else kb3EditBarHide();
+  if(KB3_EDITING!==null&&typeof kb3MountRowEditor==='function'){kb3MountRowEditor(KB3_EDITING);}
   var fi=document.getElementById('kb3FltInfo'),fActive=Object.keys(KB3F).length>0;
   var hidN=(window.KB3HIDE)?Object.keys(KB3HIDE).length:0;
   if(fi)fi.innerHTML=(fActive?('筛出 '+items.length+' / '+totalN+' 行'):(KB3SORT.f?('已排序 · '+totalN+' 行'):''))
@@ -2094,7 +2106,7 @@ function savePref(k,val){if(!USE_API)return;api('PUT','/api/prefs/'+k,{value:val
   localStorage.setItem=function(k,v){_set(k,v);if(BK[k]&&window.USE_API){try{savePref(k,JSON.parse(v));}catch(e){}}};})();
 function loadPrefs(){return api('GET','/api/prefs').then(function(p){
   if(!p||typeof p!=='object')return;
-  if(p.hcfb_colw){COLW=p.hcfb_colw;}
+  if(p.hcfb_colw){COLW=p.hcfb_colw;if(COLW['kb3Tbl']&&COLW['kb3Tbl'].length){var _oi=COLW['kb3Tbl'].length-1;if(!(COLW['kb3Tbl'][_oi]>=124))COLW['kb3Tbl'][_oi]=124;}}  /* 操作列兜底≥124px，容纳「保存/取消」两个按钮（旧偏好曾存 96 会裁切取消键） */
   if(p.hcfb_kb3pin&&p.hcfb_kb3pin.length!==undefined){KB3PIN=p.hcfb_kb3pin;}
   if(p.hcfb_kb3hide){KB3HIDE=p.hcfb_kb3hide;}
   if(p.hcfb_kb3colhide&&window.KB3COLHIDE){var h=window.KB3COLHIDE;Object.keys(h).forEach(function(k){delete h[k];});Object.keys(p.hcfb_kb3colhide).forEach(function(k){h[k]=p.hcfb_kb3colhide[k];});}
