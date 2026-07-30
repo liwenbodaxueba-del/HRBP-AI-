@@ -1013,9 +1013,9 @@ function render(){
     n.textContent=formula;
   }
   document.getElementById('kAvgL').innerHTML=YEAR+'全年平均人力当量';
-  document.getElementById('kDecL').innerHTML=YEAR+' 12月预估人力当量';
+  document.getElementById('kDecL').innerHTML=YEAR+' 12月预估人力当量 <small style="color:var(--ink3);font-weight:400">（相等最优）</small>';
   gapCard('kAvg','kAvgN',ca,qa2,'预估年均','预算年均','GAP','le');
-  gapCard('kDec','kDecN',c[11],BUD[11],'12月预估','预算12月','GAP','eq');
+  gapCard('kDec','kDecN',c[11],BUD[11],'12月预估','预算12月','GAP','le');
   var lights=noData?[
     [null,'⏳ 数据源未接入 · 待各系统 API 连通后自动取数并重算'],
     [null,'⏳ 预算/实际/流入流出均待接入 · 未连接留空，绝不编造'],
