@@ -866,7 +866,7 @@ function avg(a){var n=a.filter(isN);return n.length?n.reduce(function(x,y){retur
 function f2(x){return (x===''||x==null||isNaN(x))?'':(Math.round(x*100)/100).toFixed(2);}
 function cSum(sec,m){var s=0,any=false;custom[sec].forEach(function(r){if(isN(r.vals[m])){s+=(r.sign==='+'?1:-1)*r.vals[m];any=true;}});return any?s:null;}
 function agg(parts){var got=false,s=0;parts.forEach(function(p){if(isN(p)){s+=p;got=true;}});return got?s:'';}   // 有一个数才算，否则''
-function socTot(m){return agg([D.soc_sys[m],D.soc_hs[m],D.soc_bp[m],cSum('soc',m)]);}
+function socTot(m){return agg([D.ai_soc[m],D.soc_sys[m],D.soc_hs[m],D.soc_bp[m],cSum('soc',m)]);}  // 待流入·社招 = 三子行之和：已入职(ai_soc) + 待入职/活水已offer(soc_sys+soc_hs) + 简历面试中(soc_bp)。未发生月 ai_soc 空→不影响预估链
 function campTot(m){return agg([D.i_yy[m],D.i_bs[m],D.i_cbp[m],cSum('camp',m)]);}
 // 估/实双轨：已发生月合计=实际口径行；未发生月合计=预估口径行+分支（与后端 calc_kb1 同口径）
 function outflow(m){return (m<LOCK)?agg([D.ao_lv[m],D.ao_tr[m]]):agg([D.o_sys[m],D.o_nat[m],D.o_bp[m],D.o_act[m],cSum('out',m)]);}
@@ -1279,7 +1279,7 @@ function fxFor(key,m){
     return '校招待流入（除BP）= '+fxJoin(pyb)+' = '+fxN(agg([D.i_yy[m],D.i_bs[m]]));
   }
   if(key==='i_soc'){
-    var ps=[['+','系统预约入职',D.soc_sys[m]],['+','活水已offer',D.soc_hs[m]],['+','非系统(BP)',D.soc_bp[m]]];
+    var ps=[['+','已入职',D.ai_soc[m]],['+','待入职/活水已offer',agg([D.soc_sys[m],D.soc_hs[m]])],['+','简历面试中',D.soc_bp[m]]];
     custom.soc.forEach(function(r){ps.push([r.sign,r.name.slice(0,10),r.vals[m]]);});
     return '社招 = '+fxJoin(ps)+' = '+fxN(socTot(m));
   }
