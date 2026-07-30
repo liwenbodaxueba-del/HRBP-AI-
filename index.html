@@ -855,6 +855,7 @@ var srcMap={
   soc_sys:['社招系统·待接','候选人已接offer、已预约入职时间、未入职','snap'],
   soc_hs:['活水系统·待接','接收部门负责人同意且员工确认活水、已明确活水调动时间','snap'],
   soc_bp:['BP 手填','社招/活水非系统待流入 · PlanB=社招台账3.2 待入职-社招项数','bp'],
+  i_soc_intv:['看板3.2 · 社招台账','社招·简历面试中：单一取数口径=看板3.2 社招滚动台账 st=简历&面试中 按归月计数；每格紫角备注=该月各人一句话（源自3.1台账·预计到岗）。','snap'],
   soc_join:['HR数仓·实际','社招·已入职：每月读 HR数仓 上月实际社招入职数；计入已发生月合计，未发生月标灰仅供估/实对比。','snap'],
   soc_wait:['社招系统 ＋ 活水系统','社招·待入职/活水已offer 本行 = 待入职（社招系统·已接offer、已预约入职时间、未入职）＋ 活水已offer（活水系统·已确认活水、已明确调动时间）；未发生月标灰。悬停格看当月算式。','calc'],
   ai_soc:['招聘系统·实际','每月1号读系统上月实际社招入职数；计入已发生月合计。同月「待流入·社招」预估行标灰仅供估/实对比，不再计入。','snap'],
@@ -875,7 +876,10 @@ function avg(a){var n=a.filter(isN);return n.length?n.reduce(function(x,y){retur
 function f2(x){return (x===''||x==null||isNaN(x))?'':(Math.round(x*100)/100).toFixed(2);}
 function cSum(sec,m){var s=0,any=false;custom[sec].forEach(function(r){if(isN(r.vals[m])){s+=(r.sign==='+'?1:-1)*r.vals[m];any=true;}});return any?s:null;}
 function agg(parts){var got=false,s=0;parts.forEach(function(p){if(isN(p)){s+=p;got=true;}});return got?s:'';}   // 有一个数才算，否则''
-function socTot(m){return agg([D.soc_join[m],D.soc_sys[m],D.soc_hs[m],D.soc_bp[m],cSum('soc',m)]);}   // 待流入·社招 = 三子行之和（全年不分估/实）：已入职(soc_join·HR数仓独立源)+待入职/活水已offer(soc_sys+soc_hs·社招系统+活水系统)+简历面试中(soc_bp)+分支。与顶部 ai_soc(招聘系统实际) 是两个独立取数。估/实双轨只在总流入/总流出层
+/* 社招·简历面试中：单一取数口径=看板3.2（台账 st=简历&面试中 按归月计数/一句话备注），不再走 soc_bp 手填 */
+function socIntv(m){var c=0,any=false;if(typeof LEDGER!=='undefined')LEDGER.forEach(function(r){if(r.st!=='简历&面试中')return;var mo=kb3mo(r);if(!mo||mo.slice(0,4)!==String(YEAR))return;if(+mo.slice(5,7)-1===m){c++;any=true;}});return any?c:'';}
+function socIntvNote(m){var lst=[];if(typeof LEDGER!=='undefined')LEDGER.forEach(function(r){if(r.st!=='简历&面试中')return;var mo=kb3mo(r);if(!mo||mo.slice(0,4)!==String(YEAR))return;if(+mo.slice(5,7)-1===m)lst.push((r.who?r.who+'·':'')+r.job+(r.loc?'('+r.loc+')':'')+'·预计'+r.eta+'到岗'+(r.memo?'·'+r.memo:''));});return lst.length?lst.join('\n'):'';}
+function socTot(m){return agg([D.soc_join[m],D.soc_sys[m],D.soc_hs[m],socIntv(m),cSum('soc',m)]);}   // 待流入·社招 = 三子行之和（全年不分估/实）：已入职(soc_join·HR数仓独立源)+待入职/活水已offer(soc_sys+soc_hs·社招系统+活水系统)+简历面试中(socIntv·看板3.2台账)+分支。与顶部 ai_soc(招聘系统实际) 是两个独立取数。估/实双轨只在总流入/总流出层
 function campTot(m){return agg([D.ai_camp[m],D.i_yy[m],D.i_bs[m],D.i_cbp[m],cSum('camp',m)]);}   // 待流入·校招 = 三子行之和（全年不分估/实）：已入职(ai_camp)+预约入职/毕业生转聘(i_yy+i_bs)+非系统BP(i_cbp)+分支
 // 估/实双轨：已发生月合计=实际口径行；未发生月合计=预估口径行+分支（与后端 calc_kb1 同口径）
 function outflow(m){return (m<LOCK)?agg([D.ao_lv[m],D.ao_tr[m]]):agg([D.o_sys[m],D.o_nat[m],D.o_bp[m],D.o_act[m],cSum('out',m)]);}
@@ -913,7 +917,7 @@ function tr(cls,label,arr,opt){
     var cl=(m<lock&&opt.lockShade?'lock ':'')+(editable?'edit adj ':'')+(opt.neg&&v<0?'neg ':'')+(mut?'mut ':'');
     var disp=(v===''||(v===0&&opt.hideZero))?'':(opt.negRow&&v!==0?'−'+v:(opt.plus&&v>0?'+'+v:v));
     if(rowEdit&&editable){disp='<input type="number" step="1" class="rowed" data-rk="'+opt.key+'" data-m="'+m+'" value="'+(v===''?'':v)+'" onkeydown="if(event.key===\'Enter\'){event.preventDefault();rowEditSave(\''+opt.key+'\');}else if(event.key===\'Escape\'){event.preventDefault();rowEditEnter(\''+opt.key+'\');}" style="width:100%;min-width:44px;border:1px solid var(--blue-l);padding:2px 4px;font:inherit;text-align:right;background:#fff">';}
-    var noteTxt=memos[(opt.key||'')+'_'+m];
+    var noteTxt=(opt.notes&&opt.notes[m])?opt.notes[m]:memos[(opt.key||'')+'_'+m];  // opt.notes：外部注入的逐月一句话备注（如看板3.2 简历面试中）优先
     var noteAttr=noteTxt?' data-note="'+esc(noteTxt).replace(/"/g,'&quot;')+'"':'';
     var memo=noteTxt?'<span class="memo"></span>':'';
     t+='<td class="'+cl+(noteTxt?' hasnote':'')+'"'+noteAttr+' data-src="'+(opt.src||'')+'" data-m="'+m+'"'+(opt.key?' data-k="'+opt.key+'"':'')+(editable?' data-edit="'+opt.key+'"':'')+'>'+disp+memo+'</td>';
@@ -996,7 +1000,8 @@ function render(){
         h+=tr('sub2','社招· 已入职',D.soc_join,{src:'soc_join',hideZero:true,tot:sum(D.soc_join),lockShade:true,mute:'future'});
         var socWait=[];for(var _sm=0;_sm<12;_sm++)socWait[_sm]=agg([D.soc_sys[_sm],D.soc_hs[_sm]]);  // 待入职(社招系统)+活水已offer(活水系统) 合并，空态感知
         if(cfgOn('soc_sys')||cfgOn('soc_hs'))h+=tr('sub2','社招· 待入职/活水已offer',socWait,{src:'soc_wait',hideZero:true,tot:sum(socWait),lockShade:true,mute:'past'});
-        if(cfgOn('soc_bp'))h+=tr('sub2',cfgName('soc_bp','社招· 简历面试中')+(cfgAdd('soc_bp',true)?pen('soc_bp'):''),D.soc_bp,{src:'soc_bp',key:'soc_bp',edit:cfgAdd('soc_bp',true),hideZero:true,tot:sum(D.soc_bp),lockShade:true,mute:'past'});
+        var intvA=[],intvN=[];for(var _iv=0;_iv<12;_iv++){intvA[_iv]=socIntv(_iv);intvN[_iv]=socIntvNote(_iv);}  // 简历面试中：取自看板3.2 台账（计数+一句话备注）
+        h+=tr('sub2','社招· 简历面试中',intvA,{src:'i_soc_intv',hideZero:true,tot:sum(intvA),notes:intvN,lockShade:true,mute:'past'});
         h+=customRows('soc',{deep:true});
         h+=extraRows('社招∇ 分列','sub2');
       }
@@ -1338,7 +1343,7 @@ function fxFor(key,m){
     return '校招待流入（除BP）= '+fxJoin(pyb)+' = '+fxN(agg([D.i_yy[m],D.i_bs[m]]));
   }
   if(key==='i_soc'){
-    var ps=[['+','已入职',D.soc_join[m]],['+','待入职/活水已offer',agg([D.soc_sys[m],D.soc_hs[m]])],['+','简历面试中',D.soc_bp[m]]];
+    var ps=[['+','已入职',D.soc_join[m]],['+','待入职/活水已offer',agg([D.soc_sys[m],D.soc_hs[m]])],['+','简历面试中',socIntv(m)]];
     custom.soc.forEach(function(r){ps.push([r.sign,r.name.slice(0,10),r.vals[m]]);});
     return '社招 = '+fxJoin(ps)+' = '+fxN(socTot(m));
   }
