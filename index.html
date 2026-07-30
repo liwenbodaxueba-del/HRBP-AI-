@@ -965,9 +965,9 @@ function render(){
       var socA=[];for(var ms=0;ms<12;ms++)socA[ms]=socTot(ms);
       h+=tr('sub',cfgName('i_soc','待流入 · 社招')+' <span class="rowtool" onclick="tg(\'soc\')">'+'<t-icon name="'+(open_.soc?'chevron-down':'chevron-right')+'" size="12"></t-icon>'+'</span><span class="drill"><t-icon name="arrow-down" size="10"></t-icon></span>',socA,{src:'i_soc',hideZero:true,tot:sum(socA),drill:'kb3',lockShade:true,mute:'past'});
       if(open_.soc){
-        if(cfgOn('soc_sys'))h+=tr('sub2',cfgName('soc_sys','社招系统· 已系统预约入职'),D.soc_sys,{src:'soc_sys',hideZero:true,tot:sum(D.soc_sys),lockShade:true,mute:'past'});
-        if(cfgOn('soc_hs'))h+=tr('sub2',cfgName('soc_hs','活水· 系统候选人已接offer'),D.soc_hs,{src:'soc_hs',hideZero:true,tot:sum(D.soc_hs),lockShade:true,mute:'past'});
-        if(cfgOn('soc_bp'))h+=tr('sub2',cfgName('soc_bp','社招· 非系统（BP）')+(cfgAdd('soc_bp',true)?pen('soc_bp'):''),D.soc_bp,{src:'soc_bp',key:'soc_bp',edit:cfgAdd('soc_bp',true),hideZero:true,tot:sum(D.soc_bp),lockShade:true,mute:'past'});
+        if(cfgOn('soc_sys'))h+=tr('sub2',cfgName('soc_sys','实际社招（已入职）'),D.soc_sys,{src:'soc_sys',hideZero:true,tot:sum(D.soc_sys),lockShade:true,mute:'past'});
+        if(cfgOn('soc_hs'))h+=tr('sub2',cfgName('soc_hs','待流入（待入职+活水已offer）'),D.soc_hs,{src:'soc_hs',hideZero:true,tot:sum(D.soc_hs),lockShade:true,mute:'past'});
+        if(cfgOn('soc_bp'))h+=tr('sub2',cfgName('soc_bp','待流入（简历面试中）')+(cfgAdd('soc_bp',true)?pen('soc_bp'):''),D.soc_bp,{src:'soc_bp',key:'soc_bp',edit:cfgAdd('soc_bp',true),hideZero:true,tot:sum(D.soc_bp),lockShade:true,mute:'past'});
         h+=customRows('soc',{deep:true});
         h+=extraRows('社招∇ 分列','sub2');
       }
