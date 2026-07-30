@@ -788,7 +788,7 @@ function z(){return [0,0,0,0,0,0,0,0,0,0,0,0];}
 function emptyCustom(){return {out:[],inn:[],soc:[],camp:[],hc:[],quota:[],yz_inn:[],yz_out:[],wb_inn:[],wb_out:[]};}  // 看板4 云智/外包 各自的流入/流出手填分支
 /* ===== 空态：所有数据源未接入，数字一律留空，绝不编造 ===== */
 function nb(){return ['','','','','','','','','','','','',''];}  // 12 个空格（待接入）
-function mkEmpty(status,lock){return {status:status,lock:lock,budget:nb(),actual:[],o_sys:nb(),o_nat:nb(),o_bp:nb(),o_act:nb(),i_soc:nb(),soc_sys:nb(),soc_hs:nb(),soc_bp:nb(),i_yy:nb(),i_bs:nb(),i_cbp:nb(),i_incr:nb(),ai_soc:nb(),ai_camp:nb(),soc_join:nb(),ao_lv:nb(),ao_tr:nb(),faHC:'',q_init:nb(),kb3rows:[],pdfUrl:null,pdfName:'',seed:null};}
+function mkEmpty(status,lock){return {status:status,lock:lock,budget:nb(),actual:[],o_sys:nb(),o_nat:nb(),o_bp:nb(),o_act:nb(),i_soc:nb(),soc_sys:nb(),soc_hs:nb(),soc_bp:nb(),i_yy:nb(),i_bs:nb(),i_cbp:nb(),i_incr:nb(),ai_soc:nb(),ai_camp:nb(),soc_join:nb(),camp_off:nb(),ao_lv:nb(),ao_tr:nb(),faHC:'',q_init:nb(),kb3rows:[],pdfUrl:null,pdfName:'',seed:null};}
 var DATA={
   2025:mkEmpty('待接入·历史归档',12),
   2026:mkEmpty('待接入·执行中',6),
@@ -864,7 +864,7 @@ var srcMap={
   ao_lv:['HR数仓·实际','每月1号读系统上月实际离职（主动+被动）；计入已发生月合计。同月流出各预估行标灰仅供估/实对比。','snap'],
   ao_tr:['HR数仓·实际','每月1号读系统上月实际调出（活水/跨部门）；计入已发生月合计。','snap'],
   ao_comb:['HR数仓·实际（两口径求和）','本行由两个口径求和：① 离职口径＝实际离职（主动+被动）；② 调出口径＝调出（活水/跨部门）。二者均每月1号读系统上月实际数，相加后计入已发生月总流出。','snap'],
-  camp:['分列求和','校招=预约入职+毕业生转聘+非系统','calc'],
+  camp:['数仓·校招已offer待入职','待流入·校招：直接取 HR数仓「校招·已offer待入职」数（单一取数，不再分三子行）；已发生月实际走上面「已流入·实际校招入职」行。','snap'],
   custom:['BP 自定义','命名行·纯计人头(负数=调减)·右键加备注','bp'], kb2hc:['运算','法定HC：期初(当月)=上月法定HC；当月法定HC=期初+当月子项(分支)求和；首月直接取数（期初锚定）','calc'], kb2quota:['运算','预算当量：当月 = 期初 + 当月「其中」调整求和','calc'], kb2base:['BP 手填','预算过程基线·HC父行=期初+累计调整；预算当量父行=同月其中求和','bp'],
   hc_init:['BP手填(1月)+上月结转','期初法定HC取数：1月=BP手动输入（期初锚定·直接取数）；2–12月=上月「法定HC」父行结转。悬停格看当月取数。','bp'],
   quota_init:['BP 手填','期初预算当量：BP 每月独立手动录入（全行手填·各月可不同）。','bp']
@@ -881,7 +881,7 @@ function agg(parts){var got=false,s=0;parts.forEach(function(p){if(isN(p)){s+=p;
 function socIntv(m){var c=0,any=false;if(typeof LEDGER!=='undefined')LEDGER.forEach(function(r){if(r.st!=='简历&面试中')return;var mo=kb3mo(r);if(!mo||mo.slice(0,4)!==String(YEAR))return;if(+mo.slice(5,7)-1===m){c++;any=true;}});return any?c:'';}
 function socIntvNote(m){var lst=[];if(typeof LEDGER!=='undefined')LEDGER.forEach(function(r){if(r.st!=='简历&面试中')return;var mo=kb3mo(r);if(!mo||mo.slice(0,4)!==String(YEAR))return;if(+mo.slice(5,7)-1===m)lst.push((r.who?r.who+'·':'')+r.job+(r.loc?'('+r.loc+')':'')+'·预计'+r.eta+'到岗'+(r.memo?'·'+r.memo:''));});return lst.length?lst.join('\n'):'';}
 function socTot(m){return agg([D.soc_join[m],D.soc_sys[m],D.soc_hs[m],socIntv(m),cSum('soc',m)]);}   // 待流入·社招 = 三子行之和（全年不分估/实）：已入职(soc_join·HR数仓独立源)+待入职/活水已offer(soc_sys+soc_hs·社招系统+活水系统)+简历面试中(socIntv·看板3.2台账)+分支。与顶部 ai_soc(招聘系统实际) 是两个独立取数。估/实双轨只在总流入/总流出层
-function campTot(m){return agg([D.ai_camp[m],D.i_yy[m],D.i_bs[m],D.i_cbp[m],cSum('camp',m)]);}   // 待流入·校招 = 三子行之和（全年不分估/实）：已入职(ai_camp)+预约入职/毕业生转聘(i_yy+i_bs)+非系统BP(i_cbp)+分支
+function campTot(m){return agg([D.camp_off[m]]);}   // 待流入·校招 = 直接取数仓「校招·已offer待入职」(camp_off) 单一取数；已发生月实际走「已流入·实际校招入职」(ai_camp) 行
 // 估/实双轨：已发生月合计=实际口径行；未发生月合计=预估口径行+分支（与后端 calc_kb1 同口径）
 function outflow(m){return (m<LOCK)?agg([D.ao_lv[m],D.ao_tr[m]]):agg([D.o_sys[m],D.o_nat[m],D.o_bp[m],D.o_act[m],cSum('out',m)]);}
 function inflow(m){return (m<LOCK)?agg([D.ai_soc[m],D.ai_camp[m]]):agg([socTot(m),campTot(m),D.i_incr[m],cSum('inn',m)]);}
@@ -1008,16 +1008,9 @@ function render(){
       }
     }
     if(cfgOn('camp')){
+      // 待流入·校招：单一取数=数仓「校招·已offer待入职」(camp_off)，不再分三子行；已发生月实际走上面「已流入·实际校招入职」
       var campA=[];for(var m4=0;m4<12;m4++)campA[m4]=campTot(m4);
-      h+=tr('sub',cfgName('camp','待流入 · 校招')+' <span class="rowtool" onclick="tg(\'camp\')">'+'<t-icon name="'+(open_.camp?'chevron-down':'chevron-right')+'" size="12"></t-icon>'+'</span>',campA,{src:'camp',hideZero:true,tot:sum(campA),lockShade:true,mute:'past'});
-      if(open_.camp){
-        h+=tr('sub2','校招· 已入职',D.ai_camp,{src:'ai_camp',hideZero:true,tot:sum(D.ai_camp),lockShade:true,mute:'future'});
-        var campYB=[];for(var _cm=0;_cm<12;_cm++)campYB[_cm]=agg([D.i_yy[_cm],D.i_bs[_cm]]);  // 预约入职+毕业生转聘 合并显示（空态感知，不编造）
-        if(cfgOn('i_yy')||cfgOn('i_bs'))h+=tr('sub2','校招· 预约入职/毕业生转聘',campYB,{src:'camp_yb',hideZero:true,tot:sum(campYB),lockShade:true,mute:'past'});
-        if(cfgOn('i_cbp'))h+=tr('sub2',cfgName('i_cbp','待流入 · 校招· 非系统（BP）')+(cfgAdd('i_cbp',true)?pen('i_cbp'):''),D.i_cbp,{src:'i_cbp',key:'i_cbp',edit:cfgAdd('i_cbp',true),hideZero:true,tot:sum(D.i_cbp),lockShade:true,mute:'past'});
-        h+=customRows('camp',{deep:true});
-        h+=extraRows('校招∇ 分列','sub2');
-      }
+      h+=tr('sub',cfgName('camp','待流入 · 校招'),campA,{src:'camp',hideZero:true,tot:sum(campA),lockShade:true,mute:'past'});
     }
     if(cfgOn('i_incr'))h+=tr('sub',cfgName('i_incr','待流入 · 增量需求（BP）（调节项）')+(cfgAdd('i_incr',true)?pen('i_incr'):''),D.i_incr,{src:'i_incr',key:'i_incr',edit:cfgAdd('i_incr',true),hideZero:true,tot:sum(D.i_incr),lockShade:true,mute:'past'});
     h+=customRows('inn');
@@ -1335,9 +1328,7 @@ function fxFor(key,m){
     return (m+1)+'月期初 = 上月（'+m+'月）法定HC = '+fxN(hcTot[m-1]);
   }
   if(key==='camp'){
-    var p=[['+','已入职',D.ai_camp[m]],['+','预约入职/毕业生转聘',agg([D.i_yy[m],D.i_bs[m]])],['+','非系统(BP)',D.i_cbp[m]]];
-    custom.camp.forEach(function(r){p.push([r.sign,r.name.slice(0,10),r.vals[m]]);});
-    return '校招 = '+fxJoin(p)+' = '+fxN(campTot(m));
+    return '待流入·校招 = 数仓·校招已offer待入职（单一取数） = '+fxN(campTot(m));
   }
   if(key==='camp_yb'){
     var pyb=[['+','预约入职',D.i_yy[m]],['+','毕业生转聘',D.i_bs[m]]];
@@ -2046,7 +2037,7 @@ function applyBoard(b){
   var y=b.year,d=DATA[y]||(DATA[y]=mkEmpty(b.status,b.lock));
   d.status=b.status;d.lock=b.lock;d.nat=b.nat||d.nat;d.seed=(b.seed===undefined?null:b.seed);
   if(typeof demoBanner==='function')demoBanner(!!b.demo);
-  ['budget','actual','o_sys','o_nat','o_bp','o_act','i_soc','soc_sys','soc_hs','soc_bp','i_yy','i_bs','i_cbp','i_incr','ai_soc','ai_camp','soc_join','ao_lv','ao_tr'].forEach(function(k){
+  ['budget','actual','o_sys','o_nat','o_bp','o_act','i_soc','soc_sys','soc_hs','soc_bp','i_yy','i_bs','i_cbp','i_incr','ai_soc','ai_camp','soc_join','camp_off','ao_lv','ao_tr'].forEach(function(k){
     d[k]=((b.metrics[k]||{}).vals||[]).map(nn);while(d[k].length<12)d[k].push('');
   });
   // 看板2 期初基线（fa_hc 取首个非空值为年度期初；q_init 逐月）
