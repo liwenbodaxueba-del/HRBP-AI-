@@ -913,7 +913,7 @@ function tr(cls,label,arr,opt){
   for(var m=0;m<12;m++){
     var v=(arr&&arr[m]!==undefined&&arr[m]!==null)?arr[m]:'';
     var rowEdit=opt.key&&ROWEDIT===opt.key;
-    var editable=opt.edit&&(m>=lock||rowEdit)&&!RO;  // 行编辑态放宽：全月可填（新建行/调整行不受已发生月限制）
+    var editable=opt.edit&&(m>=lock||(rowEdit&&!opt.futureOnly))&&!RO;  // 行编辑态放宽全月可填（新建行/调整行）；opt.futureOnly=只放开未发生月（如 待流入·校招 数仓总数分配）
     var mut=(opt.mute==='past'&&m<lock)||(opt.mute==='future'&&m>=lock);  // 估/实双轨标灰
     var cl=(m<lock&&opt.lockShade?'lock ':'')+(editable?'edit adj ':'')+(opt.neg&&v<0?'neg ':'')+(mut?'mut ':'');
     var disp=(v===''||(v===0&&opt.hideZero))?'':(opt.negRow&&v!==0?'−'+v:(opt.plus&&v>0?'+'+v:v));
@@ -1012,7 +1012,10 @@ function render(){
       var campAlloc=sum(D.camp_off);  // 已分配（Σ手填）
       var campTgt=D.camp_off_tot;     // 数仓目标总数（接口预留·待接入时为空）
       var campTotDisp=(isN(campTgt)&&campTgt!=='')?((isN(campAlloc)?campAlloc:0)+' / 目标'+campTgt):campAlloc;
-      h+=tr('sub',cfgName('camp','待流入 · 校招'),D.camp_off,{src:'camp',key:'camp_off',edit:true,hideZero:true,tot:campTotDisp,lockShade:true,mute:'past'});
+      var campLbl=cfgName('camp','待流入 · 校招')
+        +' <span class="badge snap" style="cursor:help" title="数仓下发·校招已offer待入职总数·实时刷新（待接入时显 —）">系统总数 '+(isN(campTgt)?campTgt:'—')+'</span>'
+        +pen('camp_off');  // 🖊：右侧预估月 BP 手填分配
+      h+=tr('sub',campLbl,D.camp_off,{src:'camp',key:'camp_off',edit:true,futureOnly:true,hideZero:true,tot:campTotDisp,lockShade:true,mute:'past'});
     }
     if(cfgOn('i_incr'))h+=tr('sub',cfgName('i_incr','待流入 · 增量需求（BP）（调节项）')+(cfgAdd('i_incr',true)?pen('i_incr'):''),D.i_incr,{src:'i_incr',key:'i_incr',edit:cfgAdd('i_incr',true),hideZero:true,tot:sum(D.i_incr),lockShade:true,mute:'past'});
     h+=customRows('inn');
