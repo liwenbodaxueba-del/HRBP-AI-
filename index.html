@@ -840,6 +840,7 @@ var srcMap={
   ai_camp:['HR数仓·实际','每月1号读系统当月实际校招入职数；计入已发生月合计。同月「待流入·校招」预估行标灰仅供估/实对比。','snap'],
   ao_lv:['HR数仓·实际','每月1号读系统当月实际离职（主动+被动）；计入已发生月合计。同月流出各预估行标灰仅供估/实对比。','snap'],
   ao_tr:['HR数仓·实际','每月1号读系统当月实际调出（活水/跨部门）；计入已发生月合计。','snap'],
+  ao_comb:['HR数仓·实际','每月1号读系统当月「实际离职（主动+被动）+ 调出（活水/跨部门）」合计；计入已发生月合计。','snap'],
   camp:['分列求和','校招=预约入职+毕业生转聘+非系统','calc'],
   custom:['BP 自定义','命名行·纯计人头(负数=调减)·右键加备注','bp'], kb2hc:['运算','法定HC：当月 = 上月 + 本月调整（累计滚动·期初锚定）','calc'], kb2quota:['运算','预算当量：当月 = 期初 + 当月「其中」调整求和','calc'], kb2base:['BP 手填','预算过程基线·HC父行=期初+累计调整；预算当量父行=同月其中求和','bp']
 };
@@ -981,8 +982,8 @@ function render(){
   h+=tr('subtot','总流出（−） <span class="rowtool" onclick="tg(\'out\')">'+'<t-icon name="'+(open_.out?'chevron-down':'chevron-right')+'" size="12"></t-icon>'+'</span> <span class="badge snap">HR数仓</span><span class="badge bp">BP</span> <span class="badge calc" title="已发生月合计取「实际」行；未发生月合计取「待流出」预估行">估/实</span>',outT,{src:'outT',tot:sum(outT),lockShade:true});
   if(open_.out){
     // 实际口径（放预估上方）
-    if(cfgOn('ao_lv'))h+=tr('sub actrow',cfgName('ao_lv','实际离职（主动+被动）'),D.ao_lv,{src:'ao_lv',hideZero:true,tot:sum(D.ao_lv),mute:'future'});
-    if(cfgOn('ao_tr'))h+=tr('sub actrow',cfgName('ao_tr','调出（活水/跨部门）'),D.ao_tr,{src:'ao_tr',hideZero:true,tot:sum(D.ao_tr),mute:'future'});
+    if(cfgOn('ao_lv')||cfgOn('ao_tr')){var aoC=[];for(var mac=0;mac<12;mac++)aoC[mac]=agg([D.ao_lv[mac],D.ao_tr[mac]]);
+      h+=tr('sub actrow','实际离职/调出',aoC,{src:'ao_comb',hideZero:true,tot:sum(aoC),mute:'future'});}
     // 预估口径
     if(cfgOn('o_sys'))h+=tr('sub',cfgName('o_sys','待流出 · 系统明确'),D.o_sys,{src:'o_sys',hideZero:true,tot:sum(D.o_sys),lockShade:true,mute:'past'});
     if(cfgOn('o_nat'))h+=tr('sub',cfgName('o_nat','待流出 · 自然流失预估')+natBadge(),D.o_nat,{src:'o_nat',hideZero:true,tot:sum(D.o_nat),lockShade:true,mute:'past'});
