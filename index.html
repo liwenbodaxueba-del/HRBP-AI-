@@ -864,7 +864,7 @@ var srcMap={
   ao_lv:['HR数仓·实际','每月1号读系统上月实际离职（主动+被动）；计入已发生月合计。同月流出各预估行标灰仅供估/实对比。','snap'],
   ao_tr:['HR数仓·实际','每月1号读系统上月实际调出（活水/跨部门）；计入已发生月合计。','snap'],
   ao_comb:['HR数仓·实际（两口径求和）','本行由两个口径求和：① 离职口径＝实际离职（主动+被动）；② 调出口径＝调出（活水/跨部门）。二者均每月1号读系统上月实际数，相加后计入已发生月总流出。','snap'],
-  camp:['数仓·校招已offer待入职','待流入·校招：直接取 HR数仓「校招·已offer待入职」数（单一取数，不再分三子行）；已发生月实际走上面「已流入·实际校招入职」行。','snap'],
+  camp:['数仓总数·BP按月分配','待流入·校招：数仓下发「校招·已offer待入职」总数（待接入）；BP 在未发生月手填每月人数做分配（合计对齐数仓总数）；已发生月实际走「已流入·实际校招入职」行。','bp'],
   custom:['BP 自定义','命名行·纯计人头(负数=调减)·右键加备注','bp'], kb2hc:['运算','法定HC：期初(当月)=上月法定HC；当月法定HC=期初+当月子项(分支)求和；首月直接取数（期初锚定）','calc'], kb2quota:['运算','预算当量：当月 = 期初 + 当月「其中」调整求和','calc'], kb2base:['BP 手填','预算过程基线·HC父行=期初+累计调整；预算当量父行=同月其中求和','bp'],
   hc_init:['BP手填(1月)+上月结转','期初法定HC取数：1月=BP手动输入（期初锚定·直接取数）；2–12月=上月「法定HC」父行结转。悬停格看当月取数。','bp'],
   quota_init:['BP 手填','期初预算当量：BP 每月独立手动录入（全行手填·各月可不同）。','bp']
@@ -1008,9 +1008,8 @@ function render(){
       }
     }
     if(cfgOn('camp')){
-      // 待流入·校招：单一取数=数仓「校招·已offer待入职」(camp_off)，不再分三子行；已发生月实际走上面「已流入·实际校招入职」
-      var campA=[];for(var m4=0;m4<12;m4++)campA[m4]=campTot(m4);
-      h+=tr('sub',cfgName('camp','待流入 · 校招'),campA,{src:'camp',hideZero:true,tot:sum(campA),lockShade:true,mute:'past'});
+      // 待流入·校招：数仓下发「校招·已offer待入职」总数（待接入），BP 在未发生月手填每月人数做分配；已发生月走上面「已流入·实际校招入职」
+      h+=tr('sub',cfgName('camp','待流入 · 校招'),D.camp_off,{src:'camp',key:'camp_off',edit:true,hideZero:true,tot:sum(D.camp_off),lockShade:true,mute:'past'});
     }
     if(cfgOn('i_incr'))h+=tr('sub',cfgName('i_incr','待流入 · 增量需求（BP）（调节项）')+(cfgAdd('i_incr',true)?pen('i_incr'):''),D.i_incr,{src:'i_incr',key:'i_incr',edit:cfgAdd('i_incr',true),hideZero:true,tot:sum(D.i_incr),lockShade:true,mute:'past'});
     h+=customRows('inn');
@@ -1328,7 +1327,7 @@ function fxFor(key,m){
     return (m+1)+'月期初 = 上月（'+m+'月）法定HC = '+fxN(hcTot[m-1]);
   }
   if(key==='camp'){
-    return '待流入·校招 = 数仓·校招已offer待入职（单一取数） = '+fxN(campTot(m));
+    return '待流入·校招 = BP 手填当月分配（数仓总数按月摊·仅未发生月可填） = '+fxN(campTot(m));
   }
   if(key==='camp_yb'){
     var pyb=[['+','预约入职',D.i_yy[m]],['+','毕业生转聘',D.i_bs[m]]];
