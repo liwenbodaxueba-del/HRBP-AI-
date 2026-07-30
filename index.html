@@ -848,8 +848,8 @@ var srcMap={
   soc_sys:['社招系统·待接','候选人已接offer、已预约入职时间、未入职','snap'],
   soc_hs:['活水系统·待接','接收部门负责人同意且员工确认活水、已明确活水调动时间','snap'],
   soc_bp:['BP 手填','社招/活水非系统待流入 · PlanB=社招台账3.2 待入职-社招项数','bp'],
-  soc_join:['HR数仓·实际','实际社招（已入职）：每月读 HR数仓 上月实际社招入职数；计入已发生月合计，未发生月标灰仅供估/实对比。','snap'],
-  soc_wait:['社招系统 ＋ 活水系统','待流入（待入职+活水已offer）本行 = 待入职（社招系统·已接offer、已预约入职时间、未入职）＋ 活水已offer（活水系统·已确认活水、已明确调动时间）；未发生月标灰。悬停格看当月算式。','calc'],
+  soc_join:['HR数仓·实际','社招·已入职：每月读 HR数仓 上月实际社招入职数；计入已发生月合计，未发生月标灰仅供估/实对比。','snap'],
+  soc_wait:['社招系统 ＋ 活水系统','社招·待入职/活水已offer 本行 = 待入职（社招系统·已接offer、已预约入职时间、未入职）＋ 活水已offer（活水系统·已确认活水、已明确调动时间）；未发生月标灰。悬停格看当月算式。','calc'],
   ai_soc:['招聘系统·实际','每月1号读系统上月实际社招入职数；计入已发生月合计。同月「待流入·社招」预估行标灰仅供估/实对比，不再计入。','snap'],
   ai_camp:['HR数仓·实际','每月1号读系统上月实际校招入职数；计入已发生月合计。同月「待流入·校招」预估行标灰仅供估/实对比。','snap'],
   ao_lv:['HR数仓·实际','每月1号读系统上月实际离职（主动+被动）；计入已发生月合计。同月流出各预估行标灰仅供估/实对比。','snap'],
@@ -968,10 +968,10 @@ function render(){
       var socA=[];for(var ms=0;ms<12;ms++)socA[ms]=socTot(ms);
       h+=tr('sub',cfgName('i_soc','待流入 · 社招')+' <span class="rowtool" onclick="tg(\'soc\')">'+'<t-icon name="'+(open_.soc?'chevron-down':'chevron-right')+'" size="12"></t-icon>'+'</span><span class="drill"><t-icon name="arrow-down" size="10"></t-icon></span>',socA,{src:'i_soc',hideZero:true,tot:sum(socA),drill:'kb3',lockShade:true,mute:'past'});
       if(open_.soc){
-        h+=tr('sub2','实际社招（已入职）',D.ai_soc,{src:'soc_join',hideZero:true,tot:sum(D.ai_soc),lockShade:true,mute:'future'});
+        h+=tr('sub2','社招· 已入职',D.ai_soc,{src:'soc_join',hideZero:true,tot:sum(D.ai_soc),lockShade:true,mute:'future'});
         var socWait=[];for(var _sm=0;_sm<12;_sm++)socWait[_sm]=agg([D.soc_sys[_sm],D.soc_hs[_sm]]);  // 待入职(社招系统)+活水已offer(活水系统) 合并，空态感知
-        if(cfgOn('soc_sys')||cfgOn('soc_hs'))h+=tr('sub2','待流入（待入职+活水已offer）',socWait,{src:'soc_wait',hideZero:true,tot:sum(socWait),lockShade:true,mute:'past'});
-        if(cfgOn('soc_bp'))h+=tr('sub2',cfgName('soc_bp','待流入（简历面试中）')+(cfgAdd('soc_bp',true)?pen('soc_bp'):''),D.soc_bp,{src:'soc_bp',key:'soc_bp',edit:cfgAdd('soc_bp',true),hideZero:true,tot:sum(D.soc_bp),lockShade:true,mute:'past'});
+        if(cfgOn('soc_sys')||cfgOn('soc_hs'))h+=tr('sub2','社招· 待入职/活水已offer',socWait,{src:'soc_wait',hideZero:true,tot:sum(socWait),lockShade:true,mute:'past'});
+        if(cfgOn('soc_bp'))h+=tr('sub2',cfgName('soc_bp','社招· 简历面试中')+(cfgAdd('soc_bp',true)?pen('soc_bp'):''),D.soc_bp,{src:'soc_bp',key:'soc_bp',edit:cfgAdd('soc_bp',true),hideZero:true,tot:sum(D.soc_bp),lockShade:true,mute:'past'});
         h+=customRows('soc',{deep:true});
         h+=extraRows('社招∇ 分列','sub2');
       }
@@ -1285,7 +1285,7 @@ function fxFor(key,m){
   }
   if(key==='soc_wait'){
     var psw=[['+','待入职(社招系统)',D.soc_sys[m]],['+','活水已offer(活水系统)',D.soc_hs[m]]];
-    return '待流入（待入职+活水已offer）= '+fxJoin(psw)+' = '+fxN(agg([D.soc_sys[m],D.soc_hs[m]]));
+    return '社招·待入职/活水已offer = '+fxJoin(psw)+' = '+fxN(agg([D.soc_sys[m],D.soc_hs[m]]));
   }
   if(key==='outT'){
     if(m<LOCK){var pa=[['+','实际离职',D.ao_lv[m]],['+','调出',D.ao_tr[m]]];return '已发生月·实际 = '+fxJoin(pa)+' = '+fxN(outflow(m))+'（预估行标灰仅供对比，不计入）';}
