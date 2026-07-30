@@ -863,7 +863,7 @@ var srcMap={
   ao_tr:['HR数仓·实际','每月1号读系统上月实际调出（活水/跨部门）；计入已发生月合计。','snap'],
   ao_comb:['HR数仓·实际（两口径求和）','本行由两个口径求和：① 离职口径＝实际离职（主动+被动）；② 调出口径＝调出（活水/跨部门）。二者均每月1号读系统上月实际数，相加后计入已发生月总流出。','snap'],
   camp:['分列求和','校招=预约入职+毕业生转聘+非系统','calc'],
-  custom:['BP 自定义','命名行·纯计人头(负数=调减)·右键加备注','bp'], kb2hc:['运算','法定HC：当月 = 上月 + 本月调整（累计滚动·期初锚定）','calc'], kb2quota:['运算','预算当量：当月 = 期初 + 当月「其中」调整求和','calc'], kb2base:['BP 手填','预算过程基线·HC父行=期初+累计调整；预算当量父行=同月其中求和','bp']
+  custom:['BP 自定义','命名行·纯计人头(负数=调减)·右键加备注','bp'], kb2hc:['运算','法定HC：期初(当月)=上月法定HC；当月法定HC=期初+当月子项(分支)求和；首月直接取数（期初锚定）','calc'], kb2quota:['运算','预算当量：当月 = 期初 + 当月「其中」调整求和','calc'], kb2base:['BP 手填','预算过程基线·HC父行=期初+累计调整；预算当量父行=同月其中求和','bp']
 };
 /* ===== 运算（识空：无源数据留空，绝不当0编造） ===== */
 function isN(x){return typeof x==='number';}
@@ -1127,11 +1127,14 @@ function kb2Total(sec,cum){var t=[];for(var m=0;m<12;m++){
 function renderKb2(){
   var yy=String(YEAR).slice(2);var h='<tr><th>项目</th>';for(var m=0;m<12;m++)h+='<th>'+yy+String(m+1).padStart(2,'0')+'</th>';h+='<th>'+yy+'年均</th></tr>';
   function block(sec,name,isHC){
-    var tot=kb2Total(sec,isHC);  // HC=累计滚动；预算当量=同月求和
+    var tot=kb2Total(sec,isHC);  // HC=累计滚动（期初=上月法定HC）；预算当量=同月求和
     var tgl=' <span class="rowtool" onclick="tg(\''+sec+'\')">'+'<t-icon name="'+(open_[sec]?'chevron-down':'chevron-right')+'" size="12"></t-icon>'+'</span>';
-    var s=tr('key',name+tgl+' <span class="badge calc">'+(isHC?'期初+累计调整':'其中求和')+'</span>',tot,{src:isHC?'kb2hc':'kb2quota',avg:isHC?'—':f2(avg12(tot)),lock:0,noTot:true});
+    var s=tr('key',name+tgl+' <span class="badge calc">'+(isHC?'期初+当月调整':'其中求和')+'</span>',tot,{src:isHC?'kb2hc':'kb2quota',avg:isHC?'—':f2(avg12(tot)),lock:0,noTot:true});
     if(open_[sec]){
-      s+=tr('sub',kb2base[sec].name,kb2base[sec].vals,{src:'kb2base',avg:isHC?'—':f2(avg12(kb2base[sec].vals)),lock:0,noTot:true});
+      // 期初法定HC(当月)=上月法定HC（滚动）；首月=期初锚定值直接取数。当月法定HC=期初+当月子项(分支)求和。预算当量期初仍取 q_init。
+      var baseVals=kb2base[sec].vals;
+      if(isHC){baseVals=[];for(var bm=0;bm<12;bm++)baseVals[bm]=(bm===0)?kb2base.hc.vals[0]:tot[bm-1];}
+      s+=tr('sub',kb2base[sec].name,baseVals,{src:'kb2base',avg:isHC?'—':f2(avg12(kb2base[sec].vals)),lock:0,noTot:true});
       s+=customRows(sec,{lock:0,noTot:true,avgMode:isHC?'dash':'calc'});
       s+=addRowTr(sec,'新增分支（填缘由·直接录人数）',true);
     }
