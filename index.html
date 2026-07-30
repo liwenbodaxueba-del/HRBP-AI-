@@ -1640,7 +1640,11 @@ function openKb3Add(){
   document.getElementById('maskKb3').classList.add('on');
 }
 function closeKb3Add(){document.getElementById('maskKb3').classList.remove('on');if(window.KB3ANCHOR!==undefined)KB3ANCHOR=null;}
-var KB3CATS=[{key:'社招· 已入职',st:'已入职'},{key:'社招· 待入职/活水已offer',st:'已offer待入职'},{key:'社招· 简历面试中',st:'简历&面试中'}];
+var KB3CATS=[
+  {key:'社招· 已入职',st:'已入职',cal:'取数口径：系统接口（HR数仓·实际社招入职），非3.1台账；喂看板1。此处3.2按3.1台账归月汇总仅供核对。'},
+  {key:'社招· 待入职/活水已offer',st:'已offer待入职',cal:'取数口径：系统接口（社招系统·已接offer待入职 ＋ 活水系统·已确认活水），非3.1台账；喂看板1。此处3.2按3.1台账归月汇总仅供核对。'},
+  {key:'社招· 简历面试中',st:'简历&面试中',cal:'取数口径：读3.1台账（st=简历&面试中，按归月计数）；喂看板1。'}
+];
 function kb3cat(st){var f=KB3CATS.find(function(x){return x.st===st;});return f?f.key:'不计入';}
 function kb3mo(r){if(r.st==='Hold'||r.st==='取消')return '';var d=(r.st==='已入职'?r.join:r.eta);return d?d.slice(0,7):'';}
 function moLbl(ym){if(!ym)return '';var mm=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return mm[+ym.slice(5,7)-1]+'-'+ym.slice(2,4);}
@@ -1855,10 +1859,10 @@ function renderKb3(){
     if(mi>=0&&mi<12){mat[cat][mi]++;note[cat][mi].push((r.who?r.who+'·':'')+r.job+(r.loc?'('+r.loc+')':'')+'·'+(r.st==='已入职'?r.join+'已入职':'预计'+r.eta+'到岗')+(r.memo?'·'+r.memo:''));}});
   var total=Array(12).fill(0),totNote=[];for(var tm=0;tm<12;tm++){totNote[tm]=[];KB3CATS.forEach(function(c){total[tm]+=mat[c.key][tm];totNote[tm]=totNote[tm].concat(note[c.key][tm]);});}
   var s='<tr><th>计入看板1的行</th>';for(var m=0;m<12;m++)s+='<th>'+moLbl(YEAR+'-'+String(m+1).padStart(2,'0'))+'</th>';s+='<th>全年总数</th></tr>';
-  function mr(cls,n,a,nt,catId){var t='<tr class="'+cls+'"><td>'+n+'</td>';for(var m=0;m<12;m++){var lst=nt&&nt[m]&&nt[m].length?nt[m]:null;
+  function mr(cls,n,a,nt,catId,cal){var t='<tr class="'+cls+'"><td'+(cal?' title="'+esc(cal).replace(/"/g,'&quot;')+'" style="cursor:help"':'')+'>'+n+'</td>';for(var m=0;m<12;m++){var lst=nt&&nt[m]&&nt[m].length?nt[m]:null;
     var da=(catId&&lst)?(' data-cat="'+esc(catId).replace(/"/g,'&quot;')+'" data-mon="'+(m+1)+'" style="cursor:context-menu"'):'';
     t+='<td'+(lst?' class="hasnote" data-note="'+esc(lst.join('\n')).replace(/"/g,'&quot;')+'"'+da:'')+'>'+(a[m]||'')+(lst?'<span class="memo"></span>':'')+'</td>';}return t+'<td>'+sum(a)+'</td></tr>';}
-  s+=mr('sub',KB3CATS[0].key,mat[KB3CATS[0].key],note[KB3CATS[0].key],KB3CATS[0].key)+mr('sub',KB3CATS[1].key,mat[KB3CATS[1].key],note[KB3CATS[1].key],KB3CATS[1].key)+mr('sub',KB3CATS[2].key,mat[KB3CATS[2].key],note[KB3CATS[2].key],KB3CATS[2].key)+mr('key','待流入-社招（三项加总）',total,totNote);
+  s+=mr('sub',KB3CATS[0].key,mat[KB3CATS[0].key],note[KB3CATS[0].key],KB3CATS[0].key,KB3CATS[0].cal)+mr('sub',KB3CATS[1].key,mat[KB3CATS[1].key],note[KB3CATS[1].key],KB3CATS[1].key,KB3CATS[1].cal)+mr('sub',KB3CATS[2].key,mat[KB3CATS[2].key],note[KB3CATS[2].key],KB3CATS[2].key,KB3CATS[2].cal)+mr('key','待流入-社招（三项加总）',total,totNote);
   document.getElementById('kb3Sum').innerHTML=s;
   // 紫角 + 紫色悬浮框（与看板1 备注同款）；内容=各人一句话备注（源自 3.1，右键可就地改 memo·同步）
   var kb3nt=document.getElementById('noteTip');
@@ -1870,7 +1874,7 @@ function renderKb3(){
       var top=rc.top-kb3nt.offsetHeight-8;kb3nt.style.top=(top>4?top:rc.bottom+8)+'px';});
     td.addEventListener('mouseleave',function(){if(kb3nt)kb3nt.style.display='none';});
   });
-  document.getElementById('kb3SumNote').innerHTML='归月：已入职=实际入职月；已offer/面试中=预计到岗月；Hold/取消不计入。按行计数、不去重（同一岗位仅处一个状态，天然无双算）。此三行即<b>喂看板1</b>「待流入·社招 / 实际社招」的数据源。<b>矩阵始终按全量台账统计</b>，不随 3.1 的筛选/排序变（口径不受显示影响）。';
+  document.getElementById('kb3SumNote').innerHTML='<b>取数口径</b>（悬停行名看详情）：<b>社招·已入职</b>=系统接口(HR数仓)、<b>待入职/活水已offer</b>=系统接口(社招系统+活水系统)——两者<b>非3.1台账</b>，此处按台账归月汇总仅供核对；<b>简历面试中</b>=读3.1台账。归月：已入职=实际入职月；已offer/面试中=预计到岗月；Hold/取消不计入。按行计数、不去重。此三项即<b>喂看板1</b>「待流入·社招」数据源。<b>矩阵始终按全量台账统计</b>，不随 3.1 的筛选/排序变。';
   colResizable('kb3Tbl');colResizable('kb3Sum');
 }
 /* ===== 视图/筛选页签（结合截图功能块，仅切换选中态，数据待接入） ===== */
