@@ -3193,6 +3193,10 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
     m.style.display='flex';
   }
   window.kb3EditToggle=function(){if(window.KB3EDIT&&STAGE.dcount()>0){exitConfirm();return;}_toggle();};
+  /* --- 切换看板/离开看板3：收起所有浮层(填充柄/▼/填充选项/颜色盘/各弹窗)并清选区，避免蓝方块等飘在别的页 --- */
+  function kb3HideFloats(){FH.style.display='none';DD.style.display='none';FO.style.display='none';if(FP)FP.style.display='none';if(VP)VP.style.display='none';if(SP)SP.style.display='none';if(CPOP)CPOP.style.display='none';}
+  var _gv3=window.goView;
+  if(typeof _gv3==='function')window.goView=function(v){_gv3(v);if(v!=='kb3'){SEL=null;lastFill=null;clearMarquee();kb3HideFloats();}};
   /* --- 表格横向/纵向滚动时，重贴选区并跟随 ▼ --- */
   var wrap=document.getElementById('kb3Wrap');
   if(wrap){var tick=false;wrap.addEventListener('scroll',function(){hideFO();if(tick||!SEL)return;tick=true;requestAnimationFrame(function(){tick=false;paint();});});}
