@@ -180,6 +180,15 @@ th.sortable:hover{filter:brightness(1.08);}
 #kb3FindPanel input,#kb3FindPanel select{flex:1;border:1px solid var(--b100);border-radius:6px;padding:5px 8px;font:inherit;box-sizing:border-box;min-width:0;}
 #kb3FindPanel .fa{display:flex;gap:8px;justify-content:flex-end;margin-top:4px;flex-wrap:wrap;}
 #kb3FindPanel .fa .btn{padding:5px 10px;font-size:12px;}
+/* 数据有效性弹窗 */
+#kb3ValidPanel{display:none;position:fixed;z-index:95;width:332px;background:#fff;border:1px solid var(--b100);border-radius:10px;box-shadow:0 14px 40px rgba(10,26,60,.26);padding:14px;font-size:12.5px;}
+#kb3ValidPanel .vh{font-weight:700;color:var(--navy);font-size:14px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--b100);}
+#kb3ValidPanel .fr{display:flex;align-items:center;gap:8px;margin-bottom:9px;}
+#kb3ValidPanel .fr>label{width:56px;color:var(--ink2);flex:none;}
+#kb3ValidPanel select,#kb3ValidPanel textarea{flex:1;border:1px solid var(--b100);border-radius:6px;padding:5px 8px;font:inherit;box-sizing:border-box;min-width:0;}
+#kb3ValidPanel textarea:disabled,#kb3ValidPanel select:disabled{background:#F2F6FC;color:var(--ink3);}
+#kb3ValidPanel .fa{display:flex;gap:8px;justify-content:flex-end;margin-top:6px;}
+#kb3ValidPanel .fa .btn{padding:5px 12px;font-size:12px;}
 #kb3Tbl tr.kb3-draft td{background:#FFFBE6;}
 #kb3Tbl td.kb3-invalid{background:#FFF0ED!important;overflow:visible;}
 #kb3Tbl td.kb3-invalid input,#kb3Tbl td.kb3-invalid select{border:1px solid var(--td-error-color)!important;outline:1px solid var(--td-error-color);}
@@ -2284,12 +2293,9 @@ saveKb3Add=function(){
     .catch(apiErr);
 };
 function kb3RowEditor(f,old){
-  var ed;
-  if(f==='st'){ed=document.createElement('select');
-    [''].concat(KB3_ST_OPTS).forEach(function(o){
-      var op=document.createElement('option');op.value=o;op.textContent=o||'（空）';if(o===old)op.selected=true;ed.appendChild(op);});
-  }else if(f==='cls'){ed=document.createElement('select');
-    ['','国内','海外'].forEach(function(o){
+  var ed,vopts=(typeof window.kb3DropOptions==='function')?window.kb3DropOptions(f):null;
+  if(vopts){ed=document.createElement('select');
+    [''].concat(vopts).forEach(function(o){
       var op=document.createElement('option');op.value=o;op.textContent=o||'（空）';if(o===old)op.selected=true;ed.appendChild(op);});
   }else{ed=document.createElement('input');ed.type='text';ed.value=old;
     if(f==='ask'||f==='eta'||f==='join'||f==='tgt')ed.placeholder='YYYY-MM-DD';}
@@ -2366,11 +2372,10 @@ document.addEventListener('dblclick',function(ev){
   if(!rid)return;
   if(td.querySelector('input,select'))return;
   var fld=td.getAttribute('data-f'),old=td.textContent.trim();
-  var ed;
-  if(fld==='st'||fld==='cls'){
+  var ed,vopts=(typeof window.kb3DropOptions==='function')?window.kb3DropOptions(fld):null;
+  if(vopts){
     ed=document.createElement('select');
-    var opts=fld==='st'?['','简历&面试中','已offer待入职','已入职','Hold','取消']:['','国内','海外'];
-    opts.forEach(function(o){
+    [''].concat(vopts).forEach(function(o){
       var op=document.createElement('option');op.value=o;op.textContent=o||'（空）';if(o===old)op.selected=true;ed.appendChild(op);});
   }else{
     ed=document.createElement('input');ed.type='text';ed.value=old;
@@ -2663,7 +2668,13 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
   function colDef(c){var i=c-1;return (i>=0&&i<KB3COLS.length)?KB3COLS[i]:null;}   // 编辑态 cell 0=行号，1..=KB3COLS
   function isDataCol(c){return c>=1&&c<=KB3COLS.length;}
   function isEditableCol(c){var d=colDef(c);return !!(d&&d.f[0]!=='_');}
-  function isDropCol(c){var d=colDef(c);return !!(d&&(d.f==='cls'||d.f==='st'));}
+  /* 数据有效性·序列：内置(cls/st) + 用户配置(存 localStorage)；暴露全局供内联编辑器取用 */
+  var KB3VALID={};try{KB3VALID=JSON.parse(localStorage.getItem('hcfb_kb3valid')||'{}');}catch(e){}
+  window.KB3VALID=KB3VALID;
+  var BUILTIN_OPTS={cls:['国内','海外'],st:KB3_ST_OPTS.slice()};
+  function dropOptions(field){if(BUILTIN_OPTS[field])return BUILTIN_OPTS[field];var v=KB3VALID[field];return (v&&v.type==='list'&&v.dropdown!==false&&v.options&&v.options.length)?v.options:null;}
+  window.kb3DropOptions=function(field){return dropOptions(field);};
+  function isDropCol(c){var d=colDef(c);return !!(d&&dropOptions(d.f));}
   function cellAt(r,c){var b=body();if(!b||r<0||r>=b.rows.length)return null;var row=b.rows[r];return (c<0||c>=row.cells.length)?null:row.cells[c];}
   function coordOf(td){var b=body();if(!b||!td)return null;var tr=td.closest('tr');var r=Array.prototype.indexOf.call(b.rows,tr);if(r<0)return null;return {r:r,c:td.cellIndex};}
   function rect(){if(!SEL)return null;return {r0:Math.min(SEL.a.r,SEL.f.r),r1:Math.max(SEL.a.r,SEL.f.r),c0:Math.min(SEL.a.c,SEL.f.c),c1:Math.max(SEL.a.c,SEL.f.c)};}
@@ -2741,8 +2752,8 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
   function openDrop(td){
     if(!USE_API)return alert('连接后端后可用');if(RO)return alert('当前账号为只读权限');
     var tr=td.closest('tr'),rid=tr&&tr.getAttribute('data-rid');if(!rid||rid==='draft')return;
-    var c=td.cellIndex,d=colDef(c);if(!d)return;
-    var opts=d.f==='cls'?['国内','海外']:KB3_ST_OPTS.slice(),cur=td.textContent.trim();
+    var c=td.cellIndex,d=colDef(c);if(!d)return;var opts=dropOptions(d.f);if(!opts)return;
+    var cur=td.textContent.trim();
     var items=[{t:'（清空）',fn:function(){kb3PutField(+rid,d.f,'');}}];
     opts.forEach(function(o){items.push({t:(o===cur?'● ':'○ ')+o,fn:function(){kb3PutField(+rid,d.f,o);}});});
     var r=td.getBoundingClientRect();ctxShow(items,r.left,r.bottom);
@@ -2849,17 +2860,50 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
   });
   /* ===== 编辑态 Excel 工具条：填充 / 有效性 / 查找替换 / 复制粘贴清除 ===== */
   function valOf(rowEl,field){if(!rowEl||!field)return '';var rid=rowEl.getAttribute('data-rid');var rec=(LEDGER||[]).find(function(x){return String(x.id)===String(rid);});return rec?(rec[field]==null?'':String(rec[field])):'';}
+  /* 数据有效性设置弹窗（仿 WPS：允许=序列/日期/任何值，序列填来源+下拉箭头） */
+  var VP=null,vpField=null;
+  function saveValid(){try{localStorage.setItem('hcfb_kb3valid',JSON.stringify(KB3VALID));}catch(e){}}
+  function syncVP(){var list=VP.querySelector('#kb3vType').value==='list';VP.querySelector('#kb3vSrcRow').style.display=list?'flex':'none';VP.querySelector('#kb3vDdRow').style.display=list?'flex':'none';}
+  function buildValidPanel(){
+    VP=document.createElement('div');VP.id='kb3ValidPanel';
+    VP.innerHTML='<div class="vh">数据有效性</div>'
+      +'<div class="fr"><label>应用到</label><span id="kb3vCol" style="font-weight:600;color:var(--blue)"></span></div>'
+      +'<div class="fr"><label>允许(A)</label><select id="kb3vType"><option value="any">任何值</option><option value="list">序列（下拉选择）</option><option value="date">日期(YYYY-MM-DD)</option></select></div>'
+      +'<div class="fr" id="kb3vSrcRow" style="align-items:flex-start"><label>来源(S)</label><textarea id="kb3vSrc" rows="3" placeholder="每个选项一行，或用逗号分隔&#10;例：国内,海外" style="resize:vertical"></textarea></div>'
+      +'<div class="fr" id="kb3vDdRow"><label></label><label style="display:flex;align-items:center;gap:6px;width:auto;color:var(--ink);flex:1"><input type="checkbox" id="kb3vDd" checked style="flex:none;width:auto;margin:0"> 提供下拉箭头(I)</label></div>'
+      +'<div id="kb3vNote" class="hint" style="margin:2px 0 8px"></div>'
+      +'<div class="fa"><button class="btn gray" type="button" id="kb3vClear">全部清除</button><button class="btn gray" type="button" id="kb3vCancel">取消</button><button class="btn" type="button" id="kb3vOk">确定</button></div>';
+    document.body.appendChild(VP);
+    VP.addEventListener('mousedown',function(e){e.stopPropagation();});
+    VP.querySelector('#kb3vType').addEventListener('change',syncVP);
+    VP.querySelector('#kb3vCancel').addEventListener('click',function(){VP.style.display='none';});
+    VP.querySelector('#kb3vClear').addEventListener('click',function(){if(vpField){delete KB3VALID[vpField];saveValid();}VP.style.display='none';renderKb3();if(typeof toast==='function')toast('已清除该列有效性');});
+    VP.querySelector('#kb3vOk').addEventListener('click',function(){
+      if(!vpField)return;var t=VP.querySelector('#kb3vType').value,lab=(KB3COLS.find(function(c){return c.f===vpField;})||{}).l;
+      if(t==='list'){var opts=(VP.querySelector('#kb3vSrc').value||'').split(/[\n,，、]/).map(function(s){return s.trim();}).filter(function(s){return s;});
+        if(!opts.length){if(typeof toast==='function')toast('请先填写序列来源（选项）');return;}
+        KB3VALID[vpField]={type:'list',options:opts,dropdown:VP.querySelector('#kb3vDd').checked};}
+      else if(t==='date'){KB3VALID[vpField]={type:'date'};}else{delete KB3VALID[vpField];}
+      saveValid();VP.style.display='none';renderKb3();if(typeof toast==='function')toast('已设置「'+lab+'」的有效性');
+    });
+  }
   function validity(){
-    if(!SEL){if(typeof toast==='function')toast('先选中一个单元格');return;}
-    var d=colDef(SEL.f.c);if(!d)return;var td=cellAt(SEL.f.r,SEL.f.c);
-    if((d.f==='cls'||d.f==='st')&&td){openDrop(td);return;}
-    var rule;
-    if(d.f==='num')rule='必须 = 1（多名额另起一行）';
-    else if(d.f==='ask'||d.f==='eta'||d.f==='join')rule='日期格式 YYYY-MM-DD';
-    else if(d.f[0]==='_')rule='系统派生列 · 只读，由台账自动算，不可填';
-    else if(['dept','c','own','job','st'].indexOf(d.f)>=0)rule='必填项';
-    else rule='文本 · 选填';
-    if(typeof toast==='function')toast('「'+d.l+'」有效性：'+rule);
+    if(!SEL){if(typeof toast==='function')toast('先选中要设置有效性的列（点该列任一格）');return;}
+    var d=colDef(SEL.f.c);if(!d)return;
+    if(!VP)buildValidPanel();
+    vpField=d.f;
+    var builtin=!!BUILTIN_OPTS[d.f],derived=d.f[0]==='_',cur=KB3VALID[d.f],dis=builtin||derived;
+    VP.querySelector('#kb3vCol').textContent=d.l+(builtin?'（系统内置）':derived?'（系统派生·只读）':'');
+    var typeSel=VP.querySelector('#kb3vType');
+    typeSel.value=builtin?'list':(cur?cur.type:(['ask','eta','join'].indexOf(d.f)>=0?'date':'any'));
+    VP.querySelector('#kb3vSrc').value=builtin?BUILTIN_OPTS[d.f].join('\n'):(cur&&cur.options?cur.options.join('\n'):'');
+    VP.querySelector('#kb3vDd').checked=builtin?true:(cur?cur.dropdown!==false:true);
+    [typeSel,VP.querySelector('#kb3vSrc'),VP.querySelector('#kb3vDd')].forEach(function(el){el.disabled=dis;});
+    VP.querySelector('#kb3vClear').style.display=dis?'none':'';
+    VP.querySelector('#kb3vOk').style.display=dis?'none':'';
+    VP.querySelector('#kb3vNote').textContent=builtin?'系统内置有效性（后端强校验），下拉已启用，不可改。':(derived?'系统派生列·只读，不参与录入。':'选「序列」并勾选下拉箭头后，该列每个格选中即出现 ▼，可从选项里点选填充。');
+    syncVP();
+    VP.style.display='block';VP.style.left=Math.max(8,(window.innerWidth-332)/2)+'px';VP.style.top='118px';
   }
   /* 查找·替换面板 */
   var FP=null;
