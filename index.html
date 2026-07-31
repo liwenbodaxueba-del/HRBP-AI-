@@ -720,20 +720,23 @@ document.addEventListener('mousedown',function(e){var p=document.getElementById(
   if(p&&p.style.display!=='none'&&!(e.target.closest&&e.target.closest('#kb3NotePop'))&&!(e.target.closest&&e.target.closest('#ctxMenu')))closeKb3NotePop();});
 /* ---- 看板1/2 编辑格右键（复制/粘贴/清零/向右填充/备注） ---- */
 function kb1CellMenu(td,ev){
-  var key=td.getAttribute('data-edit'),m=+td.getAttribute('data-m');
-  var v=gV(key,m);var txt=(v===''||v===null||v===undefined)?'':String(v);
-  var items=[
-    {t:'复制',fn:function(){var t=bscSelectionContains(td)?bscSelectionTSV():txt;clipSet(t);}},
-    {t:'粘贴',dis:CLIP.t===null,fn:function(){bscPasteText(CLIP.t,td);}},
-    {t:'清零该格',fn:function(){cellWrite(key,m,null,'');}},
-    {t:'向右填充（至12月）',dis:txt==='',fn:function(){
-      var val=parseFloat(txt),ms=[];
+  var key=td.getAttribute('data-edit'),m=+td.getAttribute('data-m');  // data-edit 只在可编辑格上有
+  var disp=(td.textContent||'').replace(/memo/g,'').trim();  // 用显示值，运算/只读行也安全
+  var items=[{t:'复制',fn:function(){var t=bscSelectionContains(td)?bscSelectionTSV():disp;clipSet(t);}}];
+  if(key&&!isNaN(m)){  // 可编辑格（BP/分支/未发生月）：完整菜单
+    items.push({t:'粘贴',dis:CLIP.t===null,fn:function(){bscPasteText(CLIP.t,td);}});
+    items.push({t:'清零该格',fn:function(){cellWrite(key,m,null,'');}});
+    items.push({t:'向右填充（至12月）',dis:disp==='',fn:function(){
+      var val=parseFloat(disp),ms=[];
       for(var i=m+1;i<12;i++){if(document.querySelector('td[data-edit="'+key+'"][data-m="'+i+'"]'))ms.push(i);}
       (function step(j){if(j>=ms.length)return;cellWrite(key,ms[j],val,undefined,function(){step(j+1);});})(0);
-    }},
-    '-',
-    {t:'备注…',fn:function(){openNotePop(td,ev);}}
-  ];
+    }});
+    items.push('-');
+    items.push({t:'备注…',fn:function(){openNotePop(td,ev);}});
+  }else{  // 只读格（系统数/已发生月锁定/运算行）：仅复制，不可改
+    items.push('-');
+    items.push({t:'只读格·不可改（系统数/已发生月/运算行）',dis:true,fn:function(){}});
+  }
   ctxShow(items,ev.clientX,ev.clientY);
 }
 </script>
@@ -1409,9 +1412,9 @@ function bindCells(){
     });
     td.addEventListener('mouseleave',function(){if(nt)nt.style.display='none';});
   });
-  document.querySelectorAll('#bscTbl td[data-edit],#kb2Tbl td[data-edit]').forEach(function(td){
-    // 260724：双击=进入整行编辑并聚焦本格；右键=Excel式菜单；行首 ✎ 也可进入
-    td.addEventListener('dblclick',function(){rowEditFromCell(td);});
+  document.querySelectorAll('#bscTbl td[data-m],#kb2Tbl td[data-m]').forEach(function(td){
+    // 260724：双击=进入整行编辑并聚焦本格（仅可编辑格）；右键=Excel式菜单（所有格·只读格也拦截浏览器菜单）
+    if(td.getAttribute('data-edit'))td.addEventListener('dblclick',function(){rowEditFromCell(td);});
     td.addEventListener('contextmenu',function(ev){ev.preventDefault();kb1CellMenu(td,ev);});
   });
   document.querySelectorAll('#bscTbl tr[data-drill]').forEach(function(tr){
