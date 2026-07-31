@@ -1967,7 +1967,7 @@ function renderKb3(){
       +ecSt(r)+ec(r,'eta')+ec(r,'memo')
       +ec(r,'offer')+ec(r,'lvl')+ec(r,'join')+ec(r,'jmemo')
       +'<td>'+(v._mo||'—')+'</td><td><span class="chip '+catChip+'">'+(draft?'未保存':v._cat)+'</span></td><td class="num">'+v._days+'</td><td>'+v._over+'</td><td>'+esc(v._one)+'</td>'
-      +'<td class="c" style="text-align:center;white-space:nowrap">'+(draft?'<span style="color:var(--td-warning-color,#ED7B2F)">填写后保存</span>':(r.id?'<span class="rowtool" onclick="kb3EditRow('+r.id+')" title="编辑此行（手动列整行进入编辑态）"><t-icon name="edit-1" size="12"></t-icon></span> <span class="rowtool del" onclick="kb3DelRow('+r.id+')" title="删除此行（审计留痕）"><t-icon name="delete" size="12"></t-icon></span>':''))+'</td></tr>';
+      +'<td class="c" style="text-align:center;white-space:nowrap">'+(draft?'<button class="btn" style="padding:2px 8px;font-size:11px" onclick="kb3SaveDraft()">保存</button><button class="btn gray" style="padding:2px 8px;font-size:11px;margin-left:4px" onclick="kb3CancelDraft()">取消</button>':(r.id?'<span class="rowtool" onclick="kb3EditRow('+r.id+')" title="编辑此行（手动列整行进入编辑态）"><t-icon name="edit-1" size="12"></t-icon></span> <span class="rowtool del" onclick="kb3DelRow('+r.id+')" title="删除此行（审计留痕）"><t-icon name="delete" size="12"></t-icon></span>':''))+'</td></tr>';
   });
   if(!items.length)g+='<tr><td colspan="'+(EDIT?24:23)+'" style="text-align:center;color:#8194AE;padding:22px">'+(totalN?'当前筛选无匹配行 · 点「✕清」清除筛选':'暂无台账数据（全局一份·跨年滚动） · 点上方「导入台账文档」或接数据源')+'</td></tr>';
   document.getElementById('kb3Tbl').innerHTML=g+'</tbody>';
@@ -2340,20 +2340,33 @@ function kb3AddBlank(anchor){
   if(!USE_API)return alert('连接后端后可添加行');
   if(RO)return alert('当前账号为只读权限');
   if(KB3_DRAFT){
-    KB3_EDITING='draft';renderKb3();
+    renderKb3();
     var old=document.querySelector('#kb3Tbl tr[data-rid="draft"]');if(old&&old.scrollIntoView)old.scrollIntoView({block:'center'});
-    var oldInp=old&&old.querySelector('input,select');if(oldInp)oldInp.focus();
     if(typeof toast==='function')toast('已有一条未保存的新行，请先填完或取消');return;
   }
   KB3_DRAFT={id:'draft',_draft:true,_anchor:anchor||null,dept:'',c:'',own:'',src:'',job:'',cls:'',loc:'',ask:'',num:'1',st:'',eta:'',memo:'',offer:'',lvl:'',join:'',jmemo:'',who:''};
-  KB3_EDITING='draft';KB3SORT={f:null,dir:0};KB3F={};
+  KB3_EDITING=null;KB3SORT={f:null,dir:0};KB3F={};   // 不挂整行输入器：新行=普通网格空格，可选中/双击填/粘贴整表
   renderKb3();
   var tr=document.querySelector('#kb3Tbl tr[data-rid="draft"]');if(tr&&tr.scrollIntoView)tr.scrollIntoView({block:'center'});
-  var inp=tr&&tr.querySelector('td[data-f="dept"] input');if(inp)inp.focus();
-  if(typeof toast==='function')toast('空白行已生成：填写必填项后保存');
+  if(typeof toast==='function')toast('空白新行已加：点格子双击填、或右键「粘贴为新增行」整表粘；填好点右侧「保存」');
 }
 /* 添加行按钮已移除；加行改走右键行号「在上方/下方插入行」 */
 kb3InsertRow=function(mode,rid){kb3AddBlank({mode:mode,rid:rid});};
+/* 新行=网格空格：双击/粘贴写进 KB3_DRAFT；点「保存」校验必填后入库（挂 window 供行内 onclick 调用） */
+window.kb3DraftSet=function(f,v){if(KB3_DRAFT){KB3_DRAFT[f]=v;renderKb3();}};
+window.kb3CancelDraft=function(){KB3_DRAFT=null;renderKb3();if(typeof toast==='function')toast('已取消新增，空白行未入库');};
+window.kb3SaveDraft=function(){
+  if(!KB3_DRAFT)return;if(!USE_API)return alert('连接后端后可用');if(RO)return alert('当前账号为只读权限');
+  var miss=KB3_FIELDS.filter(function(d){return d.req&&!String(KB3_DRAFT[d.f]==null?'':KB3_DRAFT[d.f]).trim();}).map(function(d){return d.l;});
+  if(miss.length){if(typeof toast==='function')toast('必填项未填：'+miss.join('、'));return;}
+  if(KB3_DRAFT.num&&Number(KB3_DRAFT.num)!==1){if(typeof toast==='function')toast('招聘数量必须 = 1，多名额另起一行');return;}
+  var fields={};['dept','c','own','src','job','rmgr','cls','loc','ask','num','st','eta','memo','offer','lvl','join','jmemo'].forEach(function(f){var v=String(KB3_DRAFT[f]==null?'':KB3_DRAFT[f]).trim();if(v!=='')fields[f]=v;});
+  var body={fields:fields},a=KB3_DRAFT._anchor;if(a&&a.mode&&a.rid)body[a.mode]=a.rid;
+  fetch('/api/ledger/row',{method:'POST',headers:{'Content-Type':'application/json','X-User':'bonniewbli'},body:JSON.stringify(body)})
+    .then(function(r){return r.json().then(function(j){if(!r.ok)throw j;return j;});})
+    .then(function(j){KB3_DRAFT=null;LEDGER=j.rows||[];renderKb3();if(typeof renderAuditApi==='function'){try{renderAuditApi();}catch(_){}}if(typeof toast==='function')toast('新行已保存入库（审计留痕）');})
+    .catch(function(e){var d=e&&e.detail;if(typeof toast==='function')toast('保存失败：'+(typeof d==='string'?d:JSON.stringify(d||e)));});
+};
 saveKb3Add=function(){
   var fs={},miss=[];
   KB3_FIELDS.forEach(function(d){var el=document.getElementById('kb3f_'+d.f),v=el?el.value.trim():'';
@@ -2464,7 +2477,8 @@ document.addEventListener('dblclick',function(ev){
     if(done)return;done=true;td.classList.remove('kb3-inedit');
     var nv=ed.value;
     if(nv===old){td.textContent=old;return;}
-    if(rid!=='draft'&&window.KB3STAGE){window.KB3STAGE.stage([{rid:rid,field:fld,value:nv}]);return;}
+    if(rid==='draft'){if(typeof kb3DraftSet==='function')kb3DraftSet(fld,nv);return;}   // 新行：写进草稿，点保存才入库
+    if(window.KB3STAGE){window.KB3STAGE.stage([{rid:rid,field:fld,value:nv}]);return;}
     var fs={};fs[fld]=nv;
     api('PUT','/api/ledger/row/'+rid,{fields:fs})
       .then(function(r){LEDGER=r.rows||[];renderKb3();renderAuditApi();})
@@ -2959,18 +2973,20 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
     var grid=text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n');
     if(grid.length&&grid[grid.length-1]==='')grid.pop();
     var rows=grid.map(function(l){return l.split('\t');});
-    var b=body(),R=rect(),byRow={},wrote=0,skip=0;
+    var b=body(),R=rect(),byRow={},wrote=0,skip=0,draftDirty=false;
     var single=rows.length===1&&rows[0].length===1;
     function pv(f,x){return (typeof kb3PasteVal==='function')?kb3PasteVal(f,x):x;}   // 按列格式容错：不符则留空
+    function put(rid,f,val){if(rid==='draft'){if(window.KB3_DRAFT){KB3_DRAFT[f]=val;draftDirty=true;wrote++;}return;}byRow[rid]=byRow[rid]||{};byRow[rid][f]=val;wrote++;}
     if(single){var v=rows[0][0];
-      for(var r=R.r0;r<=R.r1;r++){var tr=b.rows[r],rid=tr&&tr.getAttribute('data-rid');if(!rid||rid==='draft'){skip++;continue;}
-        for(var c=R.c0;c<=R.c1;c++){if(!isEditableCol(c)||isLocked(rid,colDef(c).f)){skip++;continue;}byRow[rid]=byRow[rid]||{};byRow[rid][colDef(c).f]=pv(colDef(c).f,v);wrote++;}}
+      for(var r=R.r0;r<=R.r1;r++){var tr=b.rows[r],rid=tr&&tr.getAttribute('data-rid');if(!rid){skip++;continue;}
+        for(var c=R.c0;c<=R.c1;c++){if(!isEditableCol(c)||isLocked(rid,colDef(c).f)){skip++;continue;}put(rid,colDef(c).f,pv(colDef(c).f,v));}}
     }else{
-      for(var i=0;i<rows.length;i++){var tr2=b.rows[R.r0+i];if(!tr2)break;var rid2=tr2.getAttribute('data-rid');if(!rid2||rid2==='draft'){skip+=rows[i].length;continue;}
-        for(var j=0;j<rows[i].length;j++){var cc=R.c0+j;if(!isDataCol(cc)||!isEditableCol(cc)||isLocked(rid2,colDef(cc).f)){skip++;continue;}byRow[rid2]=byRow[rid2]||{};byRow[rid2][colDef(cc).f]=pv(colDef(cc).f,rows[i][j]);wrote++;}}
+      for(var i=0;i<rows.length;i++){var tr2=b.rows[R.r0+i];if(!tr2)break;var rid2=tr2.getAttribute('data-rid');if(!rid2){skip+=rows[i].length;continue;}
+        for(var j=0;j<rows[i].length;j++){var cc=R.c0+j;if(!isDataCol(cc)||!isEditableCol(cc)||isLocked(rid2,colDef(cc).f)){skip++;continue;}put(rid2,colDef(cc).f,pv(colDef(cc).f,rows[i][j]));}}
     }
     if(!wrote){if(typeof toast==='function')toast('无可写入的单元格（只读/派生列或空行）');return;}
-    writeRows(byRow,'已粘贴 '+wrote+' 格'+(skip?('（跳过 '+skip+'）'):''));
+    if(draftDirty)renderKb3();
+    if(Object.keys(byRow).length)writeRows(byRow,'已粘贴 '+wrote+' 格'+(skip?('（跳过 '+skip+'）'):''));
   }
   document.addEventListener('paste',function(e){
     if(!editable()||!SEL||editing())return;
