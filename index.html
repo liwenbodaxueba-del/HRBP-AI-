@@ -220,6 +220,8 @@ th.sortable:hover{filter:brightness(1.08);}
 #kb3ValidPanel .fa,#kb3SplitPanel .fa{display:flex;gap:8px;justify-content:flex-end;margin-top:6px;}
 #kb3ValidPanel .fa .btn,#kb3SplitPanel .fa .btn{padding:5px 12px;font-size:12px;}
 #kb3SplitPanel .qd{color:var(--blue);cursor:pointer;}#kb3SplitPanel .qd:hover{text-decoration:underline;}
+#kb3ValidPanel .kb3vlink{display:inline-block;margin-top:5px;font-size:11.5px;color:var(--blue);cursor:pointer;}
+#kb3ValidPanel .kb3vlink:hover{text-decoration:underline;}
 #kb3Tbl tr.kb3-draft td{background:#FFFBE6;}
 #kb3Tbl td.kb3-invalid{background:#FFF0ED!important;overflow:visible;}
 #kb3Tbl td.kb3-invalid input,#kb3Tbl td.kb3-invalid select{border:1px solid var(--td-error-color)!important;outline:1px solid var(--td-error-color);}
@@ -2960,13 +2962,22 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
     VP.innerHTML='<div class="vh">数据有效性</div>'
       +'<div class="fr"><label>应用到</label><span id="kb3vCol" style="font-weight:600;color:var(--blue)"></span></div>'
       +'<div class="fr"><label>允许(A)</label><select id="kb3vType"><option value="any">任何值</option><option value="list">序列（下拉选择）</option><option value="date">日期(YYYY-MM-DD)</option></select></div>'
-      +'<div class="fr" id="kb3vSrcRow" style="align-items:flex-start"><label>来源(S)</label><textarea id="kb3vSrc" rows="3" placeholder="每个选项一行，或用逗号分隔&#10;例：国内,海外" style="resize:vertical"></textarea></div>'
+      +'<div class="fr" id="kb3vSrcRow" style="align-items:flex-start"><label>来源(S)</label><div style="flex:1;min-width:0"><textarea id="kb3vSrc" rows="3" placeholder="每个选项一行，或用逗号分隔&#10;例：国内,海外" style="resize:vertical;width:100%"></textarea><a id="kb3vReadSel" class="kb3vlink"><t-icon name="table" size="12" style="vertical-align:-2px"></t-icon> 读取选中区域的值</a></div></div>'
       +'<div class="fr" id="kb3vDdRow"><label></label><label style="display:flex;align-items:center;gap:6px;width:auto;color:var(--ink);flex:1"><input type="checkbox" id="kb3vDd" checked style="flex:none;width:auto;margin:0"> 提供下拉箭头(I)</label></div>'
       +'<div id="kb3vNote" class="hint" style="margin:2px 0 8px"></div>'
       +'<div class="fa"><button class="btn gray" type="button" id="kb3vClear">全部清除</button><button class="btn gray" type="button" id="kb3vCancel">取消</button><button class="btn" type="button" id="kb3vOk">确定</button></div>';
     document.body.appendChild(VP);
     VP.addEventListener('mousedown',function(e){e.stopPropagation();});
     VP.querySelector('#kb3vType').addEventListener('change',syncVP);
+    VP.querySelector('#kb3vReadSel').addEventListener('click',function(){
+      if(!SEL){if(typeof toast==='function')toast('先在表里选中要当作选项的单元格（弹窗开着也能选，选完再点这里）');return;}
+      var R=rect(),b=body(),seen={},vals=[];
+      for(var r=R.r0;r<=R.r1;r++){var tr=b.rows[r];if(!tr||tr.getAttribute('data-rid')==='draft')continue;for(var c=R.c0;c<=R.c1;c++){var d=colDef(c);if(!d)continue;var v=(valOf(tr,d.f)||'').trim();if(v&&!seen[v]){seen[v]=1;vals.push(v);}}}
+      if(!vals.length){if(typeof toast==='function')toast('选中区域没有可用的值');return;}
+      VP.querySelector('#kb3vType').value='list';syncVP();
+      VP.querySelector('#kb3vSrc').value=vals.join('\n');
+      if(typeof toast==='function')toast('已读取 '+vals.length+' 个不重复值');
+    });
     VP.querySelector('#kb3vCancel').addEventListener('click',function(){VP.style.display='none';});
     VP.querySelector('#kb3vClear').addEventListener('click',function(){if(vpField){delete KB3VALID[vpField];saveValid();}VP.style.display='none';renderKb3();if(typeof toast==='function')toast('已清除该列有效性');});
     VP.querySelector('#kb3vOk').addEventListener('click',function(){
