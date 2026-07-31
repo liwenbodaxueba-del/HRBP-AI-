@@ -529,13 +529,12 @@ body.navfold .navtg{left:8px;}
   <h2 class="sec">看板3.1 · 社招滚动台账（招聘需求面板）</h2>
   <div class="imp-bar">
     <label class="imp-btn" for="kb3ImpFile"><t-icon name="upload" style="vertical-align:-2px;margin-right:4px"></t-icon>导入台账文档<input id="kb3ImpFile" type="file" accept=".xlsx,.xls,.csv,application/pdf,.pdf" style="display:none" onchange="kb3Import(this)"></label><button class="btn ghost2" onclick="kb3Tmpl()" title="下载标准模板 xlsx（含分组表头/下拉限制/冻结列/填写说明），照格式填好再导入；不合格整批拒绝"><t-icon name="download" style="vertical-align:-2px;margin-right:4px"></t-icon>下载模板</button>
-    <span id="kb3ImpName" class="imp-name">未导入 · 支持 xlsx/csv（解析入台账）或 pdf（预览）· 仅本地打开</span><span style="flex:1"></span><span class="imp-name" id="kb3FltInfo"></span><button class="btn ghost2" id="kb3EditBtn" onclick="kb3EditToggle()" title="进入编辑态：左侧显示行号、顶部显示列号（A/B/C…），Excel 网格视图"><t-icon name="edit" style="vertical-align:-2px;margin-right:4px"></t-icon>编辑</button><button class="btn ghost2" id="kb3PinBtn" onclick="kb3PinToggle(event)" title="选择要固定的列（可多选）：滑动时固定并完全覆盖其他列"><t-icon name="pin" style="vertical-align:-2px;margin-right:4px"></t-icon>固定列</button><button class="btn ghost2" id="kb3FltBtn" onclick="kb3FltToggle()" title="表头下方出现逐列筛选行（包含匹配）；点列名可排序"><t-icon name="filter" style="vertical-align:-2px;margin-right:4px"></t-icon>筛选</button><button class="btn ghost2" id="kb3ExpandBtn" onclick="kb3ToggleAll()" title="默认固定高度内滚动；点此展开全部行"><t-icon name="chevron-down" style="vertical-align:-2px;margin-right:4px"></t-icon>展开全部</button><button class="btn ghost2" onclick="kb3AddRow()" title="直接新增空白行并进入行内编辑；填好点保存（未填必填不予入库）"><t-icon name="add" style="vertical-align:-2px;margin-right:4px"></t-icon>添加行</button>
-  </div>
+    <span id="kb3ImpName" class="imp-name">未导入 · 支持 xlsx/csv（解析入台账）或 pdf（预览）· 仅本地打开</span><span style="flex:1"></span><span class="imp-name" id="kb3FltInfo"></span><button class="btn ghost2" id="kb3EditBtn" onclick="kb3EditToggle()" title="进入编辑态：左侧显示行号、顶部显示列号（A/B/C…），Excel 网格视图"><t-icon name="edit" style="vertical-align:-2px;margin-right:4px"></t-icon>编辑</button><button class="btn ghost2" id="kb3PinBtn" onclick="kb3PinToggle(event)" title="选择要固定的列（可多选）：滑动时固定并完全覆盖其他列"><t-icon name="pin" style="vertical-align:-2px;margin-right:4px"></t-icon>固定列</button><button class="btn ghost2" id="kb3FltBtn" onclick="kb3FltToggle()" title="表头下方出现逐列筛选行（包含匹配）；点列名可排序"><t-icon name="filter" style="vertical-align:-2px;margin-right:4px"></t-icon>筛选</button><button class="btn ghost2" id="kb3ExpandBtn" onclick="kb3ToggleAll()" title="默认固定高度内滚动；点此展开全部行"><t-icon name="chevron-down" style="vertical-align:-2px;margin-right:4px"></t-icon>展开全部</button>  </div>
   <div id="kb3EditTools" aria-label="编辑态单元格工具"></div>
   <div id="kb3ImpView"></div>
   <div class="tblwrap" id="kb3Wrap"><table class="plain" id="kb3Tbl"></table></div>
   <div class="hint" id="kb3CountInfo" style="color:var(--ink2);font-weight:600;margin-bottom:2px"></div>
-  <div class="hint">点击「添加行」会先生成黄色空白行；部门、中心、业务负责人、招聘岗位、进展为必填，填齐后才能保存入库，取消则不留痕。四段：①需求信息 ②进展阶段 ③入选与入职（①②③=招聘系统取数+BP维护）④系统派生（勿改，自动）。</div>
+  <div class="hint">加行：编辑态右键行号选「在上方/下方插入行」会先生成黄色空白行；部门、中心、业务负责人、招聘岗位、进展为必填，填齐后才能保存入库，取消则不留痕。四段：①需求信息 ②进展阶段 ③入选与入职（①②③=招聘系统取数+BP维护）④系统派生（勿改，自动）。</div>
 
   <h2 class="sec" style="margin-top:20px">看板3.2 · 待流入-社招面板（总结·便核对 · 喂看板1）</h2>
   <div class="yeartabs"></div>
@@ -1701,7 +1700,6 @@ function kb3StChip(st){
 function ecSt(r){var v=r.st==null?'':String(r.st);
   return '<td class="ecell" data-f="st" title="双击编辑">'+(v?'<span class="chip '+kb3StChip(v)+'">'+esc(v)+'</span>':'')+'</td>';}
 function kb3DelRow(id){alert('连接后端后可删除（当前为本地演示模式）');}
-function kb3AddRow(){alert('连接后端后可添加行（当前为本地演示模式）');}
 function kb3EditRow(id){alert('连接后端后可编辑（当前为本地演示模式）');}
 function kb3SaveRow(id){}
 function kb3CancelRow(){}
@@ -2310,7 +2308,7 @@ function kb3AddBlank(anchor){
   var inp=tr&&tr.querySelector('td[data-f="dept"] input');if(inp)inp.focus();
   if(typeof toast==='function')toast('空白行已生成：填写必填项后保存');
 }
-kb3AddRow=function(){kb3AddBlank(null);};
+/* 添加行按钮已移除；加行改走右键行号「在上方/下方插入行」 */
 kb3InsertRow=function(mode,rid){kb3AddBlank({mode:mode,rid:rid});};
 saveKb3Add=function(){
   var fs={},miss=[];
