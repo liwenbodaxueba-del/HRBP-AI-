@@ -265,15 +265,20 @@ function saveAcct(){
 /* ===== 项目 ===== */
 var SECS=['预算阶段','总流出（−）','总流入（＋）','校招∇ 分列','结论'];
 function renderProjs(){
-  var h='<thead><tr><th>项目名称（点击可改）</th><th style="width:150px">数据源</th><th class="c" style="width:120px">可手动添加<br><span style="font-weight:400;font-size:11px">（⊕分支）</span></th><th class="c" style="width:130px">前期数据解绑<br><span style="font-weight:400;font-size:11px">（变更不回溯）</span></th><th class="c" style="width:70px">启用</th><th class="c" style="width:70px">操作</th></tr></thead><tbody>';
+  var h='<thead><tr><th>项目名称（点击可改）</th><th style="width:150px">数据源</th><th class="c" style="width:150px">可手改<br><span style="font-weight:400;font-size:11px">（开=行上出🖊）</span></th><th class="c" style="width:120px">可手动添加<br><span style="font-weight:400;font-size:11px">（⊕分支）</span></th><th class="c" style="width:130px">前期数据解绑<br><span style="font-weight:400;font-size:11px">（变更不回溯）</span></th><th class="c" style="width:70px">启用</th><th class="c" style="width:70px">操作</th></tr></thead><tbody>';
   SECS.forEach(function(sec){
     var rows=projs.filter(function(p){return p.sec===sec;});
     if(!rows.length)return;
-    h+='<tr class="grp"><td colspan="6">'+sec+'</td></tr>';
+    h+='<tr class="grp"><td colspan="7">'+sec+'</td></tr>';
     rows.forEach(function(p){
       var i=projs.indexOf(p);
+      var em=p.edit||(p.srcCls==='bp'?'all':'no');
+      var editCell=(p.srcCls==='bp')
+        ? '<select onchange="pjEdit('+i+',this.value)"><option value="no"'+(em==='no'?' selected':'')+'>不可改</option><option value="all"'+(em==='all'?' selected':'')+'>全年可改</option><option value="future"'+(em==='future'?' selected':'')+'>仅未发生月可改</option></select>'
+        : '<span style="color:#94A3B8;font-size:12px" title="系统取数项，不开放手改">系统取数·—</span>';
       h+='<tr><td><input type="text" value="'+esc(p.name)+'" onchange="pjName('+i+',this.value)">'+(p.sys?'':' <span class="chip demo">自增</span>')+'</td>'
         +'<td><span class="chip '+p.srcCls+'">'+esc(p.src)+'</span></td>'
+        +'<td class="c">'+editCell+'</td>'
         +'<td class="c"><label class="sw"><input type="checkbox" '+(p.add?'checked':'')+' onchange="pjAdd('+i+',this.checked)"><span class="tk"></span></label></td>'
         +'<td class="c"><label class="sw"><input type="checkbox" '+(p.unbind?'checked':'')+' onchange="pjUnb('+i+',this.checked)"><span class="tk"></span></label></td>'
         +'<td class="c"><label class="sw"><input type="checkbox" '+(p.on?'checked':'')+' onchange="pjOn('+i+',this.checked)"><span class="tk"></span></label></td>'
@@ -284,6 +289,7 @@ function renderProjs(){
 }
 function pjName(i,v){var o=projs[i].name;v=v.trim();if(!v){renderProjs();return;}projs[i].name=v;log('改项目名称','「'+o+'」→「'+v+'」'+(projs[i].unbind?'（已解绑：不回溯已发生月，历史快照保持原口径）':'（联动刷新历史）'));}
 function pjAdd(i,v){projs[i].add=v;log('改可手动添加','「'+projs[i].name+'」→ '+(v?'允许 ⊕ 分支':'禁止手动添加'));}
+function pjEdit(i,v){projs[i].edit=v;var lbl={no:'不可改（收起🖊）',all:'全年可改（行上出🖊）','future':'仅未发生月可改（行上出🖊）'};log('改可手改权限','「'+projs[i].name+'」→ '+(lbl[v]||v));}
 function pjUnb(i,v){projs[i].unbind=v;log('改前期数据解绑','「'+projs[i].name+'」→ '+(v?'解绑（变更不回溯已发生月）':'联动（变更刷新全部历史）'));}
 function pjOn(i,v){projs[i].on=v;log(v?'启用项目':'停用项目','「'+projs[i].name+'」'+(v?'':(projs[i].unbind?'（前期数据封存于历史快照）':'（含历史一并隐藏）')));}
 function pjDel(i){var p=projs[i];projs.splice(i,1);log('删除项目','「'+p.name+'」'+(p.unbind?'（前期数据封存）':''));renderProjs();}

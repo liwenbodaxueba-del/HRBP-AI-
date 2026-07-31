@@ -985,6 +985,8 @@ function cfgRow(k){if(!CFG||!CFG.projs)return null;for(var i=0;i<CFG.projs.lengt
 function cfgName(k,d){var r=cfgRow(k);return (r&&r.name)?esc(r.name):d;}
 function cfgOn(k){var r=cfgRow(k);return r?r.on!==false:true;}
 function cfgAdd(k,d){var r=cfgRow(k);return r?!!r.add:d;}
+/* 可手改权限（后台配置）：'no'=不可改 / 'all'=全年可改 / 'future'=仅未发生月可改。有配置用配置，否则用默认 d */
+function cfgEdit(k,d){var r=cfgRow(k);return (r&&r.edit)?r.edit:(d||'no');}
 function secAllow(sec){if(!CFG||!CFG.projs)return true;return CFG.projs.some(function(p){return p.sec===sec&&p.add&&p.on!==false;});}
 function secExtras(sec){if(!CFG||!CFG.projs)return [];return CFG.projs.filter(function(p){return !p.sys&&p.sec===sec&&p.on!==false;});}
 function extraRows(sec,cls){return secExtras(sec).map(function(p){return tr(cls||'sub',esc(p.name)+' <span class="badge bp">后台新增</span>',[],{hideZero:true,tot:''});}).join('');}
@@ -1065,8 +1067,8 @@ function render(){
     // 预估口径
     if(cfgOn('o_sys'))h+=tr('sub',cfgName('o_sys','待流出 · 系统明确'),D.o_sys,{src:'o_sys',hideZero:true,tot:sum(D.o_sys),lockShade:true,mute:'past'});
     if(cfgOn('o_nat'))h+=tr('sub',cfgName('o_nat','待流出 · 自然流失预估')+natBadge(),D.o_nat,{src:'o_nat',hideZero:true,tot:sum(D.o_nat),lockShade:true,mute:'past'});
-    if(cfgOn('o_bp'))h+=tr('sub',cfgName('o_bp','待流出 · 已明确非系统（BP）')+(cfgAdd('o_bp',true)?pen('o_bp'):''),D.o_bp,{src:'o_bp',key:'o_bp',edit:cfgAdd('o_bp',true),hideZero:true,tot:sum(D.o_bp),lockShade:true,mute:'past'});
-    if(cfgOn('o_act'))h+=tr('sub',cfgName('o_act','待流出 · 主动动作（BP）（调节项）')+(cfgAdd('o_act',true)?pen('o_act'):''),D.o_act,{src:'o_act',key:'o_act',edit:cfgAdd('o_act',true),hideZero:true,tot:sum(D.o_act),lockShade:true,mute:'past'});
+    if(cfgOn('o_bp')){var eObp=cfgEdit('o_bp','all');h+=tr('sub',cfgName('o_bp','待流出 · 已明确非系统（BP）')+(eObp!=='no'?pen('o_bp'):''),D.o_bp,{src:'o_bp',key:'o_bp',edit:eObp!=='no',futureOnly:eObp==='future',hideZero:true,tot:sum(D.o_bp),lockShade:true,mute:'past'});}
+    if(cfgOn('o_act')){var eOact=cfgEdit('o_act','all');h+=tr('sub',cfgName('o_act','待流出 · 主动动作（BP）（调节项）')+(eOact!=='no'?pen('o_act'):''),D.o_act,{src:'o_act',key:'o_act',edit:eOact!=='no',futureOnly:eOact==='future',hideZero:true,tot:sum(D.o_act),lockShade:true,mute:'past'});}
     h+=customRows('out');
     h+=extraRows('总流出（−）');
     if(!RO&&secAllow('总流出（−）'))h+=addRowTr('out');
@@ -1103,7 +1105,7 @@ function render(){
         +pen('camp_off');  // 🖊：右侧预估月 BP 手填分配
       h+=tr('sub',campLbl,D.camp_off,{src:'camp',key:'camp_off',edit:true,futureOnly:true,hideZero:true,tot:campTotDisp,lockShade:true,mute:'past'});
     }
-    if(cfgOn('i_incr'))h+=tr('sub',cfgName('i_incr','待流入 · 增量需求（BP）（调节项）')+(cfgAdd('i_incr',true)?pen('i_incr'):''),D.i_incr,{src:'i_incr',key:'i_incr',edit:cfgAdd('i_incr',true),hideZero:true,tot:sum(D.i_incr),lockShade:true,mute:'past'});
+    if(cfgOn('i_incr')){var eIincr=cfgEdit('i_incr','all');h+=tr('sub',cfgName('i_incr','待流入 · 增量需求（BP）（调节项）')+(eIincr!=='no'?pen('i_incr'):''),D.i_incr,{src:'i_incr',key:'i_incr',edit:eIincr!=='no',futureOnly:eIincr==='future',hideZero:true,tot:sum(D.i_incr),lockShade:true,mute:'past'});}
     h+=customRows('inn');
     h+=extraRows('总流入（＋）');
     if(!RO&&secAllow('总流入（＋）'))h+=addRowTr('inn');

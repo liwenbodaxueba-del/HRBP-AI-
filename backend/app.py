@@ -54,7 +54,8 @@ def get_config():
     with db() as c:
         projs = [
             {"key": r["key"], "sec": r["sec"], "name": r["name"], "src": r["src"], "srcCls": r["src_cls"],
-             "add": bool(r["add_ok"]), "unbind": bool(r["unbind"]), "on": bool(r["on_ok"]), "sys": bool(r["sys"])}
+             "add": bool(r["add_ok"]), "unbind": bool(r["unbind"]), "on": bool(r["on_ok"]), "sys": bool(r["sys"]),
+             "edit": (r["edit"] if "edit" in r.keys() else "") or ""}
             for r in c.execute("SELECT * FROM projects ORDER BY pos")
         ]
         accts = [
@@ -77,10 +78,10 @@ def put_config(doc: ConfigDoc, x_user: str = Header("bonniewbli")):
         c.execute("DELETE FROM projects")
         for i, p in enumerate(doc.projs):
             c.execute(
-                "INSERT INTO projects(key,sec,name,src,src_cls,add_ok,unbind,on_ok,sys,pos) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO projects(key,sec,name,src,src_cls,add_ok,unbind,on_ok,sys,pos,edit) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                 (p.get("key") or f"x{int(time.time()*1000)}_{i}", p.get("sec", ""), p.get("name", ""),
                  p.get("src", ""), p.get("srcCls", "bp"), int(bool(p.get("add"))), int(bool(p.get("unbind"))),
-                 int(p.get("on", True)), int(bool(p.get("sys"))), i),
+                 int(p.get("on", True)), int(bool(p.get("sys"))), i, (p.get("edit") or "")),
             )
         c.execute("DELETE FROM accounts")
         for a in doc.accts:

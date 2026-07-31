@@ -98,6 +98,11 @@ def init_db():
                 c.execute(f"ALTER TABLE ledger_rows ADD COLUMN {col} TEXT DEFAULT ''")
             except sqlite3.OperationalError:
                 pass  # 列已存在
+        # ---- 260801 项目「可手改」权限：edit='' (无=按前端默认) / 'no' / 'all' / 'future'（后台可配，看板1 据此出🖊+放开录入范围）----
+        try:
+            c.execute("ALTER TABLE projects ADD COLUMN edit TEXT DEFAULT ''")
+        except sqlite3.OperationalError:
+            pass  # 列已存在
         # ---- 260723 台账日期列自动归一（历史脏数据一次性清洗，幂等：归一函数对已归一值不变）----
         from kb3_ledger import _norm_date as _nd  # 函数级导入避免模块环
         for r in c.execute("SELECT id,ask,tgt,eta,prev_eta,join_dt FROM ledger_rows").fetchall():
