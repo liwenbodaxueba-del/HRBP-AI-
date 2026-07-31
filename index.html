@@ -461,7 +461,7 @@ body.navfold .navtg{left:8px;}
   <div class="sp"></div>
   <span class="sync" id="syncTag"><t-icon name="check-circle-filled" style="vertical-align:-2px;margin-right:3px"></t-icon>已就绪</span>
   <div class="fresh" id="freshTag">数据源：○ 未接入 · 单元格留空待取数</div>
-  <button class="btn" onclick="pullLive()"><t-icon name="refresh" style="vertical-align:-2px;margin-right:3px"></t-icon>实时刷新</button>
+  <button class="btn" onclick="pullNow()"><t-icon name="refresh" style="vertical-align:-2px;margin-right:3px"></t-icon>实时刷新</button>
   <button class="tbi" onclick="helpToggle()" title="帮助（快捷键 ?）"><t-icon name="help-circle" style="margin-right:4px"></t-icon>帮助</button>
   <div class="tbmenu">
     <button class="tbi" onclick="tbToggle('meMenu')"><t-icon name="user-circle"></t-icon> 我的</button>
@@ -891,7 +891,7 @@ function renderYearTabs(){
   document.querySelectorAll('.yeartabs').forEach(function(box){
     box.innerHTML='<span class="ytscroll">'+YEARS.map(function(y){
       return '<span class="ytab'+(y===YEAR?' on':'')+'" onclick="setYear('+y+')">'+y+'<span class="st">'+DATA[y].status+'</span>'+(BASEYEARS.indexOf(y)<0?'<span class="ydel" title="删除该年份页签" onclick="event.stopPropagation();delYear('+y+')"><t-icon name="delete" size="12"></t-icon></span>':'')+'</span>';
-    }).join('')+'<span class="ytab add" title="生成该年份空模板并读取系统数" onclick="openYearAdd()"><t-icon name="add" size="12" style="margin-right:2px"></t-icon>新增年份</span></span>'+'<span class="tin" style="margin-left:auto"><select><option>请选择部门</option><option>云产品五部</option><option>云产品一部</option><option>云产品三部</option></select></span><span class="tctl" onclick="this.querySelector(\'.tsw\').classList.toggle(\'on\')"><span class="tsw on"></span>启用自动同步</span><button class="btn outline" onclick="exportCSV()">导出报表</button>';
+    }).join('')+'<span class="ytab add" title="生成该年份空模板并读取系统数" onclick="openYearAdd()"><t-icon name="add" size="12" style="margin-right:2px"></t-icon>新增年份</span></span>'+'<span class="tin" style="margin-left:auto"><select><option>请选择部门</option><option>云产品五部</option><option>云产品一部</option><option>云产品三部</option></select></span><span class="tctl" onclick="var sw=this.querySelector(\'.tsw\');sw.classList.toggle(\'on\');if(window.setAutoSync)setAutoSync(sw.classList.contains(\'on\'))"><span class="tsw on"></span>启用自动同步</span><button class="btn outline" onclick="exportCSV()">导出报表</button>';
     var onTab=box.querySelector('.ytab.on');
     if(onTab)onTab.parentNode.scrollLeft=Math.max(0,onTab.offsetLeft-60);
   });
@@ -2500,12 +2500,44 @@ function addImportBtn(){
   if(firstBtn){bar.insertBefore(b,firstBtn);bar.insertBefore(db,b);}else{bar.appendChild(db);bar.appendChild(b);}
   bar.appendChild(inp);
 }
+/* ===== 多端实时同步：每 ~3s 轮询 /api/version（=审计表 MAX(id)，任何改动即变），
+   版本变了且本端没在编辑 → 重拉当前视图数据并刷新。无长连接、公网/代理下都稳。===== */
+var SYNC={ver:null,on:true,timer:null,INT:3000};
+function _hhmm(){var t=new Date();return String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0');}
+function syncMark(txt,icon){var el=document.getElementById('syncTag');if(el)el.innerHTML='<t-icon name="'+(icon||'check-circle-filled')+'" style="vertical-align:-2px;margin-right:3px"></t-icon>'+txt;}
+function syncBusy(){
+  var ae=document.activeElement;
+  if(ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))return true;         // 正在输入框里打字
+  if(typeof ROWEDIT!=='undefined'&&ROWEDIT)return true;                    // 看板1/2 整行编辑中
+  if(typeof KB3_EDITING!=='undefined'&&KB3_EDITING!==null)return true;     // 看板3 行编辑/新增草稿中
+  if(window.KB3STAGE&&KB3STAGE.dcount&&KB3STAGE.dcount()>0)return true;     // 看板3 有未保存暂存
+  return false;
+}
+function syncReload(){
+  return loadCfg().then(function(){return loadYear(YEAR);}).then(function(){return loadLedger();})
+    .then(function(){renderAll();if(typeof renderKb3==='function')renderKb3();if(typeof renderAuditApi==='function')renderAuditApi();}).catch(function(){});
+}
+function syncPoll(){
+  if(!USE_API||!SYNC.on)return;
+  api('GET','/api/version').then(function(r){
+    if(SYNC.ver===null){SYNC.ver=r.v;return;}
+    if(r.v!==SYNC.ver){
+      if(syncBusy()){syncMark('有新改动待同步（编辑完自动拉）·'+_hhmm(),'time');return;}  // 编辑中不打断，等空了再拉
+      SYNC.ver=r.v;
+      syncReload().then(function(){syncMark('已同步 '+_hhmm());if(typeof toast==='function')toast('已同步其他端的最新改动');});
+    }
+  }).catch(function(){});
+}
+function syncStart(){if(SYNC.timer)clearInterval(SYNC.timer);SYNC.timer=setInterval(syncPoll,SYNC.INT);}
+window.setAutoSync=function(on){SYNC.on=on;if(on){syncMark('自动同步开 · '+_hhmm());syncPoll();}else{syncMark('自动同步已关','pause-circle-filled');}};
+window.pullNow=function(){if(!USE_API){if(typeof toast==='function')toast('未连接后端');return;}syncMark('拉取中…','loading');return api('GET','/api/version').then(function(r){SYNC.ver=r.v;}).then(syncReload).then(function(){syncMark('已刷新 '+_hhmm());if(typeof toast==='function')toast('已拉取最新数据');});};
 fetch('/api/health').then(function(r){return r.json();}).then(function(h){
   if(!h.ok)throw 0;
   USE_API=true;
   apiTag();
   addImportBtn();
-  return loadCfg().then(loadYears).then(function(){return loadYear(YEAR);}).then(function(){return loadLedger();}).then(function(){return loadPrefs();}).then(function(){return loadSources();}).then(function(){renderAuditApi();});
+  return loadCfg().then(loadYears).then(function(){return loadYear(YEAR);}).then(function(){return loadLedger();}).then(function(){return loadPrefs();}).then(function(){return loadSources();}).then(function(){renderAuditApi();})
+    .then(function(){return api('GET','/api/version');}).then(function(r){SYNC.ver=r.v;SYNC.on=true;syncStart();syncMark('自动同步开 · '+_hhmm());}).catch(function(){});
 }).catch(function(){/* 无后端：本地空态模式 */});
 })();
 </script>
