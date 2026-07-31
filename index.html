@@ -758,7 +758,8 @@ document.addEventListener('contextmenu',function(e){
   var items=[
     {t:'复制单元格',fn:function(){clipSet(txt);}},
     {t:'剪切',dis:!f,fn:function(){clipSet(txt);kb3PutField(rid,f,'');}},
-    {t:'粘贴',dis:!f||CLIP.t===null,fn:function(){kb3PutField(rid,f,CLIP.t);}},
+    {t:'粘贴',dis:!f||CLIP.t===null,fn:function(){kb3PutField(rid,f,kb3PasteVal(f,CLIP.t));}},
+    {t:'粘贴为新增行（整表）',fn:function(){kb3PasteRows();}},
     '-',
     {t:'在上方插入行',fn:function(){kb3InsertRow('before',rid);}},
     {t:'在下方插入行',fn:function(){kb3InsertRow('after',rid);}},
@@ -769,6 +770,42 @@ document.addEventListener('contextmenu',function(e){
   if(hidN)items.push({t:'取消隐藏（'+hidN+' 行）',fn:kb3Unhide});
   ctxShow(items,e.clientX,e.clientY);
 });
+/* ---- 粘贴容错：按列填充，值不符合该列格式(日期/下拉/数量=1)则自动留空，不报错 ---- */
+function kb3PasteVal(f,v){
+  v=(v==null?'':String(v)).replace(/\r|\n/g,'').trim();
+  if(v==='')return '';
+  if(f==='cls')return (v==='国内'||v==='海外')?v:'';
+  if(f==='st')return (typeof KB3_ST_OPTS!=='undefined'&&KB3_ST_OPTS.indexOf(v)>=0)?v:'';
+  if(f==='num')return (v==='1'||Number(v)===1)?'1':'';
+  if(f==='ask'||f==='eta'||f==='join')return /^\d{4}-\d{1,2}-\d{1,2}$/.test(v)?v:'';
+  if(window.KB3VALID&&KB3VALID[f]&&KB3VALID[f].type==='list'&&KB3VALID[f].options)return KB3VALID[f].options.indexOf(v)>=0?v:'';
+  return v;  // 普通文本列：原样填入
+}
+/* ---- 粘贴为新增行：剪贴板整表 → 按列顺序映射为台账新行（格式不符自动留空），逐行入库 ---- */
+function kb3PasteRows(){
+  if(!window.USE_API)return alert('连接后端后可用');
+  if(typeof RO!=='undefined'&&RO)return alert('当前账号为只读权限');
+  var fields=KB3COLS.filter(function(c){return c.f[0]!=='_';}).map(function(c){return c.f;});  // 17 个可写列，按显示顺序
+  function run(text){
+    if(!text||!text.trim()){if(typeof toast==='function')toast('剪贴板为空，先在 Excel 复制表格');return;}
+    var lines=text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n').filter(function(l){return l.trim()!=='';});
+    var rows=lines.map(function(l){return l.split('\t');});
+    var bodies=rows.map(function(cells){var o={};for(var i=0;i<fields.length;i++)o[fields[i]]=kb3PasteVal(fields[i],cells[i]!==undefined?cells[i]:'');if(!o.num)o.num='1';return o;});
+    var added=0,failed=0,errs=[];
+    (function step(i){
+      if(i>=bodies.length){
+        fetch('/api/ledger',{headers:{'X-User':'bonniewbli'}}).then(function(r){return r.json();}).then(function(j){LEDGER=j.rows||[];if(typeof renderKb3==='function')renderKb3();
+          if(typeof toast==='function')toast('已粘贴新增 '+added+' 行'+(failed?('（'+failed+' 行被拒：'+(errs[0]||'缺必填/量级')+'）'):''));});
+        return;
+      }
+      fetch('/api/ledger/row',{method:'POST',headers:{'Content-Type':'application/json','X-User':'bonniewbli'},body:JSON.stringify({fields:bodies[i]})})
+        .then(function(r){return r.json().then(function(j){if(r.ok)added++;else{failed++;if(j&&j.detail)errs.push(typeof j.detail==='string'?j.detail:JSON.stringify(j.detail));}step(i+1);});})
+        .catch(function(){failed++;step(i+1);});
+    })(0);
+  }
+  if(navigator.clipboard&&navigator.clipboard.readText)navigator.clipboard.readText().then(run).catch(function(){run((typeof CLIP!=='undefined')?CLIP.t:'');});
+  else run((typeof CLIP!=='undefined')?CLIP.t:'');
+}
 /* ---- 看板3 速查矩阵格子右键：编辑各人 memo（同步 3.1 台账） ---- */
 document.addEventListener('contextmenu',function(e){
   var td=e.target.closest?e.target.closest('#kb3Sum td[data-cat]'):null;if(!td)return;
@@ -2924,12 +2961,13 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
     var rows=grid.map(function(l){return l.split('\t');});
     var b=body(),R=rect(),byRow={},wrote=0,skip=0;
     var single=rows.length===1&&rows[0].length===1;
+    function pv(f,x){return (typeof kb3PasteVal==='function')?kb3PasteVal(f,x):x;}   // 按列格式容错：不符则留空
     if(single){var v=rows[0][0];
       for(var r=R.r0;r<=R.r1;r++){var tr=b.rows[r],rid=tr&&tr.getAttribute('data-rid');if(!rid||rid==='draft'){skip++;continue;}
-        for(var c=R.c0;c<=R.c1;c++){if(!isEditableCol(c)||isLocked(rid,colDef(c).f)){skip++;continue;}byRow[rid]=byRow[rid]||{};byRow[rid][colDef(c).f]=v;wrote++;}}
+        for(var c=R.c0;c<=R.c1;c++){if(!isEditableCol(c)||isLocked(rid,colDef(c).f)){skip++;continue;}byRow[rid]=byRow[rid]||{};byRow[rid][colDef(c).f]=pv(colDef(c).f,v);wrote++;}}
     }else{
       for(var i=0;i<rows.length;i++){var tr2=b.rows[R.r0+i];if(!tr2)break;var rid2=tr2.getAttribute('data-rid');if(!rid2||rid2==='draft'){skip+=rows[i].length;continue;}
-        for(var j=0;j<rows[i].length;j++){var cc=R.c0+j;if(!isDataCol(cc)||!isEditableCol(cc)||isLocked(rid2,colDef(cc).f)){skip++;continue;}byRow[rid2]=byRow[rid2]||{};byRow[rid2][colDef(cc).f]=rows[i][j];wrote++;}}
+        for(var j=0;j<rows[i].length;j++){var cc=R.c0+j;if(!isDataCol(cc)||!isEditableCol(cc)||isLocked(rid2,colDef(cc).f)){skip++;continue;}byRow[rid2]=byRow[rid2]||{};byRow[rid2][colDef(cc).f]=pv(colDef(cc).f,rows[i][j]);wrote++;}}
     }
     if(!wrote){if(typeof toast==='function')toast('无可写入的单元格（只读/派生列或空行）');return;}
     writeRows(byRow,'已粘贴 '+wrote+' 格'+(skip?('（跳过 '+skip+'）'):''));
