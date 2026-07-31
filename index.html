@@ -2907,7 +2907,8 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
   /* --- 鼠标：单击选中 / 拖拽框选 / Shift 扩选 --- */
   document.addEventListener('mousedown',function(e){
     if(!editable())return;
-    if(e.target.closest('#kb3DD')||e.target.closest('#ctxMenu')||e.target.closest('#kb3Fill')||e.target.closest('#kb3FillOpt'))return;
+    // 点工具条/各功能弹层/浮层：不动选区（否则点「有效性/分列/对齐」等的 mousedown 会先把选区清掉）
+    if(e.target.closest('#kb3DD')||e.target.closest('#ctxMenu')||e.target.closest('#kb3Fill')||e.target.closest('#kb3FillOpt')||e.target.closest('#kb3EditTools')||e.target.closest('#kb3ValidPanel')||e.target.closest('#kb3SplitPanel')||e.target.closest('#kb3FindPanel')||e.target.closest('#kb3ColorPop')||e.target.closest('#kb3ExitDlg'))return;
     var td=e.target.closest?e.target.closest('#kb3Tbl tbody td'):null;
     if(!td){if(!e.target.closest('#kb3Tbl')&&SEL){SEL=null;hideFO();paint();}return;}
     if(td.classList.contains('rc'))return;              // 行号列 → 交给整行选择
