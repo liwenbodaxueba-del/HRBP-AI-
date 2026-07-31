@@ -156,6 +156,9 @@ th.sortable:hover{filter:brightness(1.08);}
 #kb3Tbl .kb3-field-error{display:block;color:var(--td-error-color);font-size:10px;line-height:1.3;margin-top:3px;white-space:nowrap;}
 #kb3Tbl tr.kb3-editing td.ecell{padding:4px;}
 #kb3Tbl thead tr.xlhdr th{position:sticky;top:0;z-index:8;}
+#kb3Tbl thead tr.xlhint th{background:#F5F9FF;color:#8194AE;font-weight:400;font-size:11px;text-align:left;padding:3px 8px;border-top:1px dashed var(--b100);border-bottom:1px solid var(--b100);white-space:normal;line-height:1.35;letter-spacing:.2px;}
+#kb3Tbl thead tr.xlhint th.auto{color:#B0BCD0;font-style:italic;}
+#kb3Tbl thead tr.xlhint th.rc{background:#F2F6FC;}
 /* 操作列不裁切内容：编辑/新增行的「保存＋取消」两个按钮必须都能完整显示（列宽由 124px 保证，见 kb3DefaultWidths / loadPrefs 兜底） */
 #kb3Tbl tbody td:last-child{overflow:visible;}
 /* 编辑/新增行时的固定浮条（保存/取消 始终可见，不受表格横向滚动影响） */
@@ -1660,12 +1663,13 @@ function kb3mo(r){if(r.st==='Hold'||r.st==='取消')return '';var d=(r.st==='已
 function moLbl(ym){if(!ym)return '';var mm=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return mm[+ym.slice(5,7)-1]+'-'+ym.slice(2,4);}
 /* 3.1 排序+逐列筛选（Excel式，仅影响显示；3.2 矩阵与喂看板1口径始终按全量台账） */
 /* 260723晚 列名定版（Bonnie 定 21 列）：需求信息9 + 进展阶段3 + 入职阶段4 + 系统派生5 */
+/* h = 编辑态说明行文案（与「下载模板 xlsx」第3行填写说明 1:1 同步·见 backend/app.py ledger_template） */
 var KB3COLS=[
-  {f:'dept',l:'部门'},{f:'c',l:'中心'},{f:'own',l:'业务负责人'},{f:'src',l:'HC来源备注'},{f:'job',l:'招聘岗位'},{f:'rmgr',l:'招聘经理'},
-  {f:'cls',l:'分类（国内/海外）'},{f:'loc',l:'地点'},{f:'ask',l:'需求提出时间'},{f:'num',l:'招聘数量'},
-  {f:'st',l:'进展（当前状态）'},{f:'eta',l:'预计到岗时间'},{f:'memo',l:'备注（变更原因/招聘卡点）'},
-  {f:'offer',l:'offer人选'},{f:'lvl',l:'人选职级'},{f:'join',l:'实际入职时间'},{f:'jmemo',l:'备注'},
-  {f:'_mo',l:'归月(自动)'},{f:'_cat',l:'计入看板1(自动)'},{f:'_days',l:'招聘周期·天(自动)'},{f:'_over',l:'超期(自动)'},{f:'_one',l:'一句话备注(自动)'}
+  {f:'dept',l:'部门',h:''},{f:'c',l:'中心',h:''},{f:'own',l:'业务负责人',h:'总监/leader'},{f:'src',l:'HC来源备注',h:'离职补录/新增投入/转岗等'},{f:'job',l:'招聘岗位',h:''},{f:'rmgr',l:'招聘经理',h:''},
+  {f:'cls',l:'分类（国内/海外）',h:'下拉'},{f:'loc',l:'地点',h:''},{f:'ask',l:'需求提出时间',h:'YYYY-MM-DD'},{f:'num',l:'招聘数量',h:'必须为1(多名额另起一行)'},
+  {f:'st',l:'进展（当前状态）',h:'下拉;变更即留痕'},{f:'eta',l:'预计到岗时间',h:'改动须填变更原因'},{f:'memo',l:'备注（变更原因/招聘卡点）',h:'到岗变化原因/招聘卡点'},
+  {f:'offer',l:'offer人选',h:''},{f:'lvl',l:'人选职级',h:''},{f:'join',l:'实际入职时间',h:'入职后填,状态改已入职'},{f:'jmemo',l:'备注',h:'如:活水/base城市'},
+  {f:'_mo',l:'归月(自动)',h:'系统自动·按状态归月'},{f:'_cat',l:'计入看板1(自动)',h:'系统自动·勿填'},{f:'_days',l:'招聘周期·天(自动)',h:'系统自动·勿填'},{f:'_over',l:'超期(自动)',h:'系统自动·勿填'},{f:'_one',l:'一句话备注(自动)',h:'系统自动·勿填'}
 ];
 var KB3_ST_OPTS=['需求确认','简历&面试中','已offer待入职','已入职','Hold','取消'];
 var KB3_FROZEN_N=5;  // 冻结列：部门~招聘岗位（滑动时固定并覆盖后列）
@@ -1693,8 +1697,9 @@ function kb3FreezeApply(){
   pin.forEach(function(i){if(i<colRow.cells.length){lefts[i]=x;x+=colRow.cells[i].offsetWidth;}});
   function fix(cell,i,z,bg){if(!cell)return;cell.style.position='sticky';cell.style.left=lefts[i]+'px';cell.style.zIndex=z;if(bg)cell.style.background=bg;}
   var letterRow=t.querySelector('thead tr.xlhdr');
-  // 表头冻结列 z 需高于滚动表头(kb3ApplyClamp 设 col=5/grp=6/letter=8)，否则滚动列会盖住冻结列头
-  [letterRow,colRow].forEach(function(hr){if(hr)pin.forEach(function(i){if(i<hr.cells.length)fix(hr.cells[i],i,10,(hr===letterRow?'#E8EEF7':'var(--b50)'));});});
+  var hintRow=t.querySelector('thead tr.xlhint');
+  // 表头冻结列 z 需高于滚动表头(kb3ApplyClamp 逐级贴顶 z=8..5)，否则滚动列会盖住冻结列头
+  [letterRow,colRow,hintRow].forEach(function(hr){if(hr)pin.forEach(function(i){if(i<hr.cells.length)fix(hr.cells[i],i,10,(hr===letterRow?'#E8EEF7':hr===hintRow?'#F5F9FF':'var(--b50)'));});});
   Array.prototype.forEach.call(t.tBodies.length?t.tBodies[0].rows:[],function(tr){
     if(tr.cells.length<=KB3COLS.length)return;
     pin.forEach(function(i){if(i<tr.cells.length)fix(tr.cells[i],i,2,(i===0&&KB3EDIT?'#F2F6FC':'#fff'));});
@@ -1834,6 +1839,8 @@ function renderKb3(){
       var flt=KB3FON?('<span class="fltarr'+(KB3F[cdef.f]?' on':'')+'" onclick="kb3FltOpen(event,\''+cdef.f+'\')" title="筛选此列（Excel式值勾选）"><t-icon name="chevron-down" size="12"></t-icon></span>'):'';
       return '<th class="sortable" onclick="if(!event.target.closest(\'.colgrip\')&&!event.target.closest(\'.fltarr\'))kb3Sort(\''+cdef.f+'\')" title="点击列名排序（降/升/清除）">'+cdef.l+arr+flt+'</th>';
     }).join('')+'<th style="width:124px">操作'+(Object.keys(KB3F).length?' <span class="rowtool" onclick="kb3ClearFlt()" title="清除全部列筛选"><t-icon name="close" size="12"></t-icon>清</span>':'')+'</th></tr>';
+  // 编辑态：列名下方补「填写说明」行，与「下载模板 xlsx」第3行 1:1 同步（下拉/必填/日期格式/系统派生勿填）
+  if(EDIT)g+='<tr class="xlhint">'+cn+KB3COLS.map(function(cdef){return '<th class="xlhc'+(cdef.f[0]==='_'?' auto':'')+'" data-cf="'+cdef.f+'">'+esc(cdef.h||'')+'</th>';}).join('')+'<th class="xlhc"></th></tr>';
   g+='</thead><tbody>';
   var _rn=0;
   items.forEach(function(it){
@@ -2455,11 +2462,16 @@ function kb3ApplyClamp(){
   else{w.style.height=KB3_H+'px';w.style.minHeight='150px';w.style.overflowY='auto';w.style.resize='vertical';if(drag)drag.style.display=n>8?'':'none';}
   var b=document.getElementById('kb3ExpandBtn');
   if(b){b.style.display=n>8?'':'none';b.innerHTML='<t-icon name="'+(kb3Open?'chevron-up':'chevron-down')+'" style="vertical-align:-2px;margin-right:4px"></t-icon>'+(kb3Open?'收起列表':'展开全部（'+n+' 行）');}
-  /* 两级表头吸顶：分组行贴0，列名行贴分组行下沿 */
-  var grpRow=document.querySelector('#kb3Tbl thead tr.grp');
-  var gh=grpRow?grpRow.offsetHeight:0;
-  document.querySelectorAll('#kb3Tbl thead tr.grp th').forEach(function(th){th.style.position='sticky';th.style.top='0';th.style.zIndex='6';});
-  document.querySelectorAll('#kb3Tbl thead tr.col th').forEach(function(th){th.style.position='sticky';th.style.top=gh+'px';th.style.zIndex='5';});
+  /* 多级表头吸顶：编辑态 字母行→分组行→列名行→说明行 逐级贴顶（非编辑态只有分组行/列名行） */
+  var heads=['tr.xlhdr','tr.grp','tr.col','tr.xlhint']
+    .map(function(sel){return document.querySelector('#kb3Tbl thead '+sel);})
+    .filter(function(r){return r;});
+  var acc=0;
+  heads.forEach(function(row,idx){
+    var top=acc,z=8-idx;
+    row.querySelectorAll('th').forEach(function(th){th.style.position='sticky';th.style.top=top+'px';th.style.zIndex=String(z);});
+    acc+=row.offsetHeight;
+  });
 }
 function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
 (function(){
