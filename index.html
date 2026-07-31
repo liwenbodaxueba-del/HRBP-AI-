@@ -462,9 +462,9 @@ body.navfold .navtg{left:8px;}
   <span class="sync" id="syncTag"><t-icon name="check-circle-filled" style="vertical-align:-2px;margin-right:3px"></t-icon>已就绪</span>
   <div class="fresh" id="freshTag">数据源：○ 未接入 · 单元格留空待取数</div>
   <button class="btn" onclick="pullLive()"><t-icon name="refresh" style="vertical-align:-2px;margin-right:3px"></t-icon>实时刷新</button>
-  <button class="kb3ico" onclick="helpToggle()" title="帮助（快捷键 ?）"><t-icon name="help-circle" style="margin-right:4px"></t-icon>帮助</button>
+  <button class="tbi" onclick="helpToggle()" title="帮助（快捷键 ?）"><t-icon name="help-circle" style="margin-right:4px"></t-icon>帮助</button>
   <div class="tbmenu">
-    <button class="kb3ico" onclick="tbToggle('meMenu')"><t-icon name="user-circle"></t-icon> 我的</button>
+    <button class="tbi" onclick="tbToggle('meMenu')"><t-icon name="user-circle"></t-icon> 我的</button>
     <div class="tbdrop" id="meMenu">
       <div class="ti">iOA：<b>bonniewbli</b><br><small>HRBP·可编辑 · 云产品五部</small></div>
       <a onclick="alert('demo：正式版接 iOA 统一登录')">切换账号</a>
@@ -472,7 +472,7 @@ body.navfold .navtg{left:8px;}
     </div>
   </div>
   <div class="tbmenu">
-    <button class="kb3ico" onclick="tbToggle('moreMenu')"><t-icon name="more" style="margin-right:4px"></t-icon>更多</button>
+    <button class="tbi" onclick="tbToggle('moreMenu')"><t-icon name="more" style="margin-right:4px"></t-icon>更多</button>
     <div class="tbdrop" id="moreMenu">
       <a onclick="goView('ds');tbToggle()"><t-icon name="link" style="vertical-align:-2px;margin-right:6px"></t-icon>数据源接入</a>
       <a onclick="goView('audit');tbToggle()"><t-icon name="usergroup" style="vertical-align:-2px;margin-right:6px"></t-icon>审计日志</a>
@@ -1100,10 +1100,11 @@ function render(){
       var campAlloc=sum(D.camp_off);  // 已分配（Σ手填）
       var campTgt=D.camp_off_tot;     // 数仓目标总数（接口预留·待接入时为空）
       var campTotDisp=(isN(campTgt)&&campTgt!=='')?((isN(campAlloc)?campAlloc:0)+' / 目标'+campTgt):campAlloc;
+      var eCamp=cfgEdit('camp','future');
       var campLbl=cfgName('camp','待流入 · 校招')
         +' <span class="badge snap" style="cursor:help" title="数仓下发·校招已offer待入职总数·实时刷新（待接入时显 —）">系统总数 '+(isN(campTgt)?campTgt:'—')+'</span>'
-        +pen('camp_off');  // 🖊：右侧预估月 BP 手填分配
-      h+=tr('sub',campLbl,D.camp_off,{src:'camp',key:'camp_off',edit:true,futureOnly:true,hideZero:true,tot:campTotDisp,lockShade:true,mute:'past'});
+        +(eCamp!=='no'?pen('camp_off'):'');  // 🖊：右侧预估月 BP 手填分配（可手改权限见后台）
+      h+=tr('sub',campLbl,D.camp_off,{src:'camp',key:'camp_off',edit:eCamp!=='no',futureOnly:eCamp==='future',hideZero:true,tot:campTotDisp,lockShade:true,mute:'past'});
     }
     if(cfgOn('i_incr')){var eIincr=cfgEdit('i_incr','all');h+=tr('sub',cfgName('i_incr','待流入 · 增量需求（BP）（调节项）')+(eIincr!=='no'?pen('i_incr'):''),D.i_incr,{src:'i_incr',key:'i_incr',edit:eIincr!=='no',futureOnly:eIincr==='future',hideZero:true,tot:sum(D.i_incr),lockShade:true,mute:'past'});}
     h+=customRows('inn');
@@ -3188,9 +3189,6 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
     bar.appendChild(tbGroup('查找替换',[
       tbBtn('查找·替换','find',function(e,b){findPanel(b);},'整表查找关键词、批量替换（可限某列）')
     ]));
-    var tip=document.createElement('div');tip.className='grp';tip.style.marginLeft='auto';
-    tip.innerHTML='<div class="lab" style="max-width:230px;white-space:normal;text-align:right;line-height:1.5">改动先暂存·点<b style="color:var(--blue)">保存</b>才落库·<b>Ctrl+Z</b>撤销 · 拖填充柄填充(日期成序列) · Ctrl+C/V、Delete 或右键 · 方向键移动 · 双击/Enter 编辑</div>';
-    bar.appendChild(tip);
     STAGE.bar();
   }
   buildToolbar();

@@ -272,8 +272,9 @@ function renderProjs(){
     h+='<tr class="grp"><td colspan="7">'+sec+'</td></tr>';
     rows.forEach(function(p){
       var i=projs.indexOf(p);
-      var em=p.edit||(p.srcCls==='bp'?'all':'no');
-      var editCell=(p.srcCls==='bp')
+      var editableRow=(p.srcCls==='bp'||p.key==='camp');  // BP行 + 待流入·校招(分配·手填)
+      var em=p.edit||(editableRow?(p.key==='camp'?'future':'all'):'no');
+      var editCell=editableRow
         ? '<select onchange="pjEdit('+i+',this.value)"><option value="no"'+(em==='no'?' selected':'')+'>不可改</option><option value="all"'+(em==='all'?' selected':'')+'>全年可改</option><option value="future"'+(em==='future'?' selected':'')+'>仅未发生月可改</option></select>'
         : '<span style="color:#94A3B8;font-size:12px" title="系统取数项，不开放手改">系统取数·—</span>';
       h+='<tr><td><input type="text" value="'+esc(p.name)+'" onchange="pjName('+i+',this.value)">'+(p.sys?'':' <span class="chip demo">自增</span>')+'</td>'
