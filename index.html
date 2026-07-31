@@ -210,15 +210,16 @@ th.sortable:hover{filter:brightness(1.08);}
 #kb3FindPanel input,#kb3FindPanel select{flex:1;border:1px solid var(--b100);border-radius:6px;padding:5px 8px;font:inherit;box-sizing:border-box;min-width:0;}
 #kb3FindPanel .fa{display:flex;gap:8px;justify-content:flex-end;margin-top:4px;flex-wrap:wrap;}
 #kb3FindPanel .fa .btn{padding:5px 10px;font-size:12px;}
-/* 数据有效性弹窗 */
-#kb3ValidPanel{display:none;position:fixed;z-index:95;width:332px;background:#fff;border:1px solid var(--b100);border-radius:10px;box-shadow:0 14px 40px rgba(10,26,60,.26);padding:14px;font-size:12.5px;}
-#kb3ValidPanel .vh{font-weight:700;color:var(--navy);font-size:14px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--b100);}
-#kb3ValidPanel .fr{display:flex;align-items:center;gap:8px;margin-bottom:9px;}
-#kb3ValidPanel .fr>label{width:56px;color:var(--ink2);flex:none;}
-#kb3ValidPanel select,#kb3ValidPanel textarea{flex:1;border:1px solid var(--b100);border-radius:6px;padding:5px 8px;font:inherit;box-sizing:border-box;min-width:0;}
+/* 数据有效性弹窗 / 文本分列弹窗（共用） */
+#kb3ValidPanel,#kb3SplitPanel{display:none;position:fixed;z-index:95;width:344px;background:#fff;border:1px solid var(--b100);border-radius:10px;box-shadow:0 14px 40px rgba(10,26,60,.26);padding:14px;font-size:12.5px;}
+#kb3ValidPanel .vh,#kb3SplitPanel .vh{font-weight:700;color:var(--navy);font-size:14px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--b100);}
+#kb3ValidPanel .fr,#kb3SplitPanel .fr{display:flex;align-items:center;gap:8px;margin-bottom:9px;}
+#kb3ValidPanel .fr>label,#kb3SplitPanel .fr>label{width:56px;color:var(--ink2);flex:none;}
+#kb3ValidPanel select,#kb3ValidPanel textarea,#kb3SplitPanel input,#kb3SplitPanel select{flex:1;border:1px solid var(--b100);border-radius:6px;padding:5px 8px;font:inherit;box-sizing:border-box;min-width:0;}
 #kb3ValidPanel textarea:disabled,#kb3ValidPanel select:disabled{background:#F2F6FC;color:var(--ink3);}
-#kb3ValidPanel .fa{display:flex;gap:8px;justify-content:flex-end;margin-top:6px;}
-#kb3ValidPanel .fa .btn{padding:5px 12px;font-size:12px;}
+#kb3ValidPanel .fa,#kb3SplitPanel .fa{display:flex;gap:8px;justify-content:flex-end;margin-top:6px;}
+#kb3ValidPanel .fa .btn,#kb3SplitPanel .fa .btn{padding:5px 12px;font-size:12px;}
+#kb3SplitPanel .qd{color:var(--blue);cursor:pointer;}#kb3SplitPanel .qd:hover{text-decoration:underline;}
 #kb3Tbl tr.kb3-draft td{background:#FFFBE6;}
 #kb3Tbl td.kb3-invalid{background:#FFF0ED!important;overflow:visible;}
 #kb3Tbl td.kb3-invalid input,#kb3Tbl td.kb3-invalid select{border:1px solid var(--td-error-color)!important;outline:1px solid var(--td-error-color);}
@@ -3064,6 +3065,54 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
       {t:'顶端对齐',fn:function(){applyFmt({valign:'top'});}},{t:'垂直居中',fn:function(){applyFmt({valign:'middle'});}},{t:'底端对齐',fn:function(){applyFmt({valign:'bottom'});}},'-',
       {t:'清除对齐',fn:function(){applyFmt({align:null,valign:null});}}],r.left,r.bottom);
   }
+  /* --- 文本分列（选中单列 → 按分隔符拆到该列及右侧相邻列；改动入暂存·可撤销）--- */
+  var SP=null;
+  function splitParts(val,delim,merge){var d=delim;if(!d)return [String(val)];var parts=String(val).split(d);if(merge){parts=parts.filter(function(s){return s!=='';});if(!parts.length)parts=[''];}return parts;}
+  function splitPreview(){if(!SP)return;var tr=body().rows[SP._r0],val=valOf(tr,colDef(SP._col).f);
+    var parts=splitParts(val,SP.querySelector('#kb3SplitDelim').value,SP.querySelector('#kb3SplitMerge').checked);
+    var html=parts.map(function(p,i){var tc=SP._col+i,d=colDef(tc);var tgt=(d&&d.f[0]!=='_'&&tc<=KB3COLS.length)?d.l:'⌀丢弃';return '「'+esc(p)+'」→<b>'+esc(tgt)+'</b>';}).join(' ｜ ');
+    SP.querySelector('#kb3SplitPreview').innerHTML='预览(首行)：'+(html||'（空）');}
+  function buildSplitPanel(){
+    SP=document.createElement('div');SP.id='kb3SplitPanel';SP.className='kb3-cfgpanel';
+    SP.innerHTML='<div class="vh">文本分列</div>'
+      +'<div class="hint" style="margin:0 0 8px">把所选<b>单列</b>的文本按分隔符拆开，依次填入该列(<span id="kb3SplitSrcName"></span>)及右侧相邻列——<b style="color:var(--td-warning-color,#ED7B2F)">会覆盖右侧原值</b>，改动先暂存可撤销。</div>'
+      +'<div class="fr"><label>分隔符</label><input id="kb3SplitDelim" placeholder="如 / 或 空格 或 ,"></div>'
+      +'<div class="fr"><label></label><span style="font-size:11.5px;color:var(--ink3)">快速：<a class="qd" data-d=" ">空格</a> · <a class="qd" data-d="\t">Tab</a> · <a class="qd" data-d=",">逗号</a> · <a class="qd" data-d="/">斜杠</a> · <a class="qd" data-d=";">分号</a></span></div>'
+      +'<div class="fr"><label></label><label style="display:flex;align-items:center;gap:6px;width:auto;flex:1;color:var(--ink)"><input type="checkbox" id="kb3SplitMerge" checked style="flex:none;width:auto;margin:0"> 连续分隔符视为一个</label></div>'
+      +'<div id="kb3SplitPreview" class="hint" style="margin:2px 0 8px;word-break:break-all"></div>'
+      +'<div class="fa"><button class="btn gray" type="button" id="kb3SplitCancel">取消</button><button class="btn" type="button" id="kb3SplitOk">分列</button></div>';
+    document.body.appendChild(SP);
+    SP.addEventListener('mousedown',function(e){e.stopPropagation();});
+    SP.querySelector('#kb3SplitDelim').addEventListener('input',splitPreview);
+    SP.querySelector('#kb3SplitMerge').addEventListener('change',splitPreview);
+    SP.querySelectorAll('.qd').forEach(function(a){a.addEventListener('click',function(){SP.querySelector('#kb3SplitDelim').value=a.getAttribute('data-d');splitPreview();});});
+    SP.querySelector('#kb3SplitCancel').addEventListener('click',function(){SP.style.display='none';});
+    SP.querySelector('#kb3SplitOk').addEventListener('click',splitDo);
+  }
+  function splitOpen(){
+    if(!SEL){if(typeof toast==='function')toast('先选中要分列的单列（点该列的格，可多行）');return;}
+    var R=rect();
+    if(R.c0!==R.c1){if(typeof toast==='function')toast('文本分列请只选中一列（可跨多行）');return;}
+    if(!isEditableCol(R.c0)){if(typeof toast==='function')toast('该列不可作为分列源（系统派生/只读）');return;}
+    if(!SP)buildSplitPanel();
+    SP._col=R.c0;SP._r0=R.r0;SP._r1=R.r1;
+    SP.querySelector('#kb3SplitSrcName').textContent=colDef(R.c0).l;
+    splitPreview();
+    SP.style.display='block';SP.style.left=Math.max(8,(window.innerWidth-344)/2)+'px';SP.style.top='118px';
+  }
+  function splitDo(){
+    var col=SP._col,r0=SP._r0,r1=SP._r1,delim=SP.querySelector('#kb3SplitDelim').value,merge=SP.querySelector('#kb3SplitMerge').checked;
+    if(!delim){if(typeof toast==='function')toast('请先输入/选择分隔符');return;}
+    var b=body(),changes=[],maxParts=0,overwrite=false;
+    for(var r=r0;r<=r1;r++){var tr=b.rows[r],rid=tr&&tr.getAttribute('data-rid');if(!rid||rid==='draft')continue;
+      var parts=splitParts(valOf(tr,colDef(col).f),delim,merge);if(parts.length<=1)continue;maxParts=Math.max(maxParts,parts.length);
+      for(var i=0;i<parts.length;i++){var tc=col+i;if(tc>KB3COLS.length)break;var d=colDef(tc);if(!d||d.f[0]==='_')break;if(isLocked(rid,d.f))continue;
+        if(i>0&&valOf(tr,d.f)!=='')overwrite=true;changes.push({rid:rid,field:d.f,value:parts[i]});}}
+    if(!changes.length){if(typeof toast==='function')toast('所选单元格里没找到该分隔符，无可分列');return;}
+    if(overwrite&&!window.confirm('分列会覆盖右侧相邻列的原有数据。\n改动先进暂存，可 Ctrl+Z 撤销或点「取消」放弃。\n确定继续？'))return;
+    STAGE.stage(changes);SP.style.display='none';
+    if(typeof toast==='function')toast('已分列（暂存·最多拆出 '+maxParts+' 段），记得点保存');
+  }
   /* 构建工具条（WPS 风格分块） */
   function tbBtn(label,icon,fn,title){var b=document.createElement('button');b.className='tb';b.type='button';b.title=title||label;b.innerHTML=(icon?'<t-icon name="'+icon+'" size="14"></t-icon>':'')+'<span>'+label+'</span>';b.addEventListener('click',function(e){e.preventDefault();fn(e,b);});return b;}
   function tbGroup(label,btns){var g=document.createElement('div');g.className='grp';var row=document.createElement('div');row.className='row';btns.forEach(function(x){row.appendChild(x);});var lab=document.createElement('div');lab.className='lab';lab.textContent=label;g.appendChild(row);g.appendChild(lab);return g;}
@@ -3080,6 +3129,9 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
     g.appendChild(row);g.appendChild(lab);bar.appendChild(g);
     bar.appendChild(tbGroup('有效性',[
       tbBtn('有效性','',validity,'给列设「序列」下拉等数据有效性；下拉列选中即弹 ▼')
+    ]));
+    bar.appendChild(tbGroup('分列',[
+      tbBtn('分列','',splitOpen,'选中单列后按分隔符拆到该列及右侧相邻列（改动先暂存）')
     ]));
     bar.appendChild(tbGroup('排版',[
       tbBtn('加粗','',function(){toggleFmt('bold',true);},'所选格文字加粗（纯视觉·不影响数据）'),
