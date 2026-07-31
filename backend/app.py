@@ -470,23 +470,32 @@ def demo_load(y: YearNew, x_user: str = Header("bonniewbli")):
                 put("q_init", m, bval)
             # 历史实际月：只随机填「源」单元格（Excel 思路——运算行 o_nat/总流出/总流入/链 由引擎公式现算，不落库）
             rng = random.Random(yy * 97 + 7)  # 每年固定种子：重复导入结果一致（幂等）
-            for m in range(1, lock + 1):
-                put("actual", m, base - m + rng.randint(-2, 2))  # 月末快照·随机波动
-                put("er_out", m, rng.randint(4, 9))  # ER实际离职：o_nat 已发生月由引擎从此带出，未发生月=近n月均值
-                put("o_sys", m, rng.randint(1, 4))
-                put("soc_sys", m, rng.randint(1, 4))  # 社招分列：系统预约入职
-                put("soc_hs", m, rng.randint(0, 2))   # 活水已接offer
-                # 已发生月「实际」口径（每月1号读系统）：计入合计；同月上面的预估行页面标灰仅供对比
-                put("ai_soc", m, rng.randint(1, 5), "【示例】当月实际社招入职（系统读）")
-                put("ai_camp", m, rng.randint(0, 3) if m in (2, 3, 7, 8) else 0, "【示例】当月实际校招入职（系统读）")
-                put("ao_lv", m, rng.randint(2, 6), "【示例】当月实际离职·主动+被动（系统读）")
-                put("ao_tr", m, rng.randint(0, 2), "【示例】当月实际调出（系统读）")
-                if m % 3 == 2:
-                    put("o_bp", m, 1, "【示例】历史月已明确离职1人")
-                if m % 4 == 0:
-                    put("o_act", m, 1, "【示例】历史月计划优化1人")
-                if m % 6 == 4:
-                    put("i_incr", m, 1, "【示例】历史月增量补位1人")
+            # 每个单元格都有数、且合理（示例·便人工核对运算打通）：社招三子行(系统源)全12月；
+            # 已发生月「实际社招入职」≈「待流入·社招」三子行合计（预估准 → 实际≈预测），流出/调节全12月
+            # 一律 ≥1（0=空）：不留 0 值空格
+            for m in range(1, 13):
+                sj = rng.randint(1, 2)   # 社招·已入职（系统·HR数仓）
+                ss = rng.randint(1, 3)   # 社招·待入职（社招系统）
+                sh = rng.randint(1, 2)   # 活水·已offer（活水系统）
+                put("soc_join", m, sj)   # 无备注（避免只读格挂备注）
+                put("soc_sys", m, ss)
+                put("soc_hs", m, sh)
+                put("soc_bp", m, rng.randint(1, 2))
+                put("o_sys", m, rng.randint(1, 3))
+                put("o_bp", m, rng.randint(1, 2))
+                put("o_act", m, rng.randint(1, 2))
+                put("i_incr", m, rng.choice([-2, -1, 1, 2]))  # 调节项：可正可负，非0（0=空）
+                if m <= lock:  # 已发生月·实际口径
+                    put("actual", m, base - m + rng.randint(-2, 2))  # 月末快照
+                    put("er_out", m, rng.randint(4, 9))  # ER实际离职（o_nat 源）
+                    # 实际社招入职 ≈ 待流入·社招三子行合计（sj+ss+sh + 简历面试中≈1），小噪声
+                    put("ai_soc", m, max(1, sj + ss + sh + 1 + rng.randint(-1, 1)), "【示例】实际社招入职（≈待流入·社招·预估准）")
+                    put("ai_camp", m, rng.randint(1, 3), "【示例】当月实际校招入职（系统读）")
+                    put("ao_lv", m, rng.randint(2, 6), "【示例】当月实际离职·主动+被动（系统读）")
+                    put("ao_tr", m, rng.randint(1, 2), "【示例】当月实际调出（系统读）")
+            for m in range(lock + 1, 13):  # 校招 BP 按月分配：仅未发生月
+                put("camp_off", m, rng.randint(1, 4), "【示例】校招BP·按月分配")
+            put("camp_off_tot", 1, 24, "【示例】数仓·校招已offer待入职总数")
             if lock >= 2:
                 put("i_yy", 2, 3, "【示例】春季批次到岗")
             if lock >= 3:
@@ -531,6 +540,12 @@ def demo_load(y: YearNew, x_user: str = Header("bonniewbli")):
                           "VALUES(0,?,?,?,?,?,?,'','','深圳',?,'1','',?,?,?,?,'',?,'',?)",
                           (DEMO_LEDGER_BATCH, "【示例】云产品五部", "【示例】某中心", "【示例】负责人", "【示例】演示行",
                            job, f"{y.year}-{max(lock - 1, 1):02d}-01", st, eta, "【示例】", who, join_dt or jd, who))
+            # 每月放一条「简历&面试中」示例台账，使「社招·简历面试中」（读3.1台账）每月都有一点
+            for mo in range(1, 13):
+                c.execute("INSERT INTO ledger_rows(year,batch,dept,center,owner,src,job,lvl,cls,loc,ask,num,tgt,st,eta,memo,offer,olvl,join_dt,jmemo,who) "
+                          "VALUES(0,?,?,?,?,?,?,'','','深圳',?,'1','','简历&面试中',?,?,'','',?,'',?)",
+                          (DEMO_LEDGER_BATCH, "【示例】云产品五部", "【示例】某中心", "【示例】负责人", "【示例】面试演示",
+                           f"面试岗{mo}", f"{y.year}-{max(mo - 1, 1):02d}-01", f"{y.year}-{mo:02d}-20", "【示例】", "", f"【示例】面试人{mo}"))
         _audit(c, x_user, "导入示例数据",
                f"全部年份页签（含历史归档年填满实际月）：示例(demo标签)填充 {filled} 格（跳过已有数据 {skipped} 格·不覆盖真实数）+ 示例分支/台账4行；页面挂【示例】横幅，说「删除假数」一键全清")
     return get_board(y.year)

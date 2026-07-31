@@ -720,20 +720,23 @@ document.addEventListener('mousedown',function(e){var p=document.getElementById(
   if(p&&p.style.display!=='none'&&!(e.target.closest&&e.target.closest('#kb3NotePop'))&&!(e.target.closest&&e.target.closest('#ctxMenu')))closeKb3NotePop();});
 /* ---- 看板1/2 编辑格右键（复制/粘贴/清零/向右填充/备注） ---- */
 function kb1CellMenu(td,ev){
-  var key=td.getAttribute('data-edit'),m=+td.getAttribute('data-m');
-  var v=gV(key,m);var txt=(v===''||v===null||v===undefined)?'':String(v);
-  var items=[
-    {t:'复制',fn:function(){var t=bscSelectionContains(td)?bscSelectionTSV():txt;clipSet(t);}},
-    {t:'粘贴',dis:CLIP.t===null,fn:function(){bscPasteText(CLIP.t,td);}},
-    {t:'清零该格',fn:function(){cellWrite(key,m,null,'');}},
-    {t:'向右填充（至12月）',dis:txt==='',fn:function(){
-      var val=parseFloat(txt),ms=[];
+  var key=td.getAttribute('data-edit'),m=+td.getAttribute('data-m');  // data-edit 只在可编辑格上有
+  var disp=(td.textContent||'').replace(/memo/g,'').trim();  // 用显示值，运算/只读行也安全
+  var items=[{t:'复制',fn:function(){var t=bscSelectionContains(td)?bscSelectionTSV():disp;clipSet(t);}}];
+  if(key&&!isNaN(m)){  // 可编辑格（BP/分支/未发生月）：完整菜单
+    items.push({t:'粘贴',dis:CLIP.t===null,fn:function(){bscPasteText(CLIP.t,td);}});
+    items.push({t:'清零该格',fn:function(){cellWrite(key,m,null,'');}});
+    items.push({t:'向右填充（至12月）',dis:disp==='',fn:function(){
+      var val=parseFloat(disp),ms=[];
       for(var i=m+1;i<12;i++){if(document.querySelector('td[data-edit="'+key+'"][data-m="'+i+'"]'))ms.push(i);}
       (function step(j){if(j>=ms.length)return;cellWrite(key,ms[j],val,undefined,function(){step(j+1);});})(0);
-    }},
-    '-',
-    {t:'备注…',fn:function(){openNotePop(td,ev);}}
-  ];
+    }});
+    items.push('-');
+    items.push({t:'备注…',fn:function(){openNotePop(td,ev);}});
+  }else{  // 只读格（系统数/已发生月锁定/运算行）：仅复制，不可改
+    items.push('-');
+    items.push({t:'只读格·不可改（系统数/已发生月/运算行）',dis:true,fn:function(){}});
+  }
   ctxShow(items,ev.clientX,ev.clientY);
 }
 </script>
@@ -859,8 +862,8 @@ var srcMap={
   i_soc_join:['看板3.2 · 社招台账','社招·已入职：取自看板3.2（3.1台账 st=已入职 按实际入职月计数），与3.2逐行一致；每格紫角=该月各人一句话备注。上游源系统接口(HR数仓)经台账汇入。','snap'],
   i_soc_wait:['看板3.2 · 社招台账','社招·待入职/活水已offer：取自看板3.2（3.1台账 st=已offer待入职 按预计到岗月计数），与3.2逐行一致；每格紫角=该月各人一句话备注。上游源系统接口(社招系统+活水系统)经台账汇入。','snap'],
   i_soc_intv:['看板3.2 · 社招台账','社招·简历面试中：取自看板3.2（3.1台账 st=简历&面试中 按预计到岗月计数），与3.2逐行一致；每格紫角=该月各人一句话备注。','snap'],
-  soc_join:['HR数仓·实际','社招·已入职：每月读 HR数仓 上月实际社招入职数；计入已发生月合计，未发生月标灰仅供估/实对比。','snap'],
-  soc_wait:['社招系统 ＋ 活水系统','社招·待入职/活水已offer 本行 = 待入职（社招系统·已接offer、已预约入职时间、未入职）＋ 活水已offer（活水系统·已确认活水、已明确调动时间）；未发生月标灰。悬停格看当月算式。','calc'],
+  soc_join:['系统接口·HR数仓','社招·已入职 = 系统接口（HR数仓）读取的实际社招已入职人数。系统数据——非3.1台账、非BP手填。','snap'],
+  soc_wait:['系统接口·社招系统＋活水系统','社招·待入职/活水已offer = 系统接口读取：待入职（社招系统·已接offer、已预约入职时间、未入职）＋ 活水已offer（活水系统·已确认活水、已明确调动时间）。系统数据——非3.1台账、非BP手填。','snap'],
   ai_soc:['招聘系统·实际','每月1号读系统上月实际社招入职数；计入已发生月合计。同月「待流入·社招」预估行标灰仅供估/实对比，不再计入。','snap'],
   ai_camp:['HR数仓·实际','每月1号读系统上月实际校招入职数；计入已发生月合计。同月「待流入·校招」预估行标灰仅供估/实对比。','snap'],
   ao_lv:['HR数仓·实际','每月1号读系统上月实际离职（主动+被动）；计入已发生月合计。同月流出各预估行标灰仅供估/实对比。','snap'],
@@ -883,7 +886,7 @@ function agg(parts){var got=false,s=0;parts.forEach(function(p){if(isN(p)){s+=p;
 /* 社招三子行统一取自看板3.2（3.1台账按 kb3cat 归月计数/一句话备注），看板1 与 3.2 逐行一致（取数口径打通） */
 function socCatCnt(catKey,m){var c=0,any=false;if(typeof LEDGER!=='undefined')LEDGER.forEach(function(r){if(kb3cat(r.st)!==catKey)return;var mo=kb3mo(r);if(!mo||mo.slice(0,4)!==String(YEAR))return;if(+mo.slice(5,7)-1===m){c++;any=true;}});return any?c:'';}
 function socCatNote(catKey,m){var lst=[];if(typeof LEDGER!=='undefined')LEDGER.forEach(function(r){if(kb3cat(r.st)!==catKey)return;var mo=kb3mo(r);if(!mo||mo.slice(0,4)!==String(YEAR))return;if(+mo.slice(5,7)-1===m)lst.push((r.who?r.who+'·':'')+r.job+(r.loc?'('+r.loc+')':'')+'·'+(r.st==='已入职'?r.join+'已入职':'预计'+r.eta+'到岗')+(r.memo?'·'+r.memo:''));});return lst.length?lst.join('\n'):'';}
-function socTot(m){return agg([socCatCnt(KB3CATS[0].key,m),socCatCnt(KB3CATS[1].key,m),socCatCnt(KB3CATS[2].key,m),cSum('soc',m)]);}   // 待流入·社招 = 三子行之和，三行均取自看板3.2（已入职+待入职/活水已offer+简历面试中）+分支；看板1 与看板3.2 逐行一致。估/实双轨只在总流入/总流出层
+function socTot(m){return agg([D.soc_join[m],D.soc_sys[m],D.soc_hs[m],socCatCnt(KB3CATS[2].key,m),cSum('soc',m)]);}   // 待流入·社招 = 已入职(soc_join·系统) + 待入职/活水已offer(soc_sys+soc_hs·系统) + 简历面试中(看板3.2·3.1台账) + 分支。已入职/待入职·活水走系统接口，简历面试中读3.1。估/实双轨只在总流入/总流出层
 function campTot(m){return agg([D.camp_off[m]]);}   // 待流入·校招 = 直接取数仓「校招·已offer待入职」(camp_off) 单一取数；已发生月实际走「已流入·实际校招入职」(ai_camp) 行
 // 估/实双轨：已发生月合计=实际口径行；未发生月合计=预估口径行+分支（与后端 calc_kb1 同口径）
 function outflow(m){return (m<LOCK)?agg([D.ao_lv[m],D.ao_tr[m]]):agg([D.o_sys[m],D.o_nat[m],D.o_bp[m],D.o_act[m],cSum('out',m)]);}
@@ -1001,12 +1004,11 @@ function render(){
       var socA=[];for(var ms=0;ms<12;ms++)socA[ms]=socTot(ms);
       h+=tr('sub',cfgName('i_soc','待流入 · 社招')+' <span class="rowtool" onclick="tg(\'soc\')">'+'<t-icon name="'+(open_.soc?'chevron-down':'chevron-right')+'" size="12"></t-icon>'+'</span><span class="drill"><t-icon name="arrow-down" size="10"></t-icon></span>',socA,{src:'i_soc',hideZero:true,tot:sum(socA),drill:'kb3',lockShade:true,mute:'past'});
       if(open_.soc){
-        // 三子行均取自看板3.2（3.1台账 kb3cat 归月计数 + 一句话备注），与 3.2 逐行一致
-        var joinA=[],joinN=[];for(var _j=0;_j<12;_j++){joinA[_j]=socCatCnt(KB3CATS[0].key,_j);joinN[_j]=socCatNote(KB3CATS[0].key,_j);}
-        h+=tr('sub2','社招· 已入职',joinA,{src:'i_soc_join',hideZero:true,tot:sum(joinA),notes:joinN,lockShade:true,mute:'future'});
-        var waitA=[],waitN=[];for(var _w=0;_w<12;_w++){waitA[_w]=socCatCnt(KB3CATS[1].key,_w);waitN[_w]=socCatNote(KB3CATS[1].key,_w);}
-        h+=tr('sub2','社招· 待入职/活水已offer',waitA,{src:'i_soc_wait',hideZero:true,tot:sum(waitA),notes:waitN,lockShade:true,mute:'past'});
-        var intvA=[],intvN=[];for(var _iv=0;_iv<12;_iv++){intvA[_iv]=socCatCnt(KB3CATS[2].key,_iv);intvN[_iv]=socCatNote(KB3CATS[2].key,_iv);}
+        // 已入职/待入职·活水已offer = 系统数据（系统接口，无 3.1 一句话备注）；简历面试中 = 读3.1台账（带一句话备注）
+        h+=tr('sub2','社招· 已入职',D.soc_join,{src:'soc_join',hideZero:true,tot:sum(D.soc_join),lockShade:true,mute:'future'});
+        var waitA=[];for(var _w=0;_w<12;_w++)waitA[_w]=agg([D.soc_sys[_w],D.soc_hs[_w]]);  // 待入职(社招系统)+活水已offer(活水系统)
+        h+=tr('sub2','社招· 待入职/活水已offer',waitA,{src:'soc_wait',hideZero:true,tot:sum(waitA),lockShade:true,mute:'past'});
+        var intvA=[],intvN=[];for(var _iv=0;_iv<12;_iv++){intvA[_iv]=socCatCnt(KB3CATS[2].key,_iv);intvN[_iv]=socCatNote(KB3CATS[2].key,_iv);}  // 简历面试中：3.1台账（计数+一句话备注）
         h+=tr('sub2','社招· 简历面试中',intvA,{src:'i_soc_intv',hideZero:true,tot:sum(intvA),notes:intvN,lockShade:true,mute:'past'});
         h+=customRows('soc',{deep:true});
         h+=extraRows('社招∇ 分列','sub2');
@@ -1345,7 +1347,7 @@ function fxFor(key,m){
     return '校招待流入（除BP）= '+fxJoin(pyb)+' = '+fxN(agg([D.i_yy[m],D.i_bs[m]]));
   }
   if(key==='i_soc'){
-    var ps=[['+','已入职',socCatCnt(KB3CATS[0].key,m)],['+','待入职/活水已offer',socCatCnt(KB3CATS[1].key,m)],['+','简历面试中',socCatCnt(KB3CATS[2].key,m)]];
+    var ps=[['+','已入职',D.soc_join[m]],['+','待入职/活水已offer',agg([D.soc_sys[m],D.soc_hs[m]])],['+','简历面试中',socCatCnt(KB3CATS[2].key,m)]];
     custom.soc.forEach(function(r){ps.push([r.sign,r.name.slice(0,10),r.vals[m]]);});
     return '社招 = '+fxJoin(ps)+' = '+fxN(socTot(m));
   }
@@ -1410,9 +1412,9 @@ function bindCells(){
     });
     td.addEventListener('mouseleave',function(){if(nt)nt.style.display='none';});
   });
-  document.querySelectorAll('#bscTbl td[data-edit],#kb2Tbl td[data-edit]').forEach(function(td){
-    // 260724：双击=进入整行编辑并聚焦本格；右键=Excel式菜单；行首 ✎ 也可进入
-    td.addEventListener('dblclick',function(){rowEditFromCell(td);});
+  document.querySelectorAll('#bscTbl td[data-m],#kb2Tbl td[data-m]').forEach(function(td){
+    // 260724：双击=进入整行编辑并聚焦本格（仅可编辑格）；右键=Excel式菜单（所有格·只读格也拦截浏览器菜单）
+    if(td.getAttribute('data-edit'))td.addEventListener('dblclick',function(){rowEditFromCell(td);});
     td.addEventListener('contextmenu',function(ev){ev.preventDefault();kb1CellMenu(td,ev);});
   });
   document.querySelectorAll('#bscTbl tr[data-drill]').forEach(function(tr){
@@ -1649,9 +1651,9 @@ function openKb3Add(){
 }
 function closeKb3Add(){document.getElementById('maskKb3').classList.remove('on');if(window.KB3ANCHOR!==undefined)KB3ANCHOR=null;}
 var KB3CATS=[
-  {key:'社招· 已入职',st:'已入职',cal:'取数口径：系统接口（HR数仓·实际社招入职），非3.1台账；喂看板1。此处3.2按3.1台账归月汇总仅供核对。'},
-  {key:'社招· 待入职/活水已offer',st:'已offer待入职',cal:'取数口径：系统接口（社招系统·已接offer待入职 ＋ 活水系统·已确认活水），非3.1台账；喂看板1。此处3.2按3.1台账归月汇总仅供核对。'},
-  {key:'社招· 简历面试中',st:'简历&面试中',cal:'取数口径：读3.1台账（st=简历&面试中，按归月计数）；喂看板1。'}
+  {key:'社招· 已入职',st:'已入职',cal:'取数口径：直接取系统接口（HR数仓·实际社招已入职），非3.1台账。看板1「社招·已入职」取此行 → 两表逐行一致。'},
+  {key:'社招· 待入职/活水已offer',st:'已offer待入职',cal:'取数口径：直接取系统接口（社招系统·待入职 ＋ 活水系统·已offer），非3.1台账。看板1 取此行 → 两表逐行一致。'},
+  {key:'社招· 简历面试中',st:'简历&面试中',cal:'取数口径：读3.1台账（st=简历&面试中·按归月计数）；看板1 取此行。'}
 ];
 function kb3cat(st){var f=KB3CATS.find(function(x){return x.st===st;});return f?f.key:'不计入';}
 function kb3mo(r){if(r.st==='Hold'||r.st==='取消')return '';var d=(r.st==='已入职'?r.join:r.eta);return d?d.slice(0,7):'';}
@@ -1865,12 +1867,14 @@ function renderKb3(){
   var mat={},note={};KB3CATS.forEach(function(c){mat[c.key]=Array(12).fill(0);note[c.key]=[];for(var mn=0;mn<12;mn++)note[c.key][mn]=[];});
   LEDGER.forEach(function(r){var cat=kb3cat(r.st);if(cat==='不计入')return;var mo=kb3mo(r);if(!mo)return;if(mo.slice(0,4)!==String(YEAR))return;var mi=+mo.slice(5,7)-1;
     if(mi>=0&&mi<12){mat[cat][mi]++;note[cat][mi].push((r.who?r.who+'·':'')+r.job+(r.loc?'('+r.loc+')':'')+'·'+(r.st==='已入职'?r.join+'已入职':'预计'+r.eta+'到岗')+(r.memo?'·'+r.memo:''));}});
-  var total=Array(12).fill(0),totNote=[];for(var tm=0;tm<12;tm++){totNote[tm]=[];KB3CATS.forEach(function(c){total[tm]+=mat[c.key][tm];totNote[tm]=totNote[tm].concat(note[c.key][tm]);});}
+  // 已入职/待入职·活水已offer 直接取系统（soc_join / soc_sys+soc_hs），非3.1台账；简历面试中读3.1台账(mat)。看板1 取此三行 → 两表逐行一致
+  var joinSys=[],waitSys=[];for(var _sm=0;_sm<12;_sm++){joinSys[_sm]=isN(D.soc_join[_sm])?D.soc_join[_sm]:'';waitSys[_sm]=agg([D.soc_sys[_sm],D.soc_hs[_sm]]);}
+  var total=[],totNote=[];for(var tm=0;tm<12;tm++){total[tm]=agg([joinSys[tm],waitSys[tm],mat[KB3CATS[2].key][tm]]);totNote[tm]=note[KB3CATS[2].key][tm];}
   var s='<tr><th>计入看板1的行</th>';for(var m=0;m<12;m++)s+='<th>'+moLbl(YEAR+'-'+String(m+1).padStart(2,'0'))+'</th>';s+='<th>全年总数</th></tr>';
   function mr(cls,n,a,nt,catId,cal){var t='<tr class="'+cls+'"><td'+(cal?' title="'+esc(cal).replace(/"/g,'&quot;')+'" style="cursor:help"':'')+'>'+n+'</td>';for(var m=0;m<12;m++){var lst=nt&&nt[m]&&nt[m].length?nt[m]:null;
     var da=(catId&&lst)?(' data-cat="'+esc(catId).replace(/"/g,'&quot;')+'" data-mon="'+(m+1)+'" style="cursor:context-menu"'):'';
     t+='<td'+(lst?' class="hasnote" data-note="'+esc(lst.join('\n')).replace(/"/g,'&quot;')+'"'+da:'')+'>'+(a[m]||'')+(lst?'<span class="memo"></span>':'')+'</td>';}return t+'<td>'+sum(a)+'</td></tr>';}
-  s+=mr('sub',KB3CATS[0].key,mat[KB3CATS[0].key],note[KB3CATS[0].key],KB3CATS[0].key,KB3CATS[0].cal)+mr('sub',KB3CATS[1].key,mat[KB3CATS[1].key],note[KB3CATS[1].key],KB3CATS[1].key,KB3CATS[1].cal)+mr('sub',KB3CATS[2].key,mat[KB3CATS[2].key],note[KB3CATS[2].key],KB3CATS[2].key,KB3CATS[2].cal)+mr('key','待流入-社招（三项加总）',total,totNote);
+  s+=mr('sub',KB3CATS[0].key,joinSys,null,null,KB3CATS[0].cal)+mr('sub',KB3CATS[1].key,waitSys,null,null,KB3CATS[1].cal)+mr('sub',KB3CATS[2].key,mat[KB3CATS[2].key],note[KB3CATS[2].key],KB3CATS[2].key,KB3CATS[2].cal)+mr('key','待流入-社招（三项加总）',total,totNote);
   document.getElementById('kb3Sum').innerHTML=s;
   // 紫角 + 紫色悬浮框（与看板1 备注同款）；内容=各人一句话备注（源自 3.1，右键可就地改 memo·同步）
   var kb3nt=document.getElementById('noteTip');
