@@ -156,6 +156,25 @@ th.sortable:hover{filter:brightness(1.08);}
 #kb3Tbl.kb3-picking,#kb3Tbl.kb3-picking tbody td{cursor:cell;}
 #kb3DD{display:none;position:fixed;z-index:97;width:18px;height:18px;line-height:16px;text-align:center;font-size:9px;color:#fff;background:var(--blue);border:1px solid #fff;border-radius:3px;cursor:pointer;box-sizing:border-box;box-shadow:0 1px 5px rgba(10,46,110,.45);user-select:none;}
 #kb3DD:hover{background:var(--navy);}
+/* 编辑格：去掉悬浮白框——输入框透明填满整格，蓝色边框落在格子上（WPS 手感） */
+#kb3Tbl td.kb3-inedit{box-shadow:inset 0 0 0 2px var(--blue)!important;background:#fff!important;padding:0!important;overflow:visible;}
+#kb3Tbl td.kb3-inedit .kb3-ed,#kb3Tbl td.kb3-inedit input,#kb3Tbl td.kb3-inedit select{height:100%;min-height:24px;}
+.kb3-ed{width:100%;box-sizing:border-box;border:none!important;outline:none!important;background:transparent!important;padding:2px 6px;font:inherit;color:inherit;margin:0;border-radius:0!important;box-shadow:none!important;}
+/* 编辑态 Excel 工具条（WPS 风格分块） */
+#kb3EditTools{display:none;flex-wrap:wrap;align-items:stretch;margin:8px 0 0;padding:4px 2px;background:linear-gradient(#FBFDFF,#EFF5FF);border:1px solid var(--b100);border-radius:8px;}
+#kb3EditTools .grp{display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:2px 10px;}
+#kb3EditTools .grp+.grp{border-left:1px solid var(--b100);}
+#kb3EditTools .grp .row{display:flex;gap:4px;align-items:center;flex:1;}
+#kb3EditTools .grp .lab{font-size:10px;color:var(--ink3);margin-top:3px;letter-spacing:.5px;}
+#kb3EditTools .tb{display:inline-flex;align-items:center;gap:4px;border:1px solid transparent;background:transparent;border-radius:6px;padding:5px 9px;font:inherit;font-size:12px;color:var(--ink);cursor:pointer;white-space:nowrap;}
+#kb3EditTools .tb:hover{background:#fff;border-color:var(--b100);color:var(--blue);}
+#kb3EditTools .tb t-icon{vertical-align:-2px;}
+#kb3FindPanel{display:none;position:fixed;z-index:95;width:302px;background:#fff;border:1px solid var(--b100);border-radius:10px;box-shadow:0 12px 34px rgba(10,26,60,.22);padding:12px;font-size:12.5px;}
+#kb3FindPanel .fr{display:flex;align-items:center;gap:6px;margin-bottom:8px;}
+#kb3FindPanel .fr label{width:46px;color:var(--ink2);flex:none;}
+#kb3FindPanel input,#kb3FindPanel select{flex:1;border:1px solid var(--b100);border-radius:6px;padding:5px 8px;font:inherit;box-sizing:border-box;min-width:0;}
+#kb3FindPanel .fa{display:flex;gap:8px;justify-content:flex-end;margin-top:4px;flex-wrap:wrap;}
+#kb3FindPanel .fa .btn{padding:5px 10px;font-size:12px;}
 #kb3Tbl tr.kb3-draft td{background:#FFFBE6;}
 #kb3Tbl td.kb3-invalid{background:#FFF0ED!important;overflow:visible;}
 #kb3Tbl td.kb3-invalid input,#kb3Tbl td.kb3-invalid select{border:1px solid var(--td-error-color)!important;outline:1px solid var(--td-error-color);}
@@ -465,6 +484,7 @@ body.navfold .navtg{left:8px;}
     <label class="imp-btn" for="kb3ImpFile"><t-icon name="upload" style="vertical-align:-2px;margin-right:4px"></t-icon>导入台账文档<input id="kb3ImpFile" type="file" accept=".xlsx,.xls,.csv,application/pdf,.pdf" style="display:none" onchange="kb3Import(this)"></label><button class="btn ghost2" onclick="kb3Tmpl()" title="下载标准模板 xlsx（含分组表头/下拉限制/冻结列/填写说明），照格式填好再导入；不合格整批拒绝"><t-icon name="download" style="vertical-align:-2px;margin-right:4px"></t-icon>下载模板</button>
     <span id="kb3ImpName" class="imp-name">未导入 · 支持 xlsx/csv（解析入台账）或 pdf（预览）· 仅本地打开</span><span style="flex:1"></span><span class="imp-name" id="kb3FltInfo"></span><button class="btn ghost2" id="kb3EditBtn" onclick="kb3EditToggle()" title="进入编辑态：左侧显示行号、顶部显示列号（A/B/C…），Excel 网格视图"><t-icon name="edit" style="vertical-align:-2px;margin-right:4px"></t-icon>编辑</button><button class="btn ghost2" id="kb3PinBtn" onclick="kb3PinToggle(event)" title="选择要固定的列（可多选）：滑动时固定并完全覆盖其他列"><t-icon name="pin" style="vertical-align:-2px;margin-right:4px"></t-icon>固定列</button><button class="btn ghost2" id="kb3FltBtn" onclick="kb3FltToggle()" title="表头下方出现逐列筛选行（包含匹配）；点列名可排序"><t-icon name="filter" style="vertical-align:-2px;margin-right:4px"></t-icon>筛选</button><button class="btn ghost2" id="kb3ExpandBtn" onclick="kb3ToggleAll()" title="默认固定高度内滚动；点此展开全部行"><t-icon name="chevron-down" style="vertical-align:-2px;margin-right:4px"></t-icon>展开全部</button><button class="btn ghost2" onclick="kb3AddRow()" title="直接新增空白行并进入行内编辑；填好点保存（未填必填不予入库）"><t-icon name="add" style="vertical-align:-2px;margin-right:4px"></t-icon>添加行</button>
   </div>
+  <div id="kb3EditTools" aria-label="编辑态单元格工具"></div>
   <div id="kb3ImpView"></div>
   <div class="tblwrap" id="kb3Wrap"><table class="plain" id="kb3Tbl"></table></div>
   <div class="hint" id="kb3CountInfo" style="color:var(--ink2);font-weight:600;margin-bottom:2px"></div>
@@ -2268,7 +2288,7 @@ function kb3RowEditor(f,old){
       var op=document.createElement('option');op.value=o;op.textContent=o||'（空）';if(o===old)op.selected=true;ed.appendChild(op);});
   }else{ed=document.createElement('input');ed.type='text';ed.value=old;
     if(f==='ask'||f==='eta'||f==='join'||f==='tgt')ed.placeholder='YYYY-MM-DD';}
-  ed.style.cssText='width:100%;min-width:90px;border:1px solid var(--blue-l);border-radius:4px;padding:2px 6px;font:inherit;background:#fff;';
+  ed.className='kb3-ed';ed.style.cssText='';
   return ed;
 }
 window.kb3MountRowEditor=function(id){
@@ -2278,7 +2298,7 @@ window.kb3MountRowEditor=function(id){
     if(td.querySelector('input,select'))return;
     var f=td.getAttribute('data-f'),old=td.textContent;
     td.setAttribute('data-old',old);
-    var ed=kb3RowEditor(f,old);td.textContent='';td.appendChild(ed);
+    var ed=kb3RowEditor(f,old);td.textContent='';td.appendChild(ed);td.classList.add('kb3-inedit');
     ed.addEventListener('input',function(){if(String(id)==='draft'&&KB3_DRAFT)KB3_DRAFT[f]=ed.value;td.classList.remove('kb3-invalid');var er=td.querySelector('.kb3-field-error');if(er)er.remove();ed.removeAttribute('aria-invalid');});
   });
   tr.lastElementChild.innerHTML='<button class="btn" style="padding:2px 8px;font-size:11px" onclick="kb3SaveRow(\''+id+'\')">保存</button><button class="btn gray" style="padding:2px 8px;font-size:11px;margin-left:4px" onclick="kb3CancelRow()">取消</button>';
@@ -2351,11 +2371,11 @@ document.addEventListener('dblclick',function(ev){
     ed=document.createElement('input');ed.type='text';ed.value=old;
     if(fld==='ask'||fld==='eta'||fld==='join')ed.placeholder='YYYY-MM-DD';
   }
-  ed.style.cssText='width:100%;min-width:90px;border:1px solid var(--blue-l);border-radius:4px;padding:2px 6px;font:inherit;background:#fff;';
-  td.textContent='';td.appendChild(ed);ed.focus();
+  ed.className='kb3-ed';ed.style.cssText='';
+  td.textContent='';td.appendChild(ed);td.classList.add('kb3-inedit');ed.focus();
   var done=false;
   function commit(){
-    if(done)return;done=true;
+    if(done)return;done=true;td.classList.remove('kb3-inedit');
     var nv=ed.value;
     if(nv===old){td.textContent=old;return;}
     var fs={};fs[fld]=nv;
@@ -2366,7 +2386,7 @@ document.addEventListener('dblclick',function(ev){
   ed.addEventListener('blur',commit);
   ed.addEventListener('keydown',function(k){
     if(k.key==='Enter')ed.blur();
-    if(k.key==='Escape'){done=true;td.textContent=old;}
+    if(k.key==='Escape'){done=true;td.classList.remove('kb3-inedit');td.textContent=old;}
   });
 });
 kb3Import=function(inp){
@@ -2706,11 +2726,8 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
     var R=rect();if(typeof toast==='function')toast('已复制 '+(R.r1-R.r0+1)+'×'+(R.c1-R.c0+1)+' 格');
   });
   /* --- 粘贴：TSV → 从活动格铺开（单格来源填满整个选区）--- */
-  document.addEventListener('paste',function(e){
-    if(!editable()||!SEL||editing())return;
-    if(!USE_API)return;if(RO){e.preventDefault();return alert('当前账号为只读权限');}
-    var text=e.clipboardData&&e.clipboardData.getData('text/plain');if(text==null)return;
-    e.preventDefault();
+  function applyPaste(text){
+    if(!SEL||!USE_API||RO||text==null)return;
     var grid=text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n');
     if(grid.length&&grid[grid.length-1]==='')grid.pop();
     var rows=grid.map(function(l){return l.split('\t');});
@@ -2725,6 +2742,12 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
     }
     if(!wrote){if(typeof toast==='function')toast('无可写入的单元格（只读/派生列或空行）');return;}
     writeRows(byRow,'已粘贴 '+wrote+' 格'+(skip?('（跳过 '+skip+'）'):''));
+  }
+  document.addEventListener('paste',function(e){
+    if(!editable()||!SEL||editing())return;
+    if(!USE_API)return;if(RO){e.preventDefault();return alert('当前账号为只读权限');}
+    var text=e.clipboardData&&e.clipboardData.getData('text/plain');if(text==null)return;
+    e.preventDefault();applyPaste(text);
   });
   /* --- 鼠标：单击选中 / 拖拽框选 / Shift 扩选 --- */
   document.addEventListener('mousedown',function(e){
@@ -2761,11 +2784,113 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
     if(e.shiftKey&&k!=='Tab'){SEL.f={r:nr,c:nc};}else{SEL={a:{r:nr,c:nc},f:{r:nr,c:nc}};}
     var td2=cellAt(nr,nc);if(td2&&td2.scrollIntoView)td2.scrollIntoView({block:'nearest',inline:'nearest'});paint();
   });
+  /* ===== 编辑态 Excel 工具条：填充 / 有效性 / 查找替换 / 复制粘贴清除 ===== */
+  function valOf(rowEl,field){if(!rowEl||!field)return '';var rid=rowEl.getAttribute('data-rid');var rec=(LEDGER||[]).find(function(x){return String(x.id)===String(rid);});return rec?(rec[field]==null?'':String(rec[field])):'';}
+  function needSel(){if(!SEL){if(typeof toast==='function')toast('先选中单元格或区域');return false;}if(!USE_API){alert('连接后端后可用');return false;}if(RO){alert('当前账号为只读权限');return false;}return true;}
+  function fillDown(){
+    if(!needSel())return;var R=rect(),b=body();
+    if(R.r1<=R.r0){if(typeof toast==='function')toast('选区只有一行——先竖着多选几行再向下填充');return;}
+    var byRow={},n=0;
+    for(var c=R.c0;c<=R.c1;c++){if(!isEditableCol(c))continue;var f=colDef(c).f,v=valOf(b.rows[R.r0],f);
+      for(var r=R.r0+1;r<=R.r1;r++){var tr=b.rows[r],rid=tr&&tr.getAttribute('data-rid');if(!rid||rid==='draft')continue;byRow[rid]=byRow[rid]||{};byRow[rid][f]=v;n++;}}
+    if(!n){if(typeof toast==='function')toast('无可填充的格（只读列/草稿行）');return;}writeRows(byRow,'已向下填充 '+n+' 格');
+  }
+  function fillRight(){
+    if(!needSel())return;var R=rect(),b=body();
+    if(R.c1<=R.c0){if(typeof toast==='function')toast('选区只有一列——先横着多选几列再向右填充');return;}
+    var byRow={},n=0;
+    for(var r=R.r0;r<=R.r1;r++){var tr=b.rows[r],rid=tr&&tr.getAttribute('data-rid');if(!rid||rid==='draft')continue;
+      var src=isEditableCol(R.c0)?valOf(tr,colDef(R.c0).f):'';
+      for(var c=R.c0+1;c<=R.c1;c++){if(!isEditableCol(c))continue;byRow[rid]=byRow[rid]||{};byRow[rid][colDef(c).f]=src;n++;}}
+    if(!n){if(typeof toast==='function')toast('无可填充的格');return;}writeRows(byRow,'已向右填充 '+n+' 格（跨列请留意有效性）');
+  }
+  function validity(){
+    if(!SEL){if(typeof toast==='function')toast('先选中一个单元格');return;}
+    var d=colDef(SEL.f.c);if(!d)return;var td=cellAt(SEL.f.r,SEL.f.c);
+    if((d.f==='cls'||d.f==='st')&&td){openDrop(td);return;}
+    var rule;
+    if(d.f==='num')rule='必须 = 1（多名额另起一行）';
+    else if(d.f==='ask'||d.f==='eta'||d.f==='join')rule='日期格式 YYYY-MM-DD';
+    else if(d.f[0]==='_')rule='系统派生列 · 只读，由台账自动算，不可填';
+    else if(['dept','c','own','job','st'].indexOf(d.f)>=0)rule='必填项';
+    else rule='文本 · 选填';
+    if(typeof toast==='function')toast('「'+d.l+'」有效性：'+rule);
+  }
+  function doCopy(){if(!SEL){if(typeof toast==='function')toast('先选中区域');return;}var t=tsv();if(typeof clipSet==='function')clipSet(t);else if(typeof CLIP!=='undefined')CLIP.t=t;var R=rect();if(typeof toast==='function')toast('已复制 '+(R.r1-R.r0+1)+'×'+(R.c1-R.c0+1)+' 格');}
+  function doPaste(){
+    if(!needSel())return;
+    function run(text){if(text==null||text==='')return applyPaste((typeof CLIP!=='undefined')?CLIP.t:'');applyPaste(text);}
+    if(navigator.clipboard&&navigator.clipboard.readText)navigator.clipboard.readText().then(run).catch(function(){run((typeof CLIP!=='undefined')?CLIP.t:'');});
+    else run((typeof CLIP!=='undefined')?CLIP.t:'');
+  }
+  /* 查找·替换面板 */
+  var FP=null;
+  function findPanel(anchor){
+    if(!FP){
+      FP=document.createElement('div');FP.id='kb3FindPanel';
+      var colOpts='<option value="">全部列</option>'+KB3COLS.filter(function(c){return c.f[0]!=='_';}).map(function(c){return '<option value="'+c.f+'">'+esc(c.l)+'</option>';}).join('');
+      FP.innerHTML='<div class="fr"><label>查找</label><input id="kb3FindQ" placeholder="关键词（包含匹配）"></div>'
+        +'<div class="fr"><label>替换为</label><input id="kb3FindR" placeholder="留空=仅查找"></div>'
+        +'<div class="fr"><label>范围</label><select id="kb3FindCol">'+colOpts+'</select></div>'
+        +'<div class="fa"><button class="btn gray" type="button" id="kb3FindClose">关闭</button><button class="btn" type="button" id="kb3FindNext">查找下一个</button><button class="btn" type="button" id="kb3FindAll">全部替换</button></div>';
+      document.body.appendChild(FP);
+      FP.querySelector('#kb3FindClose').addEventListener('click',function(){FP.style.display='none';});
+      FP.querySelector('#kb3FindNext').addEventListener('click',findNext);
+      FP.querySelector('#kb3FindAll').addEventListener('click',replaceAll);
+      FP.addEventListener('mousedown',function(e){e.stopPropagation();});
+      FP.querySelector('#kb3FindQ').addEventListener('keydown',function(e){if(e.key==='Enter')findNext();});
+    }
+    var r=anchor.getBoundingClientRect();FP.style.left=Math.max(8,Math.min(r.left,window.innerWidth-314))+'px';FP.style.top=(r.bottom+6)+'px';FP.style.display='block';FP.querySelector('#kb3FindQ').focus();
+  }
+  function findCols(col){var cs=[];if(col){var i=KB3COLS.findIndex(function(c){return c.f===col;});if(i>=0)cs.push(i+1);}else for(var c=1;c<=KB3COLS.length;c++)if(colDef(c).f[0]!=='_')cs.push(c);return cs;}
+  function findNext(){
+    var q=(FP.querySelector('#kb3FindQ').value||'').trim();if(!q)return;
+    var cols=findCols(FP.querySelector('#kb3FindCol').value),b=body();if(!b||!cols.length)return;
+    var start=SEL?SEL.f:{r:-1,c:0},total=b.rows.length,found=null;
+    for(var step=1;step<=total&&!found;step++){var r=((start.r+step)%total+total)%total,tr=b.rows[r];
+      for(var k=0;k<cols.length;k++){var c=cols[k],f=colDef(c);if(!f)continue;var v=valOf(tr,f.f);if(v&&v.toLowerCase().indexOf(q.toLowerCase())>=0){found={r:r,c:c};break;}}}
+    if(!found){if(typeof toast==='function')toast('未找到「'+q+'」');return;}
+    SEL={a:found,f:found};var td=cellAt(found.r,found.c);if(td&&td.scrollIntoView)td.scrollIntoView({block:'center',inline:'center'});paint();
+  }
+  function replaceAll(){
+    if(!USE_API){alert('连接后端后可用');return;}if(RO){alert('当前账号为只读权限');return;}
+    var q=(FP.querySelector('#kb3FindQ').value||'').trim();if(!q)return;
+    var rep=FP.querySelector('#kb3FindR').value,cols=findCols(FP.querySelector('#kb3FindCol').value),b=body(),byRow={},n=0;
+    Array.prototype.forEach.call(b.rows,function(tr){var rid=tr.getAttribute('data-rid');if(!rid||rid==='draft')return;
+      cols.forEach(function(c){var f=colDef(c);if(!f||f.f[0]==='_')return;var v=valOf(tr,f.f);if(v&&v.indexOf(q)>=0){byRow[rid]=byRow[rid]||{};byRow[rid][f.f]=v.split(q).join(rep);n++;}});});
+    if(!n){if(typeof toast==='function')toast('没有匹配「'+q+'」的可编辑格');return;}
+    writeRows(byRow,'已替换 '+n+' 格');
+  }
+  /* 构建工具条（WPS 风格分块） */
+  function tbBtn(label,icon,fn,title){var b=document.createElement('button');b.className='tb';b.type='button';b.title=title||label;b.innerHTML=(icon?'<t-icon name="'+icon+'" size="14"></t-icon>':'')+'<span>'+label+'</span>';b.addEventListener('click',function(e){e.preventDefault();fn(e,b);});return b;}
+  function tbGroup(label,btns){var g=document.createElement('div');g.className='grp';var row=document.createElement('div');row.className='row';btns.forEach(function(x){row.appendChild(x);});var lab=document.createElement('div');lab.className='lab';lab.textContent=label;g.appendChild(row);g.appendChild(lab);return g;}
+  function buildToolbar(){
+    var bar=document.getElementById('kb3EditTools');if(!bar)return;bar.innerHTML='';
+    bar.appendChild(tbGroup('填充',[
+      tbBtn('向下填充','arrow-down',fillDown,'把选区首行的值向下填满整个选区（同 Excel Ctrl+D）'),
+      tbBtn('向右填充','',fillRight,'把选区首列的值向右填满（跨列请留意有效性）')
+    ]));
+    bar.appendChild(tbGroup('有效性',[
+      tbBtn('有效性','',validity,'下拉列一键弹出可选值；其它列提示填写规则（日期/必填/只读）')
+    ]));
+    bar.appendChild(tbGroup('查找替换',[
+      tbBtn('查找·替换','search',function(e,b){findPanel(b);},'整表查找关键词、批量替换（可限某列）')
+    ]));
+    bar.appendChild(tbGroup('剪贴板',[
+      tbBtn('复制','',doCopy,'复制选区为表格，可粘进 Excel（同 Ctrl+C）'),
+      tbBtn('粘贴','',doPaste,'从剪贴板按行列粘贴（同 Ctrl+V）'),
+      tbBtn('清空','delete',clearSel,'清空所选可编辑格（同 Delete）')
+    ]));
+    var tip=document.createElement('div');tip.className='grp';tip.style.marginLeft='auto';
+    tip.innerHTML='<div class="lab" style="max-width:180px;white-space:normal;text-align:right;line-height:1.5">选中格后操作 · 方向键移动 · Enter 编辑 · Ctrl+C/V · Delete 清空</div>';
+    bar.appendChild(tip);
+  }
+  buildToolbar();
   /* --- 表格横向/纵向滚动时，重贴选区并跟随 ▼ --- */
   var wrap=document.getElementById('kb3Wrap');
   if(wrap){var tick=false;wrap.addEventListener('scroll',function(){if(tick||!SEL)return;tick=true;requestAnimationFrame(function(){tick=false;paint();});});}
-  /* --- 重渲染后按 (r,c) 索引重贴选区（越界则清空）--- */
-  var _rk=renderKb3;renderKb3=function(){_rk();try{if(SEL){var b=body();if(!b||SEL.f.r>=b.rows.length||SEL.a.r>=b.rows.length){SEL=null;}paint();}}catch(_){}};
+  /* --- 重渲染后：切换工具条显隐 + 按 (r,c) 索引重贴选区（越界则清空）--- */
+  var _rk=renderKb3;renderKb3=function(){_rk();try{var bar=document.getElementById('kb3EditTools');if(bar)bar.style.display=window.KB3EDIT?'flex':'none';if(SEL){var b=body();if(!b||SEL.f.r>=b.rows.length||SEL.a.r>=b.rows.length){SEL=null;}paint();}}catch(_){}};
 })();
 </script>
 </body>
