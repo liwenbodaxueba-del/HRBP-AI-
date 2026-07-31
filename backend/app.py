@@ -769,9 +769,9 @@ def ledger_add_row(e: LedgerEdit, x_user: str = Header("bonniewbli")):
         if vals["cls"] and vals["cls"] not in LEDGER_CLS:
             raise HTTPException(422, "国内/海外 须为：国内 或 海外")
         c.execute(
-            "INSERT INTO ledger_rows(year,batch,dept,center,owner,src,job,lvl,fam,cls,loc,ask,num,tgt,st,eta,prev_eta,memo,offer,olvl,join_dt,jmemo,who) "
-            "VALUES(0,0,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (vals["dept"], vals["center"], vals["owner"], vals["src"], vals["job"], vals["lvl"], vals["fam"], vals["cls"], vals["loc"],
+            "INSERT INTO ledger_rows(year,batch,dept,center,owner,src,job,rmgr,lvl,fam,cls,loc,ask,num,tgt,st,eta,prev_eta,memo,offer,olvl,join_dt,jmemo,who) "
+            "VALUES(0,0,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (vals["dept"], vals["center"], vals["owner"], vals["src"], vals["job"], vals["rmgr"], vals["lvl"], vals["fam"], vals["cls"], vals["loc"],
              vals["ask"], vals["num"], vals["tgt"], vals["st"], vals["eta"], vals["prev_eta"], vals["memo"],
              vals["offer"], vals["olvl"], vals["join_dt"], vals["jmemo"], vals["who"]),
         )
