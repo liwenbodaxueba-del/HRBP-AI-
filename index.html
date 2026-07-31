@@ -181,6 +181,9 @@ th.sortable:hover{filter:brightness(1.08);}
 .kb3sv-state{font-size:10px;color:var(--ink3);letter-spacing:.3px;}
 .kb3sv-state.dirty{color:var(--td-warning-color,#ED7B2F);font-weight:600;}
 #kb3Tbl tbody td.kb3-dirty{background:#FFF7E6!important;}
+/* 复制/剪切 蚂蚁线：虚线蓝框 */
+#kb3Tbl tbody td.kb3-marquee{outline:2px dashed var(--blue)!important;outline-offset:-2px;animation:kb3ants .7s linear infinite;}
+@keyframes kb3ants{0%{outline-color:var(--blue);}50%{outline-color:#9DC1F0;}100%{outline-color:var(--blue);}}
 .kb3-exitmask{display:none;position:fixed;inset:0;z-index:120;background:rgba(10,26,60,.35);align-items:center;justify-content:center;}
 .kb3-exitbox{background:#fff;border-radius:12px;box-shadow:0 18px 50px rgba(10,26,60,.35);padding:20px 22px;width:340px;max-width:calc(100vw - 32px);}
 .kb3-exitbox .t{font-weight:700;font-size:15px;color:var(--navy);margin-bottom:8px;}
@@ -2828,11 +2831,25 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
     for(var r=R.r0;r<=R.r1;r++){var row=b.rows[r],cells=[];for(var c=R.c0;c<=R.c1;c++){var td=row.cells[c];cells.push(td?String(td.textContent).replace(/[\t\r\n]+/g,' ').trim():'');}lines.push(cells.join('\t'));}
     return lines.join('\n');
   }
+  /* 复制/剪切 蚂蚁线：被复制或剪切的选区边框变虚线，粘贴(剪切)或 Esc 后消失 */
+  var MARQUEE=null;
+  function clearMarquee(){var t=T();if(t)Array.prototype.forEach.call(t.querySelectorAll('.kb3-marquee'),function(el){el.classList.remove('kb3-marquee');});MARQUEE=null;}
+  function paintMarquee(){var t=T();if(!t)return;Array.prototype.forEach.call(t.querySelectorAll('.kb3-marquee'),function(el){el.classList.remove('kb3-marquee');});
+    if(!MARQUEE||!editable())return;var b=body();if(!b||MARQUEE.r1>=b.rows.length)return;
+    for(var r=MARQUEE.r0;r<=MARQUEE.r1;r++){var row=b.rows[r];if(!row)continue;for(var c=MARQUEE.c0;c<=MARQUEE.c1;c++){var td=row.cells[c];if(td)td.classList.add('kb3-marquee');}}}
+  function markClip(cut){var R=rect();if(!R)return;MARQUEE={r0:R.r0,r1:R.r1,c0:R.c0,c1:R.c1,cut:!!cut};paintMarquee();}
   document.addEventListener('copy',function(e){
     if(!editable()||!SEL||editing())return;
     var t=tsv();try{e.clipboardData.setData('text/plain',t);}catch(_){}
-    if(typeof CLIP!=='undefined')CLIP.t=t;e.preventDefault();
+    if(typeof CLIP!=='undefined')CLIP.t=t;e.preventDefault();markClip(false);
     var R=rect();if(typeof toast==='function')toast('已复制 '+(R.r1-R.r0+1)+'×'+(R.c1-R.c0+1)+' 格');
+  });
+  document.addEventListener('cut',function(e){
+    if(!editable()||!SEL||editing())return;
+    if(!USE_API){return;}if(RO){e.preventDefault();return alert('当前账号为只读权限');}
+    var t=tsv();try{e.clipboardData.setData('text/plain',t);}catch(_){}
+    if(typeof CLIP!=='undefined')CLIP.t=t;e.preventDefault();markClip(true);
+    var R=rect();if(typeof toast==='function')toast('已剪切 '+(R.r1-R.r0+1)+'×'+(R.c1-R.c0+1)+' 格 · 粘贴后清空原处');
   });
   /* --- 粘贴：TSV → 从活动格铺开（单格来源填满整个选区）--- */
   function applyPaste(text){
@@ -2857,6 +2874,9 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
     if(!USE_API)return;if(RO){e.preventDefault();return alert('当前账号为只读权限');}
     var text=e.clipboardData&&e.clipboardData.getData('text/plain');if(text==null)return;
     e.preventDefault();applyPaste(text);
+    if(MARQUEE&&MARQUEE.cut){var b=body(),cc=[];for(var r=MARQUEE.r0;r<=MARQUEE.r1;r++){var tr=b.rows[r],rid=tr&&tr.getAttribute('data-rid');if(!rid||rid==='draft')continue;
+      for(var c=MARQUEE.c0;c<=MARQUEE.c1;c++){if(!isEditableCol(c))continue;var f=colDef(c);if(f.f==='num')continue;cc.push({rid:rid,field:f.f,value:''});}}
+      if(cc.length)STAGE.stage(cc);clearMarquee();}
   });
   /* --- 鼠标：单击选中 / 拖拽框选 / Shift 扩选 --- */
   document.addEventListener('mousedown',function(e){
@@ -2884,7 +2904,7 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
     if(!editable()||!SEL||editing())return;
     var k=e.key;
     if((e.ctrlKey||e.metaKey)&&/^[cvxCVX]$/.test(k))return;   // 复制/粘贴/剪切走原生事件
-    if(k==='Escape'){SEL=null;paint();return;}
+    if(k==='Escape'){SEL=null;clearMarquee();paint();return;}
     if(k==='Delete'||k==='Backspace'){e.preventDefault();clearSel();return;}
     if(k==='Enter'||k==='F2'){e.preventDefault();var td=cellAt(SEL.f.r,SEL.f.c);if(td){if(isDropCol(SEL.f.c))openDrop(td);else startInline(td);}return;}
     var dr=0,dc=0;
@@ -3031,7 +3051,7 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
   var wrap=document.getElementById('kb3Wrap');
   if(wrap){var tick=false;wrap.addEventListener('scroll',function(){hideFO();if(tick||!SEL)return;tick=true;requestAnimationFrame(function(){tick=false;paint();});});}
   /* --- 重渲染后：工具条显隐 + 暂存值覆盖 + 状态 + 重贴选区（越界则清空）--- */
-  var _rk=renderKb3;renderKb3=function(){_rk();try{var bar=document.getElementById('kb3EditTools');if(bar)bar.style.display=window.KB3EDIT?'flex':'none';STAGE.overlay();STAGE.bar();if(SEL){var b=body();if(!b||SEL.f.r>=b.rows.length||SEL.a.r>=b.rows.length){SEL=null;}paint();}}catch(_){}};
+  var _rk=renderKb3;renderKb3=function(){_rk();try{var bar=document.getElementById('kb3EditTools');if(bar)bar.style.display=window.KB3EDIT?'flex':'none';STAGE.overlay();STAGE.bar();if(SEL){var b=body();if(!b||SEL.f.r>=b.rows.length||SEL.a.r>=b.rows.length){SEL=null;}paint();}paintMarquee();}catch(_){}};
 })();
 </script>
 </body>
