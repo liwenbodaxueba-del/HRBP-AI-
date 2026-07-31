@@ -181,6 +181,14 @@ th.sortable:hover{filter:brightness(1.08);}
 .kb3sv-state{font-size:10px;color:var(--ink3);letter-spacing:.3px;}
 .kb3sv-state.dirty{color:var(--td-warning-color,#ED7B2F);font-weight:600;}
 #kb3Tbl tbody td.kb3-dirty{background:#FFF7E6!important;}
+/* 排版·颜色盘 */
+#kb3ColorPop{display:none;position:fixed;z-index:97;background:#fff;border:1px solid var(--b100);border-radius:8px;box-shadow:0 10px 30px rgba(10,26,60,.24);padding:8px;width:180px;}
+#kb3ColorPop .cprow{margin-bottom:6px;}
+#kb3ColorPop .cpclear{font-size:11.5px;color:var(--ink2);cursor:pointer;padding:2px 4px;border-radius:4px;}
+#kb3ColorPop .cpclear:hover{background:var(--b50);color:var(--blue);}
+#kb3ColorPop .cpgrid{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;}
+#kb3ColorPop .cpsw{width:18px;height:18px;border-radius:3px;cursor:pointer;border:1px solid rgba(10,46,110,.15);box-sizing:border-box;}
+#kb3ColorPop .cpsw:hover{transform:scale(1.15);box-shadow:0 0 0 2px var(--blue);}
 /* 锁定单元格：灰色斜纹底 + 小锁角标 */
 #kb3Tbl tbody td.kb3-locked{background:repeating-linear-gradient(45deg,#EEF1F6,#EEF1F6 5px,#E4E9F2 5px,#E4E9F2 10px)!important;color:var(--ink3);}
 #kb3Tbl tbody td.kb3-locked::after{content:'🔒';font-size:8px;position:absolute;top:1px;right:2px;opacity:.5;pointer-events:none;}
@@ -2706,6 +2714,10 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
   function isLocked(rid,field){return !!(KB3LOCK['col:'+field]||KB3LOCK['cell:'+rid+':'+field]);}
   window.kb3IsLocked=function(rid,field){return isLocked(rid,field);};
   function saveLock(){try{localStorage.setItem('hcfb_kb3lock',JSON.stringify(KB3LOCK));}catch(e){}}
+  /* 单元格排版(纯视觉·存本地·不入库)：字体色/填充色/加粗/对齐/换行；cell:rid:字段 覆盖 col:字段 */
+  var KB3FMT={};try{KB3FMT=JSON.parse(localStorage.getItem('hcfb_kb3fmt')||'{}');}catch(e){}
+  function saveFmt(){try{localStorage.setItem('hcfb_kb3fmt',JSON.stringify(KB3FMT));}catch(e){}}
+  function fmtOf(rid,field){var col=KB3FMT['col:'+field]||{},cell=KB3FMT['cell:'+rid+':'+field]||{},m={},k;for(k in col)m[k]=col[k];for(k in cell)m[k]=cell[k];return m;}
   function cellAt(r,c){var b=body();if(!b||r<0||r>=b.rows.length)return null;var row=b.rows[r];return (c<0||c>=row.cells.length)?null:row.cells[c];}
   function coordOf(td){var b=body();if(!b||!td)return null;var tr=td.closest('tr');var r=Array.prototype.indexOf.call(b.rows,tr);if(r<0)return null;return {r:r,c:td.cellIndex};}
   function rect(){if(!SEL)return null;return {r0:Math.min(SEL.a.r,SEL.f.r),r1:Math.max(SEL.a.r,SEL.f.r),c0:Math.min(SEL.a.c,SEL.f.c),c1:Math.max(SEL.a.c,SEL.f.c)};}
@@ -3025,6 +3037,33 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
   window.kb3LockCol=function(field){KB3LOCK['col:'+field]=1;saveLock();renderKb3();if(typeof toast==='function')toast('已锁定整列');};
   window.kb3UnlockCol=function(field){delete KB3LOCK['col:'+field];Object.keys(KB3LOCK).forEach(function(k){if(k.indexOf('cell:')===0&&k.slice(k.lastIndexOf(':')+1)===field)delete KB3LOCK[k];});saveLock();renderKb3();if(typeof toast==='function')toast('已解锁整列');};
   window.kb3ColLocked=function(field){return !!KB3LOCK['col:'+field];};
+  /* --- 单元格排版：应用到选区(cell级)、渲染后打样式、颜色盘/对齐菜单 --- */
+  function paintFmt(){var t=T();if(!t||!t.tBodies[0])return;
+    Array.prototype.forEach.call(t.tBodies[0].rows,function(tr){var rid=tr.getAttribute('data-rid');if(!rid)return;
+      Array.prototype.forEach.call(tr.cells,function(td){var f=td.getAttribute('data-f');if(!f)return;var m=fmtOf(rid,f);
+        td.style.background=m.fill||'';td.style.color=m.color||'';td.style.fontWeight=m.bold?'700':'';
+        td.style.textAlign=m.align||'';td.style.verticalAlign=m.valign||'';
+        if(m.wrap){td.style.whiteSpace='normal';td.style.wordBreak='break-word';}else{td.style.whiteSpace='';td.style.wordBreak='';}});});}
+  function selEachCell(cb){var R=rect(),b=body();if(!R)return 0;var n=0;for(var r=R.r0;r<=R.r1;r++){var tr=b.rows[r],rid=tr&&tr.getAttribute('data-rid');if(!rid||rid==='draft')continue;for(var c=R.c0;c<=R.c1;c++){var d=colDef(c);if(!d||d.f[0]==='_')continue;cb(rid,d.f);n++;}}return n;}
+  function applyFmt(patch){if(!SEL){if(typeof toast==='function')toast('先选中要设置格式的格');return;}
+    var n=selEachCell(function(rid,f){var key='cell:'+rid+':'+f,m=KB3FMT[key]||{},k;for(k in patch){if(patch[k]===null||patch[k]===''||patch[k]===false)delete m[k];else m[k]=patch[k];}if(Object.keys(m).length)KB3FMT[key]=m;else delete KB3FMT[key];});
+    if(!n){if(typeof toast==='function')toast('所选无可排版的格');return;}saveFmt();renderKb3();}
+  function activeFmt(){if(!SEL)return {};var tr=body()&&body().rows[SEL.f.r],d=colDef(SEL.f.c);if(!tr||!d)return {};return fmtOf(tr.getAttribute('data-rid'),d.f);}
+  function toggleFmt(key,onVal){var cur=activeFmt()[key];var patch={};patch[key]=cur?false:onVal;applyFmt(patch);}
+  var PALETTE=['#000000','#434B5C','#8194AE','#FFFFFF','#D54941','#ED7B2F','#E8B339','#2BA471','#0052D9','#834EC2','#FDE2E2','#FCE7D2','#FBF2CD','#D7F0E3','#D4E3FC','#E9DFF7'];
+  var CPOP=null;
+  function colorPop(anchor,onPick){
+    if(!CPOP){CPOP=document.createElement('div');CPOP.id='kb3ColorPop';document.body.appendChild(CPOP);CPOP.addEventListener('mousedown',function(e){e.stopPropagation();});
+      document.addEventListener('mousedown',function(e){if(CPOP.style.display==='block'&&!e.target.closest('#kb3ColorPop')&&!e.target.closest('#kb3EditTools'))CPOP.style.display='none';});}
+    CPOP.innerHTML='<div class="cprow"><span class="cpclear" data-c="">✕ 无</span></div><div class="cpgrid">'+PALETTE.map(function(c){return '<i class="cpsw" data-c="'+c+'" style="background:'+c+'"></i>';}).join('')+'</div>';
+    CPOP.querySelectorAll('[data-c]').forEach(function(el){el.addEventListener('click',function(){onPick(el.getAttribute('data-c'));CPOP.style.display='none';});});
+    var r=anchor.getBoundingClientRect();CPOP.style.left=Math.max(8,Math.min(r.left,window.innerWidth-190))+'px';CPOP.style.top=(r.bottom+4)+'px';CPOP.style.display='block';
+  }
+  function alignMenu(anchor){var r=anchor.getBoundingClientRect();
+    ctxShow([{t:'左对齐',fn:function(){applyFmt({align:'left'});}},{t:'水平居中',fn:function(){applyFmt({align:'center'});}},{t:'右对齐',fn:function(){applyFmt({align:'right'});}},'-',
+      {t:'顶端对齐',fn:function(){applyFmt({valign:'top'});}},{t:'垂直居中',fn:function(){applyFmt({valign:'middle'});}},{t:'底端对齐',fn:function(){applyFmt({valign:'bottom'});}},'-',
+      {t:'清除对齐',fn:function(){applyFmt({align:null,valign:null});}}],r.left,r.bottom);
+  }
   /* 构建工具条（WPS 风格分块） */
   function tbBtn(label,icon,fn,title){var b=document.createElement('button');b.className='tb';b.type='button';b.title=title||label;b.innerHTML=(icon?'<t-icon name="'+icon+'" size="14"></t-icon>':'')+'<span>'+label+'</span>';b.addEventListener('click',function(e){e.preventDefault();fn(e,b);});return b;}
   function tbGroup(label,btns){var g=document.createElement('div');g.className='grp';var row=document.createElement('div');row.className='row';btns.forEach(function(x){row.appendChild(x);});var lab=document.createElement('div');lab.className='lab';lab.textContent=label;g.appendChild(row);g.appendChild(lab);return g;}
@@ -3041,6 +3080,13 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
     g.appendChild(row);g.appendChild(lab);bar.appendChild(g);
     bar.appendChild(tbGroup('有效性',[
       tbBtn('有效性','',validity,'给列设「序列」下拉等数据有效性；下拉列选中即弹 ▼')
+    ]));
+    bar.appendChild(tbGroup('排版',[
+      tbBtn('加粗','',function(){toggleFmt('bold',true);},'所选格文字加粗（纯视觉·不影响数据）'),
+      tbBtn('字体色','',function(e,b){colorPop(b,function(c){applyFmt({color:c});});},'设所选格字体颜色'),
+      tbBtn('填充色','',function(e,b){colorPop(b,function(c){applyFmt({fill:c});});},'设所选格背景填充色'),
+      tbBtn('对齐','',function(e,b){alignMenu(b);},'水平/垂直对齐'),
+      tbBtn('换行','',function(){toggleFmt('wrap',true);},'所选格自动换行开关')
     ]));
     bar.appendChild(tbGroup('锁定',[
       tbBtn('锁定','',lockSel,'锁定所选单元格：不可编辑/填充/粘贴/清空（整列锁请右键列头）'),
@@ -3081,7 +3127,7 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
   var wrap=document.getElementById('kb3Wrap');
   if(wrap){var tick=false;wrap.addEventListener('scroll',function(){hideFO();if(tick||!SEL)return;tick=true;requestAnimationFrame(function(){tick=false;paint();});});}
   /* --- 重渲染后：工具条显隐 + 暂存值覆盖 + 状态 + 重贴选区（越界则清空）--- */
-  var _rk=renderKb3;renderKb3=function(){_rk();try{var bar=document.getElementById('kb3EditTools');if(bar)bar.style.display=window.KB3EDIT?'flex':'none';paintLocks();STAGE.overlay();STAGE.bar();if(SEL){var b=body();if(!b||SEL.f.r>=b.rows.length||SEL.a.r>=b.rows.length){SEL=null;}paint();}paintMarquee();}catch(_){}};
+  var _rk=renderKb3;renderKb3=function(){_rk();try{var bar=document.getElementById('kb3EditTools');if(bar)bar.style.display=window.KB3EDIT?'flex':'none';paintFmt();paintLocks();STAGE.overlay();STAGE.bar();if(SEL){var b=body();if(!b||SEL.f.r>=b.rows.length||SEL.a.r>=b.rows.length){SEL=null;}paint();}paintMarquee();}catch(_){}};
 })();
 </script>
 </body>
