@@ -484,7 +484,7 @@ def demo_load(y: YearNew, x_user: str = Header("bonniewbli")):
                 put("o_sys", m, rng.randint(1, 3))
                 put("o_bp", m, rng.randint(1, 2))
                 put("o_act", m, rng.randint(1, 2))
-                put("i_incr", m, rng.randint(1, 2))
+                put("i_incr", m, rng.choice([-2, -1, 1, 2]))  # 调节项：可正可负，非0（0=空）
                 if m <= lock:  # 已发生月·实际口径
                     put("actual", m, base - m + rng.randint(-2, 2))  # 月末快照
                     put("er_out", m, rng.randint(4, 9))  # ER实际离职（o_nat 源）
