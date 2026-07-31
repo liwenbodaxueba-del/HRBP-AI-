@@ -1633,7 +1633,7 @@ function saveKb3Add(){alert('连接后端后可添加行（当前为本地演示
 /* 台账添加行弹窗：必填标★，前端先校验，后端 422 再兜底 */
 var KB3_FIELDS=[
   {f:'dept',l:'部门',req:1},{f:'c',l:'中心',req:1},{f:'own',l:'业务负责人',req:1},{f:'src',l:'HC来源备注'},
-  {f:'job',l:'招聘岗位',req:1},{f:'cls',l:'分类（国内/海外）',sel:['国内','海外']},{f:'loc',l:'地点'},
+  {f:'job',l:'招聘岗位',req:1},{f:'rmgr',l:'招聘经理'},{f:'cls',l:'分类（国内/海外）',sel:['国内','海外']},{f:'loc',l:'地点'},
   {f:'ask',l:'需求提出时间',date:1},{f:'num',l:'招聘数量（必须为1）',num:1,def:'1'},
   {f:'st',l:'进展（当前状态）',req:1,sel:['需求确认','简历&面试中','已offer待入职','已入职','Hold','取消']},
   {f:'eta',l:'预计到岗时间',date:1},{f:'memo',l:'备注（变更原因/招聘卡点）'},
@@ -1661,7 +1661,7 @@ function moLbl(ym){if(!ym)return '';var mm=['Jan','Feb','Mar','Apr','May','Jun',
 /* 3.1 排序+逐列筛选（Excel式，仅影响显示；3.2 矩阵与喂看板1口径始终按全量台账） */
 /* 260723晚 列名定版（Bonnie 定 21 列）：需求信息9 + 进展阶段3 + 入职阶段4 + 系统派生5 */
 var KB3COLS=[
-  {f:'dept',l:'部门'},{f:'c',l:'中心'},{f:'own',l:'业务负责人'},{f:'src',l:'HC来源备注'},{f:'job',l:'招聘岗位'},
+  {f:'dept',l:'部门'},{f:'c',l:'中心'},{f:'own',l:'业务负责人'},{f:'src',l:'HC来源备注'},{f:'job',l:'招聘岗位'},{f:'rmgr',l:'招聘经理'},
   {f:'cls',l:'分类（国内/海外）'},{f:'loc',l:'地点'},{f:'ask',l:'需求提出时间'},{f:'num',l:'招聘数量'},
   {f:'st',l:'进展（当前状态）'},{f:'eta',l:'预计到岗时间'},{f:'memo',l:'备注（变更原因/招聘卡点）'},
   {f:'offer',l:'offer人选'},{f:'lvl',l:'人选职级'},{f:'join',l:'实际入职时间'},{f:'jmemo',l:'备注'},
@@ -1670,7 +1670,7 @@ var KB3COLS=[
 var KB3_ST_OPTS=['需求确认','简历&面试中','已offer待入职','已入职','Hold','取消'];
 var KB3_FROZEN_N=5;  // 冻结列：部门~招聘岗位（滑动时固定并覆盖后列）
 /* 260724 各列默认列宽(px)——备注列 3cm≈113px 封顶；用户拖拽后以 localStorage 记忆覆盖 */
-var KB3_DEFW={dept:90,c:110,own:96,src:132,job:150,cls:120,loc:72,ask:112,num:80,
+var KB3_DEFW={dept:90,c:110,own:96,src:132,job:150,rmgr:110,cls:120,loc:72,ask:112,num:80,
   st:120,eta:112,memo:113,offer:104,lvl:80,join:112,jmemo:113,
   _mo:80,_cat:150,_days:120,_over:80,_one:220};
 function kb3DefaultWidths(){var w=KB3COLS.map(function(c){return KB3_DEFW[c.f]||100;}).concat([124]);if(KB3EDIT)w=[44].concat(w);return w;}  // +操作列124（容纳「保存/取消」两个按钮，编辑态前置行号列44）
@@ -1828,7 +1828,7 @@ function renderKb3(){
   var EDIT=KB3EDIT,cn=EDIT?'<th class="rc corner"></th>':'';
   var letterRow='';
   if(EDIT){var ls='';for(var li=0;li<KB3COLS.length;li++)ls+='<th class="rc rcCol" data-cf="'+KB3COLS[li].f+'" title="点击选中整列，右键操作">'+colLetter(li)+'</th>';ls+='<th class="rc">'+colLetter(KB3COLS.length)+'</th>';letterRow='<tr class="xlhdr"><th class="rc corner"></th>'+ls+'</tr>';}
-  var g='<thead>'+letterRow+'<tr class="grp">'+cn+'<th class="g1" colspan="9">需求信息</th><th class="g2" colspan="3">进展阶段</th><th class="g3" colspan="4">入职阶段</th><th class="g4" colspan="5">系统派生（勿改）</th><th class="g2" colspan="1"></th></tr>'
+  var g='<thead>'+letterRow+'<tr class="grp">'+cn+'<th class="g1" colspan="10">需求信息</th><th class="g2" colspan="3">进展阶段</th><th class="g3" colspan="4">入职阶段</th><th class="g4" colspan="5">系统派生（勿改）</th><th class="g2" colspan="1"></th></tr>'
     +'<tr class="col">'+cn+KB3COLS.map(function(cdef){
       var arr=KB3SORT.f===cdef.f?('<span class="sortarr"><t-icon name="'+(KB3SORT.dir===-1?'chevron-down':'chevron-up')+'" size="12"></t-icon></span>'):'';
       var flt=KB3FON?('<span class="fltarr'+(KB3F[cdef.f]?' on':'')+'" onclick="kb3FltOpen(event,\''+cdef.f+'\')" title="筛选此列（Excel式值勾选）"><t-icon name="chevron-down" size="12"></t-icon></span>'):'';
@@ -1840,14 +1840,14 @@ function renderKb3(){
     var r=it.r,v=it.v;_rn++;
     var draft=!!r._draft,rid=draft?'draft':r.id;
     var catChip=v._cat==='不计入'?'na':(r.st==='已入职'?'ok':'todo');
-    g+='<tr data-rid="'+rid+'" class="'+(draft?'kb3-draft ':'')+(String(KB3_EDITING)===String(rid)?'kb3-editing':'')+'">'+(EDIT?'<td class="rc rcRow" title="点击选中整行，右键操作">'+_rn+'</td>':'')+ec(r,'dept')+ec(r,'c')+ec(r,'own')+ec(r,'src')+ec(r,'job')
+    g+='<tr data-rid="'+rid+'" class="'+(draft?'kb3-draft ':'')+(String(KB3_EDITING)===String(rid)?'kb3-editing':'')+'">'+(EDIT?'<td class="rc rcRow" title="点击选中整行，右键操作">'+_rn+'</td>':'')+ec(r,'dept')+ec(r,'c')+ec(r,'own')+ec(r,'src')+ec(r,'job')+ec(r,'rmgr')
       +ec(r,'cls')+ec(r,'loc')+ec(r,'ask')+ec(r,'num','num')
       +ecSt(r)+ec(r,'eta')+ec(r,'memo')
       +ec(r,'offer')+ec(r,'lvl')+ec(r,'join')+ec(r,'jmemo')
       +'<td>'+(v._mo||'—')+'</td><td><span class="chip '+catChip+'">'+(draft?'未保存':v._cat)+'</span></td><td class="num">'+v._days+'</td><td>'+v._over+'</td><td>'+esc(v._one)+'</td>'
       +'<td class="c" style="text-align:center;white-space:nowrap">'+(draft?'<span style="color:var(--td-warning-color,#ED7B2F)">填写后保存</span>':(r.id?'<span class="rowtool" onclick="kb3EditRow('+r.id+')" title="编辑此行（手动列整行进入编辑态）"><t-icon name="edit-1" size="12"></t-icon></span> <span class="rowtool del" onclick="kb3DelRow('+r.id+')" title="删除此行（审计留痕）"><t-icon name="delete" size="12"></t-icon></span>':''))+'</td></tr>';
   });
-  if(!items.length)g+='<tr><td colspan="'+(EDIT?23:22)+'" style="text-align:center;color:#8194AE;padding:22px">'+(totalN?'当前筛选无匹配行 · 点「✕清」清除筛选':'暂无台账数据（全局一份·跨年滚动） · 点上方「导入台账文档」或接数据源')+'</td></tr>';
+  if(!items.length)g+='<tr><td colspan="'+(EDIT?24:23)+'" style="text-align:center;color:#8194AE;padding:22px">'+(totalN?'当前筛选无匹配行 · 点「✕清」清除筛选':'暂无台账数据（全局一份·跨年滚动） · 点上方「导入台账文档」或接数据源')+'</td></tr>';
   document.getElementById('kb3Tbl').innerHTML=g+'</tbody>';
   // 无用户自定义列宽时，套用默认列宽（备注列 3cm 封顶）
   if(!(COLW&&COLW['kb3Tbl']&&COLW['kb3Tbl'].length))colSetW(document.getElementById('kb3Tbl'),kb3DefaultWidths());

@@ -254,6 +254,7 @@ def _ledger_list(c, year):
     for r in c.execute("SELECT * FROM ledger_rows WHERE year=? ORDER BY id", (year,)):
         d = dict(r)
         out.append({"id": d["id"], "c": d["center"], "own": d["owner"], "src": d["src"], "job": d["job"],
+                    "rmgr": d.get("rmgr", ""),
                     "jlvl": d.get("lvl", ""), "fam": d.get("fam", ""), "cls": d["cls"], "loc": d["loc"],
                     "ask": d["ask"], "num": d["num"], "tgt": d["tgt"],
                     "st": d["st"], "eta": d["eta"], "peta": d.get("prev_eta", ""), "memo": d["memo"],
@@ -263,7 +264,7 @@ def _ledger_list(c, year):
 
 
 # 前端字段名 → DB 列（jlvl=职级F列；lvl=人选职级S列 历史沿用；peta=上次预计到岗·系统维护）
-LEDGER_F2DB = {"dept": "dept", "c": "center", "own": "owner", "src": "src", "job": "job", "jlvl": "lvl",
+LEDGER_F2DB = {"dept": "dept", "c": "center", "own": "owner", "src": "src", "job": "job", "rmgr": "rmgr", "jlvl": "lvl",
               "fam": "fam", "cls": "cls", "loc": "loc", "ask": "ask", "num": "num", "tgt": "tgt",
               "st": "st", "eta": "eta", "peta": "prev_eta", "memo": "memo",
               "offer": "offer", "lvl": "olvl", "join": "join_dt", "jmemo": "jmemo", "who": "who"}

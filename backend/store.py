@@ -54,7 +54,7 @@ def init_db():
               id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT, user TEXT, action TEXT, detail TEXT);
             CREATE TABLE IF NOT EXISTS ledger_rows(
               id INTEGER PRIMARY KEY AUTOINCREMENT, year INTEGER, batch INTEGER,
-              dept TEXT, center TEXT, owner TEXT, src TEXT, job TEXT, lvl TEXT, cls TEXT, loc TEXT,
+              dept TEXT, center TEXT, owner TEXT, src TEXT, job TEXT, rmgr TEXT, lvl TEXT, cls TEXT, loc TEXT,
               ask TEXT, num TEXT, tgt TEXT, st TEXT, eta TEXT, memo TEXT,
               offer TEXT, olvl TEXT, join_dt TEXT, jmemo TEXT, who TEXT);
             CREATE TABLE IF NOT EXISTS cells_history(
@@ -92,8 +92,8 @@ def init_db():
             c.execute(f"ALTER TABLE years ADD COLUMN nat_n INTEGER NOT NULL DEFAULT {NAT_N_DEFAULT}")
         except sqlite3.OperationalError:
             pass  # 列已存在
-        # ---- 260723 台账对齐线下模板 v2：补「分类(fam)」「上次预计到岗(prev_eta)」两列 ----
-        for col in ("fam", "prev_eta"):
+        # ---- 260723 台账对齐线下模板 v2：补「分类(fam)」「上次预计到岗(prev_eta)」；rmgr=招聘经理（招聘岗位后一列）----
+        for col in ("fam", "prev_eta", "rmgr"):
             try:
                 c.execute(f"ALTER TABLE ledger_rows ADD COLUMN {col} TEXT DEFAULT ''")
             except sqlite3.OperationalError:
