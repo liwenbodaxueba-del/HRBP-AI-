@@ -2918,6 +2918,14 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
     if(e.shiftKey&&SEL){SEL.f=co;}else{SEL={a:co,f:co};}
     dragging=true;T().classList.add('kb3-picking');focusOut();paint();
   });
+  /* 点列号(A/B/C…)选整列 / 点行号选整行 → 同步为单元格选区，工具条各功能才能对整列/整行生效 */
+  document.addEventListener('mousedown',function(e){
+    if(!editable())return;
+    var cc=e.target.closest?e.target.closest('#kb3Tbl th.rcCol'):null;
+    if(cc){var f=cc.getAttribute('data-cf'),ci=KB3COLS.findIndex(function(c){return c.f===f;});if(ci>=0){var col=ci+1,b=body();if(b&&b.rows.length){SEL={a:{r:0,c:col},f:{r:b.rows.length-1,c:col}};hideFO();clearMarquee();focusOut();paint();}}return;}
+    var rr=e.target.closest?e.target.closest('#kb3Tbl td.rcRow'):null;
+    if(rr){var b2=body(),ri=Array.prototype.indexOf.call(b2.rows,rr.closest('tr'));if(ri>=0){SEL={a:{r:ri,c:1},f:{r:ri,c:KB3COLS.length}};hideFO();clearMarquee();focusOut();paint();}return;}
+  });
   document.addEventListener('mousemove',function(e){
     if(!dragging||!(e.buttons&1)||!SEL)return;
     var td=e.target.closest?e.target.closest('#kb3Tbl tbody td'):null;if(!td||td.classList.contains('rc'))return;
