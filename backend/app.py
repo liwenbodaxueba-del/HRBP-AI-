@@ -478,7 +478,7 @@ def demo_load(y: YearNew, x_user: str = Header("bonniewbli")):
                 put("soc_hs", m, rng.randint(0, 2))   # 活水已接offer
                 # 已发生月「实际」口径（每月1号读系统）：计入合计；同月上面的预估行页面标灰仅供对比
                 put("ai_soc", m, rng.randint(1, 5), "【示例】当月实际社招入职（系统读）")
-                put("ai_camp", m, rng.randint(0, 3) if m in (2, 3, 7, 8) else 0, "【示例】当月实际校招入职（系统读）")
+                put("ai_camp", m, rng.randint(0, 3), "【示例】当月实际校招入职（系统读）")
                 put("ao_lv", m, rng.randint(2, 6), "【示例】当月实际离职·主动+被动（系统读）")
                 put("ao_tr", m, rng.randint(0, 2), "【示例】当月实际调出（系统读）")
                 if m % 3 == 2:
@@ -487,11 +487,19 @@ def demo_load(y: YearNew, x_user: str = Header("bonniewbli")):
                     put("o_act", m, 1, "【示例】历史月计划优化1人")
                 if m % 6 == 4:
                     put("i_incr", m, 1, "【示例】历史月增量补位1人")
-            # 每项每月都有一点（示例·便演示）：社招·已入职(soc_join)/社招系统(soc_sys)/活水(soc_hs) 全 12 月都给点数（put 跳过已有格·幂等）
+            # 每个单元格都有数（示例·便人工核对运算是否打通）：所有源指标全 12 月补齐（put 跳过已有格·幂等）
             for m in range(1, 13):
-                put("soc_join", m, rng.randint(1, 3), "【示例】系统·实际社招已入职")
+                put("soc_join", m, rng.randint(1, 3), "【示例】系统·社招已入职")
                 put("soc_sys", m, rng.randint(1, 4), "【示例】社招系统·待入职")
-                put("soc_hs", m, rng.randint(0, 2), "【示例】活水系统·已offer")
+                put("soc_hs", m, rng.randint(0, 2), "【示例】活水·已offer")
+                put("soc_bp", m, rng.randint(0, 1), "【示例】社招BP·待入职")
+                put("o_sys", m, rng.randint(1, 3), "【示例】系统明确离职")
+                put("o_bp", m, rng.randint(0, 2), "【示例】BP已明确离职")
+                put("o_act", m, rng.randint(0, 1), "【示例】主动动作")
+                put("i_incr", m, rng.randint(0, 1), "【示例】增量需求")
+            for m in range(lock + 1, 13):  # 校招 BP 按月分配：仅未发生月
+                put("camp_off", m, rng.randint(1, 4), "【示例】校招BP·按月分配")
+            put("camp_off_tot", 1, 24, "【示例】数仓·校招已offer待入职总数")
             if lock >= 2:
                 put("i_yy", 2, 3, "【示例】春季批次到岗")
             if lock >= 3:
