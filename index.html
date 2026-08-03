@@ -1040,9 +1040,9 @@ function tr(cls,label,arr,opt){
   for(var m=0;m<12;m++){
     var v=(arr&&arr[m]!==undefined&&arr[m]!==null)?arr[m]:'';
     var rowEdit=opt.key&&ROWEDIT===opt.key;
-    var anchorMonth=opt.editMonths&&opt.editMonths.indexOf(m)>=0;  // editMonths=只放开指定月(如法定HC锚定月),并豁免已发生月锁定
-    var monthOK=(!opt.editMonths)||(rowEdit&&!opt.futureOnly)||anchorMonth;
-    var editable=opt.edit&&monthOK&&(anchorMonth||m>=lock||(rowEdit&&!opt.futureOnly))&&!RO;  // 行编辑态放宽全月可填（新建行/调整行）；opt.futureOnly=只放开未发生月（如 待流入·校招 数仓总数分配）
+    var anchorMonth=opt.editMonths&&opt.editMonths.indexOf(m)>=0;  // editMonths=硬约束:只放开指定月(如法定HC锚定月),并豁免已发生月锁定；即便整行编辑态也不放开其他月
+    var monthOK=opt.editMonths?anchorMonth:true;
+    var editable=opt.edit&&monthOK&&(anchorMonth||m>=lock||(rowEdit&&!opt.editMonths&&!opt.futureOnly))&&!RO;  // 行编辑态放宽全月可填（仅未设 editMonths 的行，如新建行/调整行）；opt.futureOnly=只放开未发生月
     var mut=(opt.mute==='past'&&m<lock)||(opt.mute==='future'&&m>=lock);  // 估/实双轨标灰
     var cl=(m<lock&&opt.lockShade?'lock ':'')+(editable?'edit adj ':'')+(opt.neg&&v<0?'neg ':'')+(mut?'mut ':'');
     var disp=(v===''||(v===0&&opt.hideZero))?'':(opt.negRow&&v!==0?'−'+v:(opt.plus&&v>0?'+'+v:v));
