@@ -48,13 +48,23 @@ def health():
     return {"ok": True, "ts": now(), "storage": "sqlite-dev（企业版数据库批后替换）", "version": app.version}
 
 
+# 多端实时同步：审计表 id 单调自增，任何数据改动都留痕 → 拿 MAX(id) 当"数据版本号"，
+# 各端轮询此接口，版本变了就重新拉数据。极轻量、无长连接、公网/代理下都稳。
+@app.get("/api/version")
+def get_version():
+    with db() as c:
+        row = c.execute("SELECT COALESCE(MAX(id),0) AS v FROM audit").fetchone()
+        return {"v": int(row["v"]), "ts": int(time.time() * 1000)}
+
+
 # ---------------- 配置（与前端 localStorage cfg 同构） ----------------
 @app.get("/api/config")
 def get_config():
     with db() as c:
         projs = [
             {"key": r["key"], "sec": r["sec"], "name": r["name"], "src": r["src"], "srcCls": r["src_cls"],
-             "add": bool(r["add_ok"]), "unbind": bool(r["unbind"]), "on": bool(r["on_ok"]), "sys": bool(r["sys"])}
+             "add": bool(r["add_ok"]), "unbind": bool(r["unbind"]), "on": bool(r["on_ok"]), "sys": bool(r["sys"]),
+             "edit": (r["edit"] if "edit" in r.keys() else "") or ""}
             for r in c.execute("SELECT * FROM projects ORDER BY pos")
         ]
         accts = [
@@ -77,10 +87,10 @@ def put_config(doc: ConfigDoc, x_user: str = Header("bonniewbli")):
         c.execute("DELETE FROM projects")
         for i, p in enumerate(doc.projs):
             c.execute(
-                "INSERT INTO projects(key,sec,name,src,src_cls,add_ok,unbind,on_ok,sys,pos) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO projects(key,sec,name,src,src_cls,add_ok,unbind,on_ok,sys,pos,edit) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                 (p.get("key") or f"x{int(time.time()*1000)}_{i}", p.get("sec", ""), p.get("name", ""),
                  p.get("src", ""), p.get("srcCls", "bp"), int(bool(p.get("add"))), int(bool(p.get("unbind"))),
-                 int(p.get("on", True)), int(bool(p.get("sys"))), i),
+                 int(p.get("on", True)), int(bool(p.get("sys"))), i, (p.get("edit") or "")),
             )
         c.execute("DELETE FROM accounts")
         for a in doc.accts:
@@ -187,7 +197,12 @@ def edit_cell(year: int, e: CellEdit, x_user: str = Header("bonniewbli")):
         if not (1 <= e.month <= 12):
             raise HTTPException(422, "月份须为 1-12")
         base_metric = e.metric.split(":", 1)[0] if e.metric.startswith("branch") else e.metric
-        locked = base_metric not in PLAN_METRICS and e.month <= yr["lock_month"]
+        # 项目「可手改」权限：'all'=全年可改（覆盖已发生月锁定）/'future'=仅未发生月/'no'=禁/''=未配置(沿用 add_ok)
+        proj = None
+        if not e.metric.startswith("branch:") and e.metric not in EXTRA_METRICS:
+            proj = c.execute("SELECT * FROM projects WHERE key=?", (e.metric,)).fetchone()
+        proj_edit = (proj["edit"] if proj is not None and "edit" in proj.keys() else "") or ""
+        locked = base_metric not in PLAN_METRICS and e.month <= yr["lock_month"] and proj_edit != "all"
         if locked and e.metric.startswith("branch:"):
             pb = c.execute("SELECT sec FROM branches WHERE id=?", (int(e.metric.split(":", 1)[1]),)).fetchone()
             if pb and pb["sec"] in PLAN_BRANCH_SECS:
@@ -213,15 +228,16 @@ def edit_cell(year: int, e: CellEdit, x_user: str = Header("bonniewbli")):
             _write_cell(c, year, e.metric, e.month, e.value, e.note.strip(), "bp", x_user)
             _audit(c, x_user, "调节录入", f"{year}「{EXTRA_METRICS[e.metric]}」 {e.month}月 → {e.value}（{e.note.strip()}）")
         else:
-            p = c.execute("SELECT * FROM projects WHERE key=?", (e.metric,)).fetchone()
-            if not p:
+            if proj is None:
                 raise HTTPException(404, "指标不存在")
             if e.metric not in BP_EDITABLE:
-                raise HTTPException(403, f"「{p['name']}」为系统数指标，不可手工录入（走数据源/上传兜底）")
-            if not p["add_ok"]:
-                raise HTTPException(403, f"「{p['name']}」已在管理后台关闭手动录入")
+                raise HTTPException(403, f"「{proj['name']}」为系统数指标，不可手工录入（走数据源/上传兜底）")
+            if proj_edit == "no":
+                raise HTTPException(403, f"「{proj['name']}」已在管理后台关闭手改")
+            if proj_edit == "" and not proj["add_ok"]:
+                raise HTTPException(403, f"「{proj['name']}」已在管理后台关闭手动录入")
             _write_cell(c, year, e.metric, e.month, e.value, e.note.strip(), "bp", x_user)
-            _audit(c, x_user, "调节录入", f"{year}「{p['name']}」 {e.month}月 → {e.value}（{e.note.strip()}）")
+            _audit(c, x_user, "调节录入", f"{year}「{proj['name']}」 {e.month}月 → {e.value}（{e.note.strip()}）")
     return get_board(year)
 
 
