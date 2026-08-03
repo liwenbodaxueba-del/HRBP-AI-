@@ -227,6 +227,9 @@ th.sortable:hover{filter:brightness(1.08);}
 #kb3ValidPanel .kb3vlink{display:inline-block;margin-top:5px;font-size:11.5px;color:var(--blue);cursor:pointer;}
 #kb3ValidPanel .kb3vlink:hover{text-decoration:underline;}
 #kb3Tbl tr.kb3-draft td{background:#FFFBE6;}
+/* 固定列：强制不透明底 + 右侧分隔线，避免横向滚动时被滚动列内容透上来重叠串字 */
+#kb3Tbl td.kb3-pincol,#kb3Tbl th.kb3-pincol{background-color:#fff;box-shadow:1px 0 0 rgba(10,46,110,.10);}
+#kb3Tbl tr.kb3-draft td.kb3-pincol{background-color:#FFFBE6!important;}
 #kb3Tbl td.kb3-invalid{background:#FFF0ED!important;overflow:visible;}
 #kb3Tbl td.kb3-invalid input,#kb3Tbl td.kb3-invalid select{border:1px solid var(--td-error-color)!important;outline:1px solid var(--td-error-color);}
 #kb3Tbl .kb3-field-error{display:block;color:var(--td-error-color);font-size:10px;line-height:1.3;margin-top:3px;white-space:nowrap;}
@@ -538,7 +541,7 @@ body.navfold .navtg{left:8px;}
   <div id="kb3ImpView"></div>
   <div class="tblwrap" id="kb3Wrap"><table class="plain" id="kb3Tbl"></table></div>
   <div class="hint" id="kb3CountInfo" style="color:var(--ink2);font-weight:600;margin-bottom:2px"></div>
-  <div class="hint">加行：编辑态右键行号选「在上方/下方插入行」会先生成黄色空白行；部门、中心、业务负责人、招聘岗位、进展为必填，填齐后才能保存入库，取消则不留痕。四段：①需求信息 ②进展阶段 ③入选与入职（①②③=招聘系统取数+BP维护）④系统派生（勿改，自动）。</div>
+  <div class="hint">加行：编辑态右键行号选「在上方/下方插入行」会先生成黄色空白行；部门、中心、业务负责人、招聘岗位、进展为必填，填齐后才能保存入库，取消则不留痕。<b>粘贴分列</b>：从 Excel 复制一整行（Tab/多空格分隔），选中空白行第一格按 Cmd/Ctrl+V，会从该格起按列顺序自动分列铺开——请按此列序对齐源数据：部门·中心·业务负责人·HC来源备注·招聘岗位·招聘经理·分类·地点·需求提出时间·招聘数量·进展·预计到岗·备注·offer人选·人选职级·实际入职时间·备注。四段：①需求信息 ②进展阶段 ③入选与入职（①②③=招聘系统取数+BP维护）④系统派生（勿改，自动）。</div>
 
   <h2 class="sec" style="margin-top:20px">看板3.2 · 待流入-社招面板（总结·便核对 · 喂看板1）</h2>
   <div class="yeartabs"></div>
@@ -1037,7 +1040,9 @@ function tr(cls,label,arr,opt){
   for(var m=0;m<12;m++){
     var v=(arr&&arr[m]!==undefined&&arr[m]!==null)?arr[m]:'';
     var rowEdit=opt.key&&ROWEDIT===opt.key;
-    var editable=opt.edit&&(m>=lock||(rowEdit&&!opt.futureOnly))&&!RO;  // 行编辑态放宽全月可填（新建行/调整行）；opt.futureOnly=只放开未发生月（如 待流入·校招 数仓总数分配）
+    var anchorMonth=opt.editMonths&&opt.editMonths.indexOf(m)>=0;  // editMonths=只放开指定月(如法定HC锚定月),并豁免已发生月锁定
+    var monthOK=(!opt.editMonths)||(rowEdit&&!opt.futureOnly)||anchorMonth;
+    var editable=opt.edit&&monthOK&&(anchorMonth||m>=lock||(rowEdit&&!opt.futureOnly))&&!RO;  // 行编辑态放宽全月可填（新建行/调整行）；opt.futureOnly=只放开未发生月（如 待流入·校招 数仓总数分配）
     var mut=(opt.mute==='past'&&m<lock)||(opt.mute==='future'&&m>=lock);  // 估/实双轨标灰
     var cl=(m<lock&&opt.lockShade?'lock ':'')+(editable?'edit adj ':'')+(opt.neg&&v<0?'neg ':'')+(mut?'mut ':'');
     var disp=(v===''||(v===0&&opt.hideZero))?'':(opt.negRow&&v!==0?'−'+v:(opt.plus&&v>0?'+'+v:v));
@@ -1264,9 +1269,9 @@ function renderKb2(){
     var s=tr('key',name+tgl+' <span class="badge calc">'+(isHC?'期初+当月调整':'其中求和')+'</span>',tot,{src:isHC?'kb2hc':'kb2quota',avg:isHC?'—':f2(avg12(tot)),lock:0,noTot:true});
     if(open_[sec]){
       if(isHC){
-        // 期初法定HC：1月=期初锚定直接取数；2–12月=上月法定HC滚结（只读派生）
+        // 期初法定HC：1月=BP手填期初锚定（可编辑·落 fa_hc）；2–12月=上月法定HC滚结（只读派生）
         var baseVals=[];for(var bm=0;bm<12;bm++)baseVals[bm]=(bm===0)?kb2base.hc.vals[0]:tot[bm-1];
-        s+=tr('sub',kb2base.hc.name,baseVals,{src:'hc_init',avg:'—',lock:0,noTot:true});
+        s+=tr('sub',kb2base.hc.name,baseVals,{src:'hc_init',key:'fa_hc',edit:true,editMonths:[0],avg:'—',lock:0,noTot:true});
       }else{
         // 期初预算当量：全行手填（每月独立·可不同），落 q_init（PLAN_METRICS·全月可编辑）
         s+=tr('sub',kb2base.quota.name,kb2base.quota.vals,{src:'quota_init',key:'q_init',edit:true,avg:f2(avg12(kb2base.quota.vals)),lock:0,noTot:true});
@@ -1541,10 +1546,10 @@ function bindCells(){
   });
 }
 var cur={key:null,m:0};
-var rowNames={o_bp:'已明确非系统（BP）',o_act:'主动动作（BP）',i_cbp:'校招·非系统（BP）',i_incr:'增量需求（BP）'};
+var rowNames={o_bp:'已明确非系统（BP）',o_act:'主动动作（BP）',i_cbp:'校招·非系统（BP）',i_incr:'增量需求（BP）',fa_hc:'期初法定HC'};
 function isC(k){return k&&k[0]==='C'&&cmap[k];}
-function gV(k,m){return isC(k)?cmap[k].row.vals[m]:D[k][m];}
-function sV(k,m,v){if(isC(k))cmap[k].row.vals[m]=v;else D[k][m]=v;}
+function gV(k,m){if(k==='fa_hc')return (m===0?(D.faHC===''||D.faHC==null?'':D.faHC):'');return isC(k)?cmap[k].row.vals[m]:D[k][m];}
+function sV(k,m,v){if(k==='fa_hc'){if(m===0)D.faHC=(v===null?'':v);return;}if(isC(k))cmap[k].row.vals[m]=v;else D[k][m]=v;}
 function labOf(k){return isC(k)?(cmap[k].row.name+'（'+cmap[k].row.sign+'）'):(rowNames[k]||k);}
 function openModal(k,m){cur={key:k,m:m};
   document.getElementById('mTitle').textContent='录入：'+labOf(k)+' · '+M[m];
@@ -1810,7 +1815,7 @@ function kb3FreezeApply(){
   KB3COLS.forEach(function(c,i){if(KB3PIN.indexOf(c.f)>-1)pin.push(i+off);});
   var lefts={},x=0;
   pin.forEach(function(i){if(i<colRow.cells.length){lefts[i]=x;x+=colRow.cells[i].offsetWidth;}});
-  function fix(cell,i,z,bg){if(!cell)return;cell.style.position='sticky';cell.style.left=lefts[i]+'px';cell.style.zIndex=z;if(bg)cell.style.background=bg;}
+  function fix(cell,i,z,bg){if(!cell)return;cell.style.position='sticky';cell.style.left=lefts[i]+'px';cell.style.zIndex=z;cell.classList.add('kb3-pincol');if(bg){cell.style.background=bg;cell.setAttribute('data-pinbg',bg);}}
   var letterRow=t.querySelector('thead tr.xlhdr');
   var hintRow=t.querySelector('thead tr.xlhint');
   // 表头冻结列 z 需高于滚动表头(kb3ApplyClamp 逐级贴顶 z=8..5)，否则滚动列会盖住冻结列头
@@ -2841,8 +2846,8 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
         for(var f in PENDING[rid]){var td=tr.querySelector('td[data-f="'+f+'"]');if(!td||td.querySelector('input,select'))continue;var v=PENDING[rid][f];
           if(f==='st')td.innerHTML=v?'<span class="chip '+((typeof kb3StChip==='function')?kb3StChip(v):'')+'">'+esc(v)+'</span>':'';else td.textContent=v;
           td.classList.add('kb3-dirty');}});}
-    function bar(){var el=document.getElementById('kb3SaveState');if(el){var n=dcount();el.textContent=n?('● 未保存 '+n+' 处'):'已保存';el.className='kb3sv-state'+(n?' dirty':'');}
-      var sb=document.getElementById('kb3btnSave'),cb=document.getElementById('kb3btnCancel');if(sb)sb.disabled=!dcount();if(cb)cb.disabled=!dcount();}
+    function bar(){var hasDraft=!!window.KB3_DRAFT;var el=document.getElementById('kb3SaveState');if(el){var n=dcount();el.textContent=hasDraft?'● 新增行待保存':(n?('● 未保存 '+n+' 处'):'已保存');el.className='kb3sv-state'+((hasDraft||n)?' dirty':'');}
+      var sb=document.getElementById('kb3btnSave'),cb=document.getElementById('kb3btnCancel');var active=hasDraft||dcount();if(sb)sb.disabled=!active;if(cb)cb.disabled=!active;}
     return {stage:stage,eff:eff,dcount:dcount,save:save,cancel:cancel,undoLast:undoLast,overlay:overlay,bar:bar};
   })();
   window.KB3STAGE=STAGE;
@@ -2968,12 +2973,19 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
     var R=rect();if(typeof toast==='function')toast('已剪切 '+(R.r1-R.r0+1)+'×'+(R.c1-R.c0+1)+' 格 · 粘贴后清空原处');
   });
   /* --- 粘贴：TSV → 从活动格铺开（单格来源填满整个选区）--- */
+  function splitCells(line){
+    // 优先按制表符分列；若整行无制表符但含≥2连续空格，按连续空格分列（兼容从表格/文档复制来的空格分隔文本）
+    if(line.indexOf('\t')>=0)return line.split('\t');
+    if(/\s{2,}/.test(line))return line.trim().split(/\s{2,}/);
+    return [line];
+  }
   function applyPaste(text){
     if(!SEL||!USE_API||RO||text==null)return;
     var grid=text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n');
     if(grid.length&&grid[grid.length-1]==='')grid.pop();
-    var rows=grid.map(function(l){return l.split('\t');});
+    var rows=grid.map(function(l){return splitCells(l);});
     var b=body(),R=rect(),byRow={},wrote=0,skip=0,draftDirty=false;
+    // 单格来源（1行1列）→ 填满整个选区；否则从活动格(左上)按行列向右下铺开（含"选中一个格、粘贴一整行多列"→自动分列到右侧列）
     var single=rows.length===1&&rows[0].length===1;
     function pv(f,x){return (typeof kb3PasteVal==='function')?kb3PasteVal(f,x):x;}   // 按列格式容错：不符则留空
     function put(rid,f,val){if(rid==='draft'){if(window.KB3_DRAFT){KB3_DRAFT[f]=val;draftDirty=true;wrote++;}return;}byRow[rid]=byRow[rid]||{};byRow[rid][f]=val;wrote++;}
@@ -2989,9 +3001,16 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
     if(Object.keys(byRow).length)writeRows(byRow,'已粘贴 '+wrote+' 格'+(skip?('（跳过 '+skip+'）'):''));
   }
   document.addEventListener('paste',function(e){
-    if(!editable()||!SEL||editing())return;
+    if(!editable()||!SEL)return;
     if(!USE_API)return;if(RO){e.preventDefault();return alert('当前账号为只读权限');}
     var text=e.clipboardData&&e.clipboardData.getData('text/plain');if(text==null)return;
+    // 正在单格输入(input/select)时：仅当剪贴板是"多列或多行"才接管分列，否则保留原生单格粘贴
+    if(editing()){
+      var body1=text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').replace(/\n+$/,'');
+      var multi=body1.indexOf('\n')>=0||splitCells(body1.split('\n')[0]).length>1;
+      if(!multi)return;   // 单值 → 交给浏览器默认填进当前输入框
+      focusOut();         // 提交并退出当前单格编辑，改走矩阵分列
+    }
     e.preventDefault();applyPaste(text);
     if(MARQUEE&&MARQUEE.cut){var b=body(),cc=[];for(var r=MARQUEE.r0;r<=MARQUEE.r1;r++){var tr=b.rows[r],rid=tr&&tr.getAttribute('data-rid');if(!rid||rid==='draft')continue;
       for(var c=MARQUEE.c0;c<=MARQUEE.c1;c++){if(!isEditableCol(c))continue;var f=colDef(c);if(f.f==='num')continue;cc.push({rid:rid,field:f.f,value:''});}}
@@ -3249,8 +3268,8 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
     // 保存/取消/撤销 组 + 未保存状态
     var g=document.createElement('div');g.className='grp';
     var row=document.createElement('div');row.className='row';
-    var bSave=tbBtn('保存','save',function(){STAGE.save();},'把暂存的改动一次性提交到后端（Ctrl+S）');bSave.id='kb3btnSave';bSave.classList.add('primary');
-    var bCancel=tbBtn('取消','cancel',function(){STAGE.cancel();},'放弃全部未保存的改动');bCancel.id='kb3btnCancel';
+    var bSave=tbBtn('保存','save',function(){if(window.KB3_DRAFT&&typeof window.kb3SaveDraft==='function'){window.kb3SaveDraft();return;}STAGE.save();},'保存改动：有新增行则提交该新增行；否则把暂存的整表改动一次性提交（Ctrl+S）');bSave.id='kb3btnSave';bSave.classList.add('primary');
+    var bCancel=tbBtn('取消','cancel',function(){if(window.KB3_DRAFT&&typeof window.kb3CancelDraft==='function'){window.kb3CancelDraft();return;}STAGE.cancel();},'取消：有新增行则放弃该新增行；否则放弃全部未保存的整表改动');bCancel.id='kb3btnCancel';
     var bUndo=tbBtn('撤销','undo',function(){STAGE.undoLast();},'撤销上一步（Ctrl+Z）');
     row.appendChild(bSave);row.appendChild(bCancel);row.appendChild(bUndo);
     var lab=document.createElement('div');lab.className='lab';var st=document.createElement('span');st.id='kb3SaveState';st.className='kb3sv-state';st.textContent='已保存';lab.appendChild(st);
