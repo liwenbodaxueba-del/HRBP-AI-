@@ -1085,9 +1085,9 @@ function addRowTr(sec,text,noTot){
 }
 /* ===== 看板1 ===== */
 function render(){
-  // 260724 联动：预算当量 = 看板2 父行（期初+当月其中调整）；无看板2数据回退存量（API 模式服务端已合并，此处幂等）
+  // 260803 联动：预算当量 = 看板2 父行（期初+当月其中调整）；无看板2数据即为空，不回退存量 budget（与后端 budget_eff 同口径）
   var qL=kb2Total('quota',false),BUD=[];
-  for(var mQ=0;mQ<12;mQ++)BUD[mQ]=isN(qL[mQ])?qL[mQ]:D.budget[mQ];
+  for(var mQ=0;mQ<12;mQ++)BUD[mQ]=isN(qL[mQ])?qL[mQ]:'';
   var c=chain(), qa=avg(BUD);
   var h='<tr><th>项目</th>';
   for(var m=0;m<12;m++)h+='<th class="'+(m<LOCK?'':'fut')+'">'+M[m]+(m<LOCK?'<span class="lockic"></span>':'')+'</th>';
@@ -1289,7 +1289,7 @@ function renderKb2(){
 function renderKb0(){
   var host=document.getElementById('kb0Host');if(!host)return;
   // 集团 = 当前部门口径数据
-  var qL=kb2Total('quota',false),BUD=[];for(var mQ=0;mQ<12;mQ++)BUD[mQ]=isN(qL[mQ])?qL[mQ]:D.budget[mQ];
+  var qL=kb2Total('quota',false),BUD=[];for(var mQ=0;mQ<12;mQ++)BUD[mQ]=isN(qL[mQ])?qL[mQ]:'';
   var hc=kb2Total('hc',true),qa=avg(BUD);
   var c=chain(),mgA=[];for(var mA=0;mA<12;mA++)mgA[mA]=(mA<LOCK)?D.actual[mA]:c[mA];
   var caA=avg(c),ovA=isN(caA)&&isN(qa)&&caA>qa+0.005;
@@ -2126,7 +2126,7 @@ function syncTick(){var t=new Date(),el=document.getElementById('syncTag');if(el
 var _log=log;log=function(u,a,d){_log(u,a,d);syncTick();};
 function renderProg(){var el=document.getElementById('progLine');if(!el)return;var pct=Math.round(LOCK/12*100);
   // 流失率统计（分母=预算年均）：自然主动流失=自然流失预估(o_nat)行；被动流失=主动动作(o_act)行
-  var qL=kb2Total('quota',false),BUD=[];for(var m=0;m<12;m++)BUD[m]=isN(qL[m])?qL[m]:D.budget[m];var P=avg(BUD);
+  var qL=kb2Total('quota',false),BUD=[];for(var m=0;m<12;m++)BUD[m]=isN(qL[m])?qL[m]:'';var P=avg(BUD);
   function rate(x){return (isN(x)&&isN(P)&&P)?(Math.round(x/P*1000)/10).toFixed(1)+'%':'—';}
   // ① 自然主动流失率：近6个月(锚定最后确认月)合计÷6×12 ÷ 预算年均
   var natSum=0,natHas=false;for(var i=Math.max(0,LOCK-6);i<LOCK;i++)if(isN(D.o_nat[i])){natSum+=D.o_nat[i];natHas=true;}

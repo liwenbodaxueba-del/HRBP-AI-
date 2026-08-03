@@ -75,9 +75,9 @@ def compute(vals, branches, lock, prev_er=None, nat_n=NAT_N_DEFAULT, seed=None):
         else:  # 未发生月：合计算「预估」行 + ⊕分支（实际行此时无数）
             outT.append(_agg([g(k, m) for k in OUT_KEYS] + [bsum("总流出（−）", m)]))
             inT.append(_agg([socT[m], campT[m], g("i_incr", m), bsum("总流入（＋）", m)]))
-        # 预算当量 = 看板2 期初预算当量(q_init) + 「其中」调整分支；无则回退存量 budget（与前端 BUD 同口径）
+        # 预算当量 = 看板2 期初预算当量(q_init) + 「其中」调整分支；看板2 无数据即为空，不回退存量 budget（与前端 BUD 同口径）
         q = _agg([g("q_init", m), bsum("预算当量·其中", m)])
-        budget_eff.append(q if q is not None else g("budget", m))
+        budget_eff.append(q)
     for m in range(12):
         if m < lock:
             chain.append(g("actual", m))

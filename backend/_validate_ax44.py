@@ -65,8 +65,8 @@ print("=" * 70)
 # 总流出 2603 = o_nat4 + o_act6 = 10 ; 总流入 2607 = i_yy36 + i_incr2 + 青云2 = 40
 check("总流出 2603 = 4+6", comp["outT"][2], 10)
 check("总流入 2607 = 36+2+2(青云)", comp["inT"][6], 40)
-# 红灯：年均预估 > 预算年均 判超标
-vals_b = dict(vals, budget=[520]*12)
+# 红灯：年均预估 > 预算年均 判超标（预算当量口径=看板2 q_init，不再走存量 budget）
+vals_b = dict(vals, q_init=[520]*12)
 comp_b = compute(vals_b, branches, lock=1)
 over = comp_b["chain_avg"] > comp_b["budget_avg"]
 print(f"  链年均={comp_b['chain_avg']}  预算年均={comp_b['budget_avg']}  超标={over}")
@@ -99,9 +99,9 @@ cb = compute(vb, [{"id":9, "sec":"预算当量·其中", "name":"BG下发", "sig
 check("预算当量 1月 = 期初500(忽略存量999)", cb["budget_eff"][0], 500)
 check("预算当量 7月 = 500 + 其中10", cb["budget_eff"][6], 510)
 check("预算年均 = (500*11+510)/12", cb["budget_avg"], round((500*11+510)/12, 2))
-# 回退：无 q_init 无其中 → 用存量 budget
+# 无看板2数据：不回退存量 budget，预算当量即为空（存量480应被忽略）
 cb2 = compute({"budget":[480]*12, "actual":N(), "o_nat":N()}, [], lock=0)
-check("无看板2数据 → 回退存量budget=480", cb2["budget_eff"][3], 480)
+check("无看板2数据 → 预算当量为空(不回退存量480)", cb2["budget_eff"][3], None)
 
 print("\n" + "=" * 70)
 print("测试4｜跨年种子  lock=0 整年纯预估时，链首=上年12月期末(seed)")
