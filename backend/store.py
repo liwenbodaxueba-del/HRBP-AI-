@@ -167,6 +167,19 @@ def init_db():
             c.execute("INSERT OR IGNORE INTO accounts(id,name,role,dept,kb,on_ok,demo,level,manager_id,org_path) "
                       "VALUES(?,?,?,?,?,1,1,?,?,?)",
                       (did, dname, drole, dpath.split("/")[-1], "[1,1,1,1]", dlevel, dmgr, dpath))
+        # ---- 2608 看板1/看板0 部门权限：两套独立可配部门（看板1可见范围 / PM速览可见范围·后台各配）----
+        for _col in ("kb1_depts", "kb0_depts"):
+            try:
+                c.execute(f'ALTER TABLE accounts ADD COLUMN {_col} TEXT DEFAULT \'["集团"]\'')
+            except sqlite3.OperationalError:
+                pass  # 列已存在
+        _ALLD = '["集团","云产品一部","云产品二部","云产品三部","云产品四部","云产品五部"]'
+        # 内置管理员两处都看全；demo：hrhead 看板1看全、看板0只看部分（演示"看板1能看·看板0不需要"）
+        c.execute("UPDATE accounts SET kb1_depts=?, kb0_depts=? WHERE id='bonniewbli' AND (kb0_depts IS NULL OR kb0_depts='' OR kb0_depts='[\"集团\"]')",
+                  (_ALLD, _ALLD))
+        c.execute("UPDATE accounts SET kb1_depts=?, kb0_depts=? WHERE id='demo-bp1'", ('["云产品一部","云产品二部"]', '["云产品一部","云产品二部"]'))
+        c.execute("UPDATE accounts SET kb1_depts=?, kb0_depts=? WHERE id='demo-bp2'", ('["云产品三部"]', '["云产品三部"]'))
+        c.execute("UPDATE accounts SET kb1_depts=?, kb0_depts=? WHERE id='demo-hrhead'", (_ALLD, '["集团","云产品一部","云产品二部","云产品三部"]'))
         # 职级→默认模板 seed（首次建库时；后续在后台可改，这里只是起步默认，不是硬编码策略）
         if not c.execute("SELECT 1 FROM role_templates LIMIT 1").fetchone():
             c.executemany(

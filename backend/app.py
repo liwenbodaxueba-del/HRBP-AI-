@@ -72,7 +72,9 @@ def get_config():
              "kb": json.loads(r["kb"] or "[1,1,1,1]"), "on": bool(r["on_ok"]), "demo": bool(r["demo"]),
              "level": (r["level"] if "level" in r.keys() else "") or "",
              "manager_id": (r["manager_id"] if "manager_id" in r.keys() else "") or "",
-             "org_path": (r["org_path"] if "org_path" in r.keys() else "") or ""}
+             "org_path": (r["org_path"] if "org_path" in r.keys() else "") or "",
+             "kb1_depts": json.loads((r["kb1_depts"] if "kb1_depts" in r.keys() else "") or '["集团"]'),
+             "kb0_depts": json.loads((r["kb0_depts"] if "kb0_depts" in r.keys() else "") or '["集团"]')}
             for r in c.execute("SELECT * FROM accounts")
         ]
         return {"projs": projs, "accts": accts, "ts": int(time.time() * 1000)}
@@ -98,10 +100,12 @@ def put_config(doc: ConfigDoc, x_user: str = Header("bonniewbli")):
         c.execute("DELETE FROM accounts")
         for a in doc.accts:
             c.execute(
-                "INSERT INTO accounts(id,name,role,dept,kb,on_ok,demo,level,manager_id,org_path) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO accounts(id,name,role,dept,kb,on_ok,demo,level,manager_id,org_path,kb1_depts,kb0_depts) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
                 (a["id"], a.get("name", ""), a.get("role", "HRBP·可编辑"), a.get("dept", ""),
                  json.dumps(a.get("kb", [1, 1, 1, 1])), int(a.get("on", True)), int(bool(a.get("demo"))),
-                 a.get("level", ""), a.get("manager_id", ""), a.get("org_path", "")),
+                 a.get("level", ""), a.get("manager_id", ""), a.get("org_path", ""),
+                 json.dumps(a.get("kb1_depts", ["集团"]), ensure_ascii=False),
+                 json.dumps(a.get("kb0_depts", ["集团"]), ensure_ascii=False)),
             )
         _audit(c, x_user, "配置更新", f"项目 {len(doc.projs)} 项 / 账号 {len(doc.accts)} 个（管理后台下发）")
         return {"ok": True}
@@ -128,6 +132,8 @@ def accounts_tree(x_user: str = Header("bonniewbli")):
                 "manager_id": (r["manager_id"] if "manager_id" in r.keys() else "") or "",
                 "dept": r["dept"], "on": bool(r["on_ok"]), "demo": bool(r["demo"]),
                 "kb": json.loads(r["kb"] or "[1,1,1,1]"),
+                "kb1_depts": json.loads((r["kb1_depts"] if "kb1_depts" in r.keys() else "") or '["集团"]'),
+                "kb0_depts": json.loads((r["kb0_depts"] if "kb0_depts" in r.keys() else "") or '["集团"]'),
                 "can_manage": bool(can_manage(c, x_user, r["id"])),  # 我能否管这个人（自己=False）
             })
         return {"me": {"id": me["id"], "role": me["role"],
@@ -279,6 +285,45 @@ def get_board(year: int, dept: str = "集团"):
         return {"year": year, "dept": dept, "status": yr["status"], "lock": yr["lock_month"], "seed": seed,
                 "metrics": metrics, "branches": brs, "computed": comp, "nat": comp["nat"],
                 "demo": demo, "ts": int(time.time() * 1000)}
+
+
+DEPTS_ALL = ["集团", "云产品一部", "云产品二部", "云产品三部", "云产品四部", "云产品五部"]
+
+
+def _user_depts(c, user_id, field="kb0_depts"):
+    """账号可见部门列表：field='kb0_depts'（PM速览·默认）或 'kb1_depts'（看板1）。
+    空则管理员看全部、其余看集团。"""
+    a = get_account(c, user_id)
+    if not a:
+        return []
+    try:
+        depts = json.loads((a.get(field) or "").strip() or "[]")
+    except Exception:
+        depts = []
+    if depts:
+        return [d for d in depts if d in DEPTS_ALL]
+    return DEPTS_ALL if a.get("role") == "管理员" else ["集团"]
+
+
+@app.get("/api/kb0/{year}")
+def get_kb0(year: int, x_user: str = Header("bonniewbli")):
+    """PM 速览：按当前账号权限（kb1_depts）聚合其可见的各部门 —— 每部门回预算当量 + 期末在岗预估（不含法定HC）。"""
+    with db() as c:
+        if not c.execute("SELECT 1 FROM years WHERE year=?", (year,)).fetchone():
+            raise HTTPException(404, "年份不存在")
+        depts = _user_depts(c, x_user)
+    rows = []
+    for dept in depts:
+        b = get_board(year, dept)  # 复用看板1 运算（各自开库连接）
+        rows.append({
+            "dept": dept,
+            "budget": b["metrics"]["budget"]["vals"],      # 预算当量
+            "chain": b["metrics"]["actual"]["vals"],        # 实际/预估期末在岗（已并链）
+            "budgetAvg": b["computed"]["budget_avg"],
+            "chainAvg": b["computed"]["chain_avg"],
+            "lock": b["lock"], "demo": b["demo"],
+        })
+    return {"year": year, "lock": rows[0]["lock"] if rows else 0, "depts": rows}
 
 
 class CellEdit(BaseModel):

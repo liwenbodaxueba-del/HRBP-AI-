@@ -489,7 +489,7 @@ body.navfold .navtg{left:8px;}
 <main>
 <!-- 看板0 · PM 速览（只读三行） -->
 <div class="view" id="v-kb0">
-  <div style="margin:2px 0 12px"><b style="font-size:16px;color:var(--navy)">看板0 · PM 速览</b><span style="color:var(--ink3);font-size:12.5px;margin-left:10px">给 PM 的快捷视图 · 只读：法定HC / 预算当量 / 月末实际在岗·期末在岗预估 三行（悬停行名看口径）</span></div>
+  <div style="margin:2px 0 12px"><b style="font-size:16px;color:var(--navy)">看板0 · PM 速览</b><span style="color:var(--ink3);font-size:12.5px;margin-left:10px">给 PM 的快捷视图 · 只读：预算当量 / 实际·预估期末在岗（按账号权限展示各部门 · 悬停行名看口径）</span></div>
   <div class="yeartabs"></div>
   <div id="kb0Host"></div>
 </div>
@@ -1288,15 +1288,22 @@ function renderKb2(){
 /* ===== 看板0 · PM 速览（只读三行：法定HC / 预算当量 / 期末在岗预估） ===== */
 function renderKb0(){
   var host=document.getElementById('kb0Host');if(!host)return;
-  // 集团 = 当前部门口径数据
-  var qL=kb2Total('quota',false),BUD=[];for(var mQ=0;mQ<12;mQ++)BUD[mQ]=isN(qL[mQ])?qL[mQ]:'';
-  var hc=kb2Total('hc',true),qa=avg(BUD);
-  var c=chain(),mgA=[];for(var mA=0;mA<12;mA++)mgA[mA]=(mA<LOCK)?D.actual[mA]:c[mA];
-  var caA=avg(c),ovA=isN(caA)&&isN(qa)&&caA>qa+0.005;
-  var EMPTY=nb();  // 云智/外包 暂无分主体数据源 → 空态（未接入不编造）
-  host.innerHTML=kb0Table('集团',hc,BUD,mgA,f2(qa),f2(caA),ovA)
-    +kb0Table('云智',EMPTY,EMPTY,EMPTY,'','',false)
-    +kb0Table('外包',EMPTY,EMPTY,EMPTY,'','',false);
+  function nnv(v){return (v===null||v===undefined)?'':v;}
+  if(!window.USE_API||!window.loadKb0){  // 无后端：退回本地"集团"单表（预算+预估，无HC）
+    var qL=kb2Total('quota',false),BUD=[];for(var mQ=0;mQ<12;mQ++)BUD[mQ]=isN(qL[mQ])?qL[mQ]:'';
+    var c=chain(),mgA=[];for(var mA=0;mA<12;mA++)mgA[mA]=(mA<LOCK)?D.actual[mA]:c[mA];
+    var qa=avg(BUD),caA=avg(c);
+    host.innerHTML=kb0Table('集团',BUD,mgA,f2(qa),f2(caA),isN(caA)&&isN(qa)&&caA>qa+0.005);
+    return;
+  }
+  // 后端：按当前账号 kb0_depts 权限，逐部门渲染（预算当量 + 期末在岗预估，无法定HC）
+  window.loadKb0(YEAR).then(function(r){
+    var h=(r.depts||[]).map(function(d){
+      var ov=isN(d.chainAvg)&&isN(d.budgetAvg)&&d.chainAvg>d.budgetAvg+0.005;
+      return kb0Table(d.dept,(d.budget||[]).map(nnv),(d.chain||[]).map(nnv),f2(d.budgetAvg),f2(d.chainAvg),ov);
+    }).join('');
+    host.innerHTML=h||'<div class="hint" style="padding:16px">当前账号未配置 PM 速览可见部门 —— 请在管理后台「账号与权限」配置看板0部门。</div>';
+  }).catch(function(){});
 }
 /* ===== 看板4 · 云智&外包（两张表，结构同看板1；预算当量/期末在岗留空待接入；总流入/总流出仅手填分支） ===== */
 function renderKb4(){
@@ -1322,13 +1329,12 @@ function kb4Table(prefix,label){
   h+='</table></div>';
   return h;
 }
-function kb0Table(label,hc,BUD,mgA,budAvg,chainAvg,ovA){
+function kb0Table(label,BUD,mgA,budAvg,chainAvg,ovA){
   var yy=String(YEAR).slice(2);
   var h='<div style="font-size:14px;font-weight:700;color:var(--navy);margin:16px 0 6px">'+label+'</div>';
   h+='<div class="tblwrap"><table class="bsc kb0tbl"><tr><th>项目</th>';
   for(var m=0;m<12;m++)h+='<th class="'+(m<LOCK?'':'fut')+'">'+M[m]+(m<LOCK?'<span class="lockic"></span>':'')+'</th>';
   h+='<th>'+yy+'年均</th></tr>';
-  h+=tr('key','法定HC <span class="badge calc">编制上限</span>',hc,{src:'kb2hc',avg:'—',lockShade:true,noTot:true});
   h+=tr('key','预算当量 <span class="badge calc">看板2</span>',BUD,{src:'budget',avg:budAvg,lockShade:true,noTot:true});
   h+=tr('key',cfgName('actual','实际/预估期末在岗')+' <span class="badge calc">链</span>',mgA,{src:'chain',avg:chainAvg,avgCls:ovA?'neg':'',lockShade:true,noTot:true});
   h+='</table></div>';
@@ -2177,6 +2183,7 @@ window.USE_API=false;var API_USER='bonniewbli';
 /* 看板1 部门空间：各部门独立存一套数。DEPT 定 IIFE 内，board 接口自动带 ?dept= */
 var DEPT='集团';window.CUR_DEPT=DEPT;
 window.setDept=function(v){DEPT=v;window.CUR_DEPT=v;var el=document.getElementById('deptLbl');if(el)el.textContent='部门空间：'+v+' ▾';return loadYear(YEAR).catch(apiErr);};
+window.loadKb0=function(year){return api('GET','/api/kb0/'+year);};  // PM速览：按账号 kb0_depts 聚合各部门预算/预估
 function api(m,p,b){if(p.indexOf('/api/board/')===0)p+=(p.indexOf('?')<0?'?':'&')+'dept='+encodeURIComponent(DEPT);return fetch(p,{method:m,headers:{'Content-Type':'application/json','X-User':API_USER},body:b?JSON.stringify(b):undefined}).then(function(r){return r.json().then(function(j){if(!r.ok)throw j;return j;});});}
 var SEC2FRONT={'总流出（−）':'out','总流入（＋）':'inn','社招∇ 分列':'soc','校招∇ 分列':'camp','法定HC·其中':'hc','预算当量·其中':'quota','云智·总流入（＋）':'yz_inn','云智·总流出（−）':'yz_out','外包·总流入（＋）':'wb_inn','外包·总流出（−）':'wb_out'};
 var FRONT2SEC={out:'总流出（−）',inn:'总流入（＋）',soc:'社招∇ 分列',camp:'校招∇ 分列',hc:'法定HC·其中',quota:'预算当量·其中',yz_inn:'云智·总流入（＋）',yz_out:'云智·总流出（−）',wb_inn:'外包·总流入（＋）',wb_out:'外包·总流出（−）'};
