@@ -452,8 +452,8 @@ body.navfold .navtg{left:8px;}
     <div class="bn">HC Forecast<small>人力预估看板 · V2</small></div>
   </div>
   <div class="grp">看板</div>
-  <a data-v="kb0" onclick="go(this)">看板0 · PM 速览</a>
-  <a class="on" data-v="kb1" id="kb1NavLink" onclick="go(this)" style="position:sticky;top:0;z-index:6;background:var(--b50)">看板1 · 部门人力预估表<span id="kb1NavArrow" onclick="event.stopPropagation();toggleKb1Nav()" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>
+  <a class="on" data-v="kb0" onclick="go(this)">看板0 · PM 速览</a>
+  <a data-v="kb1" id="kb1NavLink" onclick="go(this)" style="position:sticky;top:0;z-index:6;background:var(--b50)">看板1 · 部门人力预估表<span id="kb1NavArrow" onclick="event.stopPropagation();toggleKb1Nav()" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>
   <div id="kb1DeptNav" style="display:none;margin:-2px 0 4px 0"></div>
   <a data-v="kb2" onclick="go(this)">看板2 · 预算看板</a>
   <a data-v="kb3" onclick="go(this)">看板3 · 社招滚动台账</a>
@@ -491,7 +491,7 @@ body.navfold .navtg{left:8px;}
 
 <main>
 <!-- 看板0 · PM 速览（只读三行） -->
-<div class="view" id="v-kb0">
+<div class="view on" id="v-kb0">
   <div style="margin:2px 0 12px;display:flex;align-items:center;flex-wrap:wrap;gap:6px"><b style="font-size:16px;color:var(--navy)">看板0 · PM 速览</b><span style="color:var(--ink3);font-size:12.5px;margin-left:8px">责任部门</span><span id="kb0DeptTag" style="display:inline-flex;flex-wrap:wrap;gap:6px"></span></div>
   <div class="yeartabs"></div>
   <div id="kb0Host"></div>
@@ -503,7 +503,7 @@ body.navfold .navtg{left:8px;}
   <div id="kb4Host"></div>
 </div>
 <!-- 看板1 -->
-<div class="view on" id="v-kb1">
+<div class="view" id="v-kb1">
   <div style="display:flex;align-items:center;gap:10px;margin:4px 0 14px">
     <b style="font-size:19px;color:var(--navy)">部门人力预估表 · <span id="deptPickLbl">集团</span></b>
     <span id="deptAggNote" style="font-size:12px;font-weight:600;color:#B45309;background:#FEF3C7;padding:2px 10px;border-radius:12px;display:none">各中心汇总 · 只读（请在具体中心录入）</span>
