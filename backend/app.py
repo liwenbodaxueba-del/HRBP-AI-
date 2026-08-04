@@ -152,11 +152,56 @@ def ioa_sync(acct_id: str, x_user: str = Header("bonniewbli")):
         return {"ok": True, "profile": prof}
 
 
+IOA_CFG_PATH = os.path.join(os.path.dirname(__file__), "ioa_config.json")
+
+
+def load_ioa_cfg():
+    """iOA 接入配置（backend/ioa_config.json·已 gitignore）。不存在→{}（未接入）。"""
+    if not os.path.exists(IOA_CFG_PATH):
+        return {}
+    try:
+        with open(IOA_CFG_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    except (ValueError, OSError):
+        return {}
+
+
 def fetch_ioa_profile(acct_id):
-    """iOA 组织/职级拉取（预留）。未配置 iOA 凭据 → None（前端提示"待接 iOA"，不造数据）。
-    正式版：读 ioa_config.json（gitignore）里的 OpenAPI 端点+凭据，按 acct_id 查组织架构，
-    map 字段 → {name, dept, org_path, level, manager_id}。org_path 用 iOA 组织全路径「/」拼接。"""
-    return None
+    """iOA 组织/职级拉取（配置驱动·接口即插即用，不改代码只改 ioa_config.json）：
+      · 无配置 → None（前端提示"待接 iOA"，不建号不编造）
+      · 配 mock（{"mock":{"acct":{...}}}）→ 直接返回，供联调不依赖真 iOA
+      · 配 url/headers/field_map → 调 iOA OpenAPI（urllib·无第三方依赖），按 field_map 映射字段
+    返回 {name,dept,org_path,level,manager_id} 或 None。org_path 用组织全路径「/」拼接。"""
+    cfg = load_ioa_cfg()
+    if not cfg:
+        return None
+    if cfg.get("mock"):
+        return cfg["mock"].get(acct_id)
+    url = cfg.get("url")
+    if not url:
+        return None
+    import urllib.request
+    req = urllib.request.Request(url.replace("{acct}", acct_id), headers=cfg.get("headers", {}))
+    try:
+        with urllib.request.urlopen(req, timeout=cfg.get("timeout", 8)) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return None  # 接口异常→判空，绝不编造
+    fm = cfg.get("field_map", {})
+
+    def _dig(obj, path):
+        for p in (path or "").split("."):
+            obj = obj.get(p) if isinstance(obj, dict) else None
+        return obj
+
+    seg_join = cfg.get("org_path_join", "/")
+    prof = {}
+    for k in ("name", "dept", "org_path", "level", "manager_id"):
+        v = _dig(data, fm.get(k)) if fm.get(k) else None
+        if isinstance(v, list):  # org_path 若为数组则拼接
+            v = seg_join.join(str(x) for x in v)
+        prof[k] = v or ""
+    return prof if prof.get("org_path") else None
 
 
 # ---------------- 年份 ----------------

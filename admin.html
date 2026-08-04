@@ -365,6 +365,8 @@ renderAccts();renderProjs();renderAudit();
 var ORIG={saveCfg:saveCfg,renderAudit:renderAudit,resetCfg:resetCfg};
 window.USE_API=false;var API_USER='bonniewbli';
 function api(m,p,b){return fetch(p,{method:m,headers:{'Content-Type':'application/json','X-User':API_USER},body:b?JSON.stringify(b):undefined}).then(function(r){return r.json().then(function(j){if(!r.ok)throw j;return j;});});}
+/* 账号从"可管辖树"接口加载：管理员见全员，领导只见自己子树（后端 can_manage 前缀过滤）。未来 iOA 登录切 API_USER 即生效。 */
+window.cfgReloadAccts=function(){return api('GET','/api/accounts/tree').then(function(r){accts=r.accounts||[];window.ACCT_ME=r.me||null;renderAccts();}).catch(function(){});};
 saveCfg=function(){
   if(!USE_API)return ORIG.saveCfg();
   api('PUT','/api/config',{projs:projs,accts:accts}).catch(function(e){alert('配置下发失败：'+JSON.stringify(e&&e.detail||e));});
@@ -384,7 +386,7 @@ fetch('/api/health').then(function(r){return r.json();}).then(function(h){
   USE_API=true;
   var el=document.querySelector('.topbar .fresh');if(el)el.textContent='已连接后端 API · 配置落库并即时下发（'+h.storage+'）';
   return api('GET','/api/config');
-}).then(function(cfg){accts=cfg.accts;projs=cfg.projs;renderAccts();renderProjs();renderAudit();})
+}).then(function(cfg){projs=cfg.projs;renderProjs();renderAudit();return window.cfgReloadAccts();})
 .catch(function(){/* 无后端：本机暂存模式 */});
 })();
 </script>

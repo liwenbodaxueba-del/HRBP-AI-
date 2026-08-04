@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 backend/hcfb_test.db
 backend/sources_config.json
+backend/ioa_config.json
