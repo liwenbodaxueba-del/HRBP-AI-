@@ -70,6 +70,27 @@ def init_db():
             CREATE TABLE IF NOT EXISTS ui_prefs(
               user_id TEXT, k TEXT, v TEXT, updated_at TEXT,
               PRIMARY KEY(user_id, k));
+            -- 权限层级 P1：职级默认模板（可配·上级授权叠加在此之上）
+            CREATE TABLE IF NOT EXISTS role_templates(
+              level TEXT PRIMARY KEY,          -- 职级/模板键（对齐 iOA level）
+              label TEXT,                      -- 显示名
+              role TEXT,                       -- 映射现有角色：管理员/HRBP·可编辑/领导·只读
+              kb TEXT DEFAULT '[1,1,1,1]',     -- 默认看板访问 [kb0..3]
+              scope TEXT DEFAULT 'self',       -- 数据范围：self本人部门 / subtree本组织子树 / all全部
+              can_manage INTEGER DEFAULT 0,    -- 是否可管下级权限
+              edit_items TEXT DEFAULT '[]',    -- 默认可编辑项目 key 数组
+              updated_at TEXT);
+            -- 权限层级 P1：例外授权（默认不够用时，上级在其管辖子树内加权；叠加层）
+            CREATE TABLE IF NOT EXISTS perm_grants(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              grantee_id TEXT,                 -- 被授权人 accounts.id
+              resource TEXT,                   -- 对象：看板/项目/部门空间键
+              action TEXT,                     -- read / write / manage
+              scope TEXT,                      -- 范围（dept / org_path / 看板）
+              granted_by TEXT,                 -- 授权人 accounts.id
+              granted_at TEXT,
+              expires_at TEXT,                 -- 有效期（空=永久）
+              reason TEXT);                    -- 授权缘由（进审计）
             """
         )
         if not c.execute("SELECT 1 FROM years LIMIT 1").fetchone():
@@ -103,6 +124,29 @@ def init_db():
             c.execute("ALTER TABLE projects ADD COLUMN edit TEXT DEFAULT ''")
         except sqlite3.OperationalError:
             pass  # 列已存在
+        # ---- 2608 权限层级 P1：accounts 接组织树（level 职级 / manager_id 上级 / org_path 物化路径）----
+        # org_path 用「/」分隔，如 云产品五部/MPaaS/直播产品中心 → 判「上级管下级」= 前缀匹配子树，无需递归爬上级
+        for col in ("level", "manager_id", "org_path"):
+            try:
+                c.execute(f"ALTER TABLE accounts ADD COLUMN {col} TEXT DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass  # 列已存在
+        # 回填内置管理员（幂等）：李文博=部门顶层
+        c.execute("UPDATE accounts SET org_path='云产品五部', level='管理员' WHERE id='bonniewbli' AND (org_path IS NULL OR org_path='')")
+        # 职级→默认模板 seed（首次建库时；后续在后台可改，这里只是起步默认，不是硬编码策略）
+        if not c.execute("SELECT 1 FROM role_templates LIMIT 1").fetchone():
+            c.executemany(
+                "INSERT INTO role_templates(level,label,role,kb,scope,can_manage,edit_items,updated_at) VALUES(?,?,?,?,?,?,?,?)",
+                [
+                    ("管理员", "管理员", "管理员", "[1,1,1,1]", "all", 1, "[]", now()),
+                    ("部长", "部长（部门顶层）", "领导·只读", "[1,1,1,1]", "subtree", 1, "[]", now()),
+                    ("AGM", "AGM/产品线负责人", "领导·只读", "[1,1,1,1]", "subtree", 1, "[]", now()),
+                    ("总监", "中心负责人（总监）", "领导·只读", "[1,1,1,0]", "subtree", 1, "[]", now()),
+                    ("经理", "组长/经理（PM）", "HRBP·可编辑", "[1,1,1,1]", "self", 1, "[]", now()),
+                    ("专员", "组员（BP）", "HRBP·可编辑", "[1,1,1,1]", "self", 0, "[]", now()),
+                ],
+            )
+            _audit(c, "system", "权限初始化", "role_templates 起步默认 6 档（管理员/部长/AGM/总监/经理/专员）；职级映射与范围待按 iOA 真实职级校准")
         # ---- 260723 台账日期列自动归一（历史脏数据一次性清洗，幂等：归一函数对已归一值不变）----
         from kb3_ledger import _norm_date as _nd  # 函数级导入避免模块环
         for r in c.execute("SELECT id,ask,tgt,eta,prev_eta,join_dt FROM ledger_rows").fetchall():
@@ -178,6 +222,27 @@ def require_admin(c, user_id):
     if a["role"] != "管理员":
         raise HTTPException(403, "仅管理员可执行此操作")
     return a
+
+
+def can_manage(c, granter_id, grantee_id):
+    """上级能否管下级的权限：管理员管全员；否则 grantee.org_path 须为 granter.org_path 的严格子树（前缀匹配），不能管平级/自己。"""
+    if granter_id == grantee_id:
+        return False
+    g = get_account(c, granter_id)
+    t = get_account(c, grantee_id)
+    if not g or not t:
+        return False
+    if (g.get("role") or "") == "管理员":
+        return True
+    gp = (g.get("org_path") or "").strip("/")
+    tp = (t.get("org_path") or "").strip("/")
+    return bool(gp) and tp.startswith(gp + "/")  # 严格子树=下级；同节点(平级)不算
+
+
+def manageable_ids(c, granter_id):
+    """granter 可管辖的全部账号 id（子树成员）——供后台『上级只看到自己下级』的列表过滤。"""
+    return [r["id"] for r in c.execute("SELECT id FROM accounts").fetchall()
+            if can_manage(c, granter_id, r["id"])]
 
 
 init_db()
