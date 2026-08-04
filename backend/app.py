@@ -305,7 +305,7 @@ def _user_depts(c, user_id, field="kb0_depts"):
     except Exception:
         depts = []
     if depts:
-        return [d for d in depts if d in DEPTS_ALL]
+        return depts  # 直接用配置的部门（可含「部/中心」中心路径）
     return DEPTS_ALL if a.get("role") == "管理员" else ["集团"]
 
 

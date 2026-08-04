@@ -194,9 +194,9 @@ body.navfold .navtg{left:8px;}
   <h3>部门权限配置 · <span id="dcWho" style="color:var(--navy)"></span></h3>
   <div class="meta">看板1可见部门=该账号能在看板1切换/编辑的部门；看板0(PM速览)可见部门=PM速览里聚合展示的部门。二者独立——可"看板1能看、看板0不展示"。</div>
   <label>看板1 可见部门</label>
-  <div id="dcKb1" style="margin:2px 0 8px"></div>
+  <div id="dcKb1" style="margin:2px 0 8px;max-height:160px;overflow:auto;border:1px solid #E5E9F0;border-radius:8px;padding:6px 10px"></div>
   <label>看板0 · PM速览 组织分工</label>
-  <div id="dcKb0" style="margin:2px 0 8px"></div>
+  <div id="dcKb0" style="margin:2px 0 8px;max-height:160px;overflow:auto;border:1px solid #E5E9F0;border-radius:8px;padding:6px 10px"></div>
   <div class="row"><button class="btn gray" onclick="closeDeptCfg()">取消</button><button class="btn" onclick="saveDeptCfg()">保存并生效</button></div>
 </div></div>
 
@@ -275,19 +275,19 @@ function acctRow(a,depth){
   return '<tr><td style="padding-left:'+(depth*20+24)+'px">'+esc(a.id)+(a.demo?' <span class="chip demo">示例</span>':'')+'</td>'
     +'<td>'+esc(a.name)+(a.level?' <span class="chip">'+esc(a.level)+'</span>':'')+'</td>'
     +'<td>'+roleSel+'</td><td><span class="kbchk">'+kb+'</span></td>'
+    +'<td class="c"><button class="btn gray" style="padding:2px 10px;font-size:12px" onclick="openDeptCfg(\''+a.id.replace(/'/g,'')+'\')" title="配置该账号可见的看板1/看板0部门（可精确到中心）">看板1·'+((a.kb1_depts||[]).length)+' / 看板0·'+((a.kb0_depts||[]).length)+' ⚙</button></td>'
     +'<td class="c"><label class="sw"'+(a.id==='bonniewbli'?' title="本人账号不可停用"':'')+'><input type="checkbox" '+(a.on?'checked':'')+(a.id==='bonniewbli'?' disabled':' onchange="accOn('+i+',this.checked)"')+'><span class="tk"></span></label></td>'
-    +'<td class="c"><button class="btn gray" style="padding:2px 8px;font-size:12px" onclick="openDeptCfg(\''+a.id.replace(/'/g,'')+'\')" title="配置该账号可见的看板1/看板0部门">部门</button> '
-    +'<button class="btn gray" style="padding:2px 8px;font-size:12px" onclick="ioaSync(\''+a.id.replace(/'/g,'')+'\')" title="按 iOA 组织架构回填 org_path/职级/上级（正式版）">iOA同步</button> '
+    +'<td class="c"><button class="btn gray" style="padding:2px 8px;font-size:12px" onclick="ioaSync(\''+a.id.replace(/'/g,'')+'\')" title="按 iOA 组织架构回填 org_path/职级/上级（正式版）">iOA同步</button> '
     +(a.id==='bonniewbli'?'<span class="chip ok">当前</span>':'<span class="rowdel" onclick="accDel('+i+')">移除</span>')+'</td></tr>';
 }
 function renderAccts(){
   var root=buildOrgTree(accts);
-  var h='<thead><tr><th>iOA 账号 / 组织层级</th><th style="width:180px">姓名·职级</th><th style="width:140px">角色</th><th>看板访问</th><th class="c">启用</th><th class="c" style="width:160px">操作</th></tr></thead><tbody>';
+  var h='<thead><tr><th>iOA 账号 / 组织层级</th><th style="width:180px">姓名·职级</th><th style="width:140px">角色</th><th>看板访问</th><th class="c" style="width:150px">部门权限</th><th class="c">启用</th><th class="c" style="width:120px">操作</th></tr></thead><tbody>';
   root.accts.forEach(function(a){h+=acctRow(a,0);});  // 无 org_path（未分配组织）
   (function walk(node,path,depth){
     node.order.forEach(function(seg){
       var child=node.children[seg],key=path+'/'+seg,collapsed=ACCT_COLLAPSE[key];
-      h+='<tr><td colspan="6" style="background:#F1F5F9;padding:6px 8px 6px '+(depth*20+8)+'px;cursor:pointer;font-weight:600" onclick="acctToggle(\''+key.replace(/'/g,'')+'\')">'
+      h+='<tr><td colspan="7" style="background:#F1F5F9;padding:6px 8px 6px '+(depth*20+8)+'px;cursor:pointer;font-weight:600" onclick="acctToggle(\''+key.replace(/'/g,'')+'\')">'
         +(collapsed?'▸':'▾')+' '+esc(seg)+' <span class="chip">'+countAccts(child)+' 人</span></td></tr>';
       if(!collapsed){child.accts.forEach(function(a){h+=acctRow(a,depth+1);});walk(child,key,depth+1);}
     });
@@ -302,9 +302,21 @@ function ioaSync(id){
   });
 }
 /* 部门权限配置：看板1可见部门 / 看板0(PM速览)可见部门，两套独立 */
-var DEPTS_ALL=['集团','云产品一部','云产品二部','云产品三部','云产品四部','云产品五部'];
+/* 部门树（部→中心，与看板 index.html DEPT_TREE 保持一致）。中心键用「部/中心」全路径 */
+var DEPT_TREE=[
+  {name:'集团'},
+  {name:'云产品一部',children:['计算产品中心','轻量云产品中心','异构计算产品中心','存储产品中心','网络产品中心','高性能网络产品中心','CBS产品中心','CLS产品中心','虚拟化产品中心','TCE产品中心','TCS产品中心','云开发产品中心','中间件产品中心','云原生产品中心','国产数据库产品中心','云原生数据库产品中心','NoSQL数据库产品中心','数据库SaaS产品与技术平台中心','数据库架构与支持中心','数据库平台研发中心','区块链产品中心','IaaS前沿技术组','产品架构组','产品管理支持组','可用性架构组','MaaS产品中心','Agent Runtime产品中心','TIONE产品中心','计算加速中心']},
+  {name:'云产品二部',children:['大数据产品架构与支持中心','大数据基础产品中心','TBDS产品中心','WeData产品中心','大数据应用产品中心','产品运营及管理支持组','数字孪生产品中心']},
+  {name:'云产品三部',children:['应用产品一中心','应用产品二中心','智能体平台产品中心','交付中心','经营分析组','海外运营组']},
+  {name:'云产品四部',children:['运营产品中心','客户经营平台产品中心','计费产品中心','平台产品中心','产品支持中心','腾讯云设计一中心','腾讯云设计二中心','服务与产品优化组','综合业务项目管理组','平台架构组','身份产品中心']},
+  {name:'云产品五部'}
+];
 var _dcId=null;
-function _dcBox(host,list){document.getElementById(host).innerHTML=DEPTS_ALL.map(function(dp){return '<label style="display:inline-block;margin:3px 14px 3px 0;font-size:13px"><input type="checkbox" value="'+dp+'" '+((list||[]).indexOf(dp)>=0?'checked':'')+'> '+dp+'</label>';}).join('');}
+function _dcCb(val,label,list,pad){return '<label style="display:block;margin:2px 0 2px '+pad+'px;font-size:13px;white-space:nowrap"><input type="checkbox" value="'+val.replace(/"/g,'')+'" '+((list||[]).indexOf(val)>=0?'checked':'')+'> '+label+'</label>';}
+function _dcBox(host,list){var h='';
+  DEPT_TREE.forEach(function(node){h+=_dcCb(node.name,'<b>'+node.name+'</b>',list,0);
+    if(node.children)node.children.forEach(function(ch){h+=_dcCb(node.name+'/'+ch,'· '+ch,list,22);});});
+  document.getElementById(host).innerHTML=h;}
 function _dcRead(host){return [].slice.call(document.querySelectorAll('#'+host+' input:checked')).map(function(x){return x.value;});}
 function openDeptCfg(id){var i=acctIdx(id);if(i<0)return;_dcId=id;var a=accts[i];
   document.getElementById('dcWho').textContent=a.name+'（'+a.id+'）';
