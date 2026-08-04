@@ -115,6 +115,19 @@ def put_config(doc: ConfigDoc, x_user: str = Header("bonniewbli")):
         return {"ok": True}
 
 
+# ---------------- 当前登录账号自身权限（前端据此过滤看板1可见部门等） ----------------
+@app.get("/api/me")
+def get_me(x_user: str = Header("bonniewbli")):
+    with db() as c:
+        a = get_account(c, x_user)
+        if not a:
+            raise HTTPException(403, f"账号 {x_user} 未配置")
+        return {"id": a["id"], "name": a["name"], "role": a["role"], "dept": a.get("dept", "") or "",
+                "is_head": bool(a.get("is_head", 0)),
+                "kb1_depts": json.loads((a.get("kb1_depts") or "") or '["集团"]'),
+                "kb0_depts": json.loads((a.get("kb0_depts") or "") or '["集团"]')}
+
+
 # ---------------- 账号层级树（上级只看到自己管辖子树；管理员看全员） ----------------
 @app.get("/api/accounts/tree")
 def accounts_tree(x_user: str = Header("bonniewbli")):

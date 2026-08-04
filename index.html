@@ -952,12 +952,20 @@ function _navA(deptKey,label,padLeft,cur,arrow,stickyTop){var on=(cur===deptKey)
   return '<a onclick="pickDeptNav(\''+deptKey.replace(/'/g,"")+'\')" title="'+label+'" style="'+st+'display:block;padding:6px 10px 6px '+padLeft+'px;font-size:12.5px;border-radius:8px;margin-bottom:2px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:'+bg+';'+(on?'color:var(--blue);font-weight:600':'color:var(--ink2)')+'">'+label+arrow+'</a>';}
 function renderKb1Nav(){var host=document.getElementById('kb1DeptNav');if(!host)return;var cur=window.CUR_DEPT||'集团',h='';
   var kbH=(document.getElementById('kb1NavLink')||{}).offsetHeight||42;  // 部标题钉在「看板1」下方
+  // 看板1可见权限：按当前账号 kb1_depts 过滤（全局管理员看全部）
+  var MY=window.MY, adm=(!MY)||MY.role==='管理员', al=(MY&&MY.kb1_depts)||[];
+  function wholeOK(n){return adm||al.indexOf(n)>=0;}
+  function centerOK(n,ch){return adm||al.indexOf(n)>=0||al.indexOf(n+'/'+ch)>=0;}
+  function partVisible(node){if(adm||al.indexOf(node.name)>=0)return true;
+    return (node.children||[]).some(function(ch){return al.indexOf(node.name+'/'+ch)>=0;});}
   DEPT_TREE.forEach(function(node){var hasCh=node.children&&node.children.length,open=hasCh&&KB1_OPEN[node.name];
-    var arrow=hasCh?'<span onclick="event.stopPropagation();toggleKb1Sub(\''+node.name+'\')" style="float:right;font-size:10px;padding:0 4px;color:var(--ink3)">'+(open?'▾':'▸')+'</span>':'';
+    if(!hasCh){if(!wholeOK(node.name))return;h+=_navA(node.name,node.name,20,cur,'');return;}
+    if(!partVisible(node))return;
+    var arrow='<span onclick="event.stopPropagation();toggleKb1Sub(\''+node.name+'\')" style="float:right;font-size:10px;padding:0 4px;color:var(--ink3)">'+(open?'▾':'▸')+'</span>';
     h+=_navA(node.name,node.name,20,cur,arrow,open?kbH:null);
-    if(hasCh&&KB1_OPEN[node.name])node.children.forEach(function(ch){h+=_navA(node.name+'/'+ch,'· '+ch,38,cur,'');});
+    if(open)node.children.forEach(function(ch){if(centerOK(node.name,ch))h+=_navA(node.name+'/'+ch,'· '+ch,38,cur,'');});
   });
-  host.innerHTML=h;}
+  host.innerHTML=h||'<div style="padding:8px 20px;font-size:12px;color:var(--ink3)">无可见部门</div>';}
 function toggleKb1Sub(name){KB1_OPEN[name]=!KB1_OPEN[name];renderKb1Nav();}
 function toggleKb1Nav(){var h=document.getElementById('kb1DeptNav'),a=document.getElementById('kb1NavArrow');if(!h)return;var open=(h.style.display==='none');h.style.display=open?'block':'none';if(a)a.style.transform=open?'rotate(90deg)':'';if(open)renderKb1Nav();}
 function pickDeptNav(d){goView('kb1');if(window.setDept)window.setDept(d);renderKb1Nav();}
@@ -2222,6 +2230,8 @@ window.USE_API=false;var API_USER='bonniewbli';
 var DEPT='集团';window.CUR_DEPT=DEPT;
 window.setDept=function(v){DEPT=v;window.CUR_DEPT=v;var el=document.getElementById('deptLbl');if(el)el.textContent='部门空间：'+v+' ▾';var pl=document.getElementById('deptPickLbl');if(pl)pl.textContent=v;if(window.renderKb1Nav)renderKb1Nav();return loadYear(YEAR).catch(apiErr);};
 window.loadKb0=function(year){return api('GET','/api/kb0/'+year);};  // PM速览：按账号 kb0_depts 聚合各部门预算/预估
+window.MY=null;  // 当前登录账号权限（看板1可见部门/角色）
+window.loadMe=function(){return api('GET','/api/me').then(function(m){window.MY=m;if(window.renderKb1Nav)renderKb1Nav();return m;}).catch(function(){});};
 function api(m,p,b){if(p.indexOf('/api/board/')===0)p+=(p.indexOf('?')<0?'?':'&')+'dept='+encodeURIComponent(DEPT);return fetch(p,{method:m,headers:{'Content-Type':'application/json','X-User':API_USER},body:b?JSON.stringify(b):undefined}).then(function(r){return r.json().then(function(j){if(!r.ok)throw j;return j;});});}
 var SEC2FRONT={'总流出（−）':'out','总流入（＋）':'inn','社招∇ 分列':'soc','校招∇ 分列':'camp','法定HC·其中':'hc','预算当量·其中':'quota','云智·总流入（＋）':'yz_inn','云智·总流出（−）':'yz_out','外包·总流入（＋）':'wb_inn','外包·总流出（−）':'wb_out'};
 var FRONT2SEC={out:'总流出（−）',inn:'总流入（＋）',soc:'社招∇ 分列',camp:'校招∇ 分列',hc:'法定HC·其中',quota:'预算当量·其中',yz_inn:'云智·总流入（＋）',yz_out:'云智·总流出（−）',wb_inn:'外包·总流入（＋）',wb_out:'外包·总流出（−）'};
@@ -2640,7 +2650,7 @@ fetch('/api/health').then(function(r){return r.json();}).then(function(h){
   USE_API=true;
   apiTag();
   addImportBtn();
-  return loadCfg().then(loadYears).then(function(){return loadYear(YEAR);}).then(function(){return loadLedger();}).then(function(){return loadPrefs();}).then(function(){return loadSources();}).then(function(){renderAuditApi();})
+  return loadCfg().then(loadYears).then(function(){return window.loadMe();}).then(function(){return loadYear(YEAR);}).then(function(){return loadLedger();}).then(function(){return loadPrefs();}).then(function(){return loadSources();}).then(function(){renderAuditApi();})
     .then(function(){return api('GET','/api/version');}).then(function(r){SYNC.ver=r.v;SYNC.on=true;syncStart();syncMark('自动同步开 · '+_hhmm());}).catch(function(){});
 }).catch(function(){/* 无后端：本地空态模式 */});
 })();
