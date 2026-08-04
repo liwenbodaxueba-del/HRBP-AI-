@@ -270,11 +270,15 @@ function acctToggle(key){ACCT_COLLAPSE[key]=!ACCT_COLLAPSE[key];renderAccts();}
 function acctRow(a,depth){
   var i=acctIdx(a.id);
   var kb=KB.map(function(k,j){return '<label><input type="checkbox" '+(a.kb[j]?'checked':'')+' onchange="accKb('+i+','+j+',this.checked)">'+k+'</label>';}).join('');
-  var roleSel='<select onchange="accRole('+i+',this.value)"><option'+(a.role==='管理员'?' selected':'')+'>管理员</option><option'+(a.role==='HRBP·可编辑'?' selected':'')+'>HRBP·可编辑</option><option'+(a.role==='领导·只读'?' selected':'')+'>领导·只读</option></select>';
+  var me=(a.id==='bonniewbli');  // 本人：权限不可自改（须由系统管理员配置）
+  var roleSel=me?('<span style="font-size:13px;color:var(--ink2)" title="本人角色不可自改，须由系统管理员配置">'+esc(a.role)+'</span>')
+    :'<select onchange="accRole('+i+',this.value)"><option'+(a.role==='管理员'?' selected':'')+'>管理员</option><option'+(a.role==='HRBP·可编辑'?' selected':'')+'>HRBP·可编辑</option><option'+(a.role==='领导·只读'?' selected':'')+'>领导·只读</option></select>';
+  var deptCell=me?('<span style="font-size:12px;color:var(--ink3)" title="本人权限不可自改">看板1·'+((a.kb1_depts||[]).length)+' / 看板0·'+((a.kb0_depts||[]).length)+'</span>')
+    :('<button class="btn gray" style="padding:2px 10px;font-size:12px" onclick="openDeptCfg(\''+a.id.replace(/'/g,'')+'\')" title="配置该账号可见的看板1/看板0部门（可精确到中心）">看板1·'+((a.kb1_depts||[]).length)+' / 看板0·'+((a.kb0_depts||[]).length)+' ⚙</button>');
   return '<tr><td style="padding-left:'+(depth*20+24)+'px">'+esc(a.id)+(a.demo?' <span class="chip demo">示例</span>':'')+(a.is_head?' <span class="chip ok">总BP</span>':'')+'</td>'
     +'<td>'+esc(a.name)+(a.level?' <span class="chip">'+esc(a.level)+'</span>':'')+'</td>'
     +'<td>'+roleSel+'</td><td><span class="kbchk">'+kb+'</span></td>'
-    +'<td class="c"><button class="btn gray" style="padding:2px 10px;font-size:12px" onclick="openDeptCfg(\''+a.id.replace(/'/g,'')+'\')" title="配置该账号可见的看板1/看板0部门（可精确到中心）">看板1·'+((a.kb1_depts||[]).length)+' / 看板0·'+((a.kb0_depts||[]).length)+' ⚙</button></td>'
+    +'<td class="c">'+deptCell+'</td>'
     +'<td class="c">'+(a.id==='bonniewbli'?'<span style="font-size:12px;color:var(--ink3)">启用</span>':'<label class="sw"><input type="checkbox" '+(a.on?'checked':'')+' onchange="accOn('+i+',this.checked)"><span class="tk"></span></label>')+'</td>'
     +'<td class="c"><button class="btn gray" style="padding:2px 8px;font-size:12px" onclick="ioaSync(\''+a.id.replace(/'/g,'')+'\')" title="按 iOA 组织架构回填 org_path/职级/上级（正式版）">iOA同步</button> '
     +(a.id==='bonniewbli'?'<span class="chip ok">当前</span>':'<span class="rowdel" onclick="accDel('+i+')">移除</span>')+'</td></tr>';

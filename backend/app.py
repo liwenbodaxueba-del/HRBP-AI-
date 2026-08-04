@@ -98,16 +98,27 @@ def put_config(doc: ConfigDoc, x_user: str = Header("bonniewbli")):
                  p.get("src", ""), p.get("srcCls", "bp"), int(bool(p.get("add"))), int(bool(p.get("unbind"))),
                  int(p.get("on", True)), int(bool(p.get("sys"))), i, (p.get("edit") or "")),
             )
+        me_old = get_account(c, x_user)  # 本人现有账号：权限字段防自改（不能自己配自己）
         c.execute("DELETE FROM accounts")
         ids = {a["id"] for a in doc.accts}
         if x_user not in ids:
             raise HTTPException(400, "不可移除当前登录账号（本人账号必须保留）")
         for a in doc.accts:
-            self_on = 1 if a["id"] == x_user else int(a.get("on", True))  # 本人账号强制保持启用，防自锁
+            if a["id"] == x_user and me_old:
+                # 本人：role/dept/is_head/kb/kb1_depts/kb0_depts/启用 一律用旧值（须由系统管理员/上级配置），仅姓名可改
+                c.execute(
+                    "INSERT INTO accounts(id,name,role,dept,kb,on_ok,demo,level,manager_id,org_path,kb1_depts,kb0_depts,is_head) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (x_user, a.get("name", me_old["name"]), me_old["role"], me_old["dept"],
+                     me_old["kb"], 1, me_old["demo"],
+                     me_old["level"] or "", me_old["manager_id"] or "", me_old["org_path"] or "",
+                     me_old["kb1_depts"] or '["集团"]', me_old["kb0_depts"] or '["集团"]',
+                     int(me_old["is_head"] or 0)),
+                )
+                continue
             c.execute(
                 "INSERT INTO accounts(id,name,role,dept,kb,on_ok,demo,level,manager_id,org_path,kb1_depts,kb0_depts,is_head) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (a["id"], a.get("name", ""), a.get("role", "HRBP·可编辑"), a.get("dept", ""),
-                 json.dumps(a.get("kb", [1, 1, 1, 1])), self_on, int(bool(a.get("demo"))),
+                 json.dumps(a.get("kb", [1, 1, 1, 1])), int(a.get("on", True)), int(bool(a.get("demo"))),
                  a.get("level", ""), a.get("manager_id", ""), a.get("org_path", ""),
                  json.dumps(a.get("kb1_depts", ["集团"]), ensure_ascii=False),
                  json.dumps(a.get("kb0_depts", ["集团"]), ensure_ascii=False),
