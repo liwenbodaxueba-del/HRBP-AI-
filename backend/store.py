@@ -177,9 +177,18 @@ def init_db():
         # 内置管理员两处都看全；demo：hrhead 看板1看全、看板0只看部分（演示"看板1能看·看板0不需要"）
         c.execute("UPDATE accounts SET kb1_depts=?, kb0_depts=? WHERE id='bonniewbli' AND (kb0_depts IS NULL OR kb0_depts='' OR kb0_depts='[\"集团\"]')",
                   (_ALLD, _ALLD))
-        c.execute("UPDATE accounts SET kb1_depts=?, kb0_depts=? WHERE id='demo-bp1'", ('["云产品一部","云产品二部"]', '["云产品一部","云产品二部"]'))
-        c.execute("UPDATE accounts SET kb1_depts=?, kb0_depts=? WHERE id='demo-bp2'", ('["云产品三部"]', '["云产品三部"]'))
-        c.execute("UPDATE accounts SET kb1_depts=?, kb0_depts=? WHERE id='demo-hrhead'", (_ALLD, '["集团","云产品一部","云产品二部","云产品三部"]'))
+        c.execute("UPDATE accounts SET kb1_depts=?, kb0_depts=? WHERE id='demo-bp1'", ('["云产品一部"]', '["云产品一部"]'))
+        c.execute("UPDATE accounts SET kb1_depts=?, kb0_depts=? WHERE id='demo-bp2'", ('["云产品一部"]', '["云产品一部"]'))
+        c.execute("UPDATE accounts SET kb1_depts=?, kb0_depts=? WHERE id='demo-hrhead'", ('["云产品二部"]', '["云产品二部"]'))
+        # ---- 2608 账号按看板1部门归属 + 总BP：dept=所属看板1部门；is_head=部门总BP(管本部门其他账号/加人)----
+        try:
+            c.execute("ALTER TABLE accounts ADD COLUMN is_head INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass  # 列已存在
+        if not c.execute("SELECT 1 FROM accounts WHERE is_head=1 LIMIT 1").fetchone():  # 首次
+            for aid, adept, ahead in [("bonniewbli", "集团", 1), ("demo-bp1", "云产品一部", 1),
+                                      ("demo-bp2", "云产品一部", 0), ("demo-hrhead", "云产品二部", 1)]:
+                c.execute("UPDATE accounts SET dept=?, is_head=? WHERE id=?", (adept, ahead, aid))
         # 职级→默认模板 seed（首次建库时；后续在后台可改，这里只是起步默认，不是硬编码策略）
         if not c.execute("SELECT 1 FROM role_templates LIMIT 1").fetchone():
             c.executemany(
@@ -272,7 +281,7 @@ def require_admin(c, user_id):
 
 
 def can_manage(c, granter_id, grantee_id):
-    """上级能否管下级的权限：管理员管全员；否则 grantee.org_path 须为 granter.org_path 的严格子树（前缀匹配），不能管平级/自己。"""
+    """能否管理该账号：全局管理员管全员；部门总BP(is_head)管本部门(dept 相同)的其他账号。不能管自己。"""
     if granter_id == grantee_id:
         return False
     g = get_account(c, granter_id)
@@ -280,10 +289,10 @@ def can_manage(c, granter_id, grantee_id):
     if not g or not t:
         return False
     if (g.get("role") or "") == "管理员":
-        return True
-    gp = (g.get("org_path") or "").strip("/")
-    tp = (t.get("org_path") or "").strip("/")
-    return bool(gp) and tp.startswith(gp + "/")  # 严格子树=下级；同节点(平级)不算
+        return True  # 全局管理员
+    if g.get("is_head") and (g.get("dept") or "") and (g.get("dept") == t.get("dept")):
+        return True  # 部门总BP 管同部门
+    return False
 
 
 def manageable_ids(c, granter_id):

@@ -69,6 +69,7 @@ def get_config():
         ]
         accts = [
             {"id": r["id"], "name": r["name"], "role": r["role"], "dept": r["dept"],
+             "is_head": bool(r["is_head"] if "is_head" in r.keys() else 0),
              "kb": json.loads(r["kb"] or "[1,1,1,1]"), "on": bool(r["on_ok"]), "demo": bool(r["demo"]),
              "level": (r["level"] if "level" in r.keys() else "") or "",
              "manager_id": (r["manager_id"] if "manager_id" in r.keys() else "") or "",
@@ -104,12 +105,13 @@ def put_config(doc: ConfigDoc, x_user: str = Header("bonniewbli")):
         for a in doc.accts:
             self_on = 1 if a["id"] == x_user else int(a.get("on", True))  # 本人账号强制保持启用，防自锁
             c.execute(
-                "INSERT INTO accounts(id,name,role,dept,kb,on_ok,demo,level,manager_id,org_path,kb1_depts,kb0_depts) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO accounts(id,name,role,dept,kb,on_ok,demo,level,manager_id,org_path,kb1_depts,kb0_depts,is_head) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (a["id"], a.get("name", ""), a.get("role", "HRBP·可编辑"), a.get("dept", ""),
                  json.dumps(a.get("kb", [1, 1, 1, 1])), self_on, int(bool(a.get("demo"))),
                  a.get("level", ""), a.get("manager_id", ""), a.get("org_path", ""),
                  json.dumps(a.get("kb1_depts", ["集团"]), ensure_ascii=False),
-                 json.dumps(a.get("kb0_depts", ["集团"]), ensure_ascii=False)),
+                 json.dumps(a.get("kb0_depts", ["集团"]), ensure_ascii=False),
+                 int(bool(a.get("is_head")))),
             )
         _audit(c, x_user, "配置更新", f"项目 {len(doc.projs)} 项 / 账号 {len(doc.accts)} 个（管理后台下发）")
         return {"ok": True}
@@ -148,6 +150,7 @@ def accounts_tree(x_user: str = Header("bonniewbli")):
                 "org_path": (r["org_path"] if "org_path" in r.keys() else "") or "",
                 "manager_id": (r["manager_id"] if "manager_id" in r.keys() else "") or "",
                 "dept": r["dept"], "on": bool(r["on_ok"]), "demo": bool(r["demo"]),
+                "is_head": bool(r["is_head"] if "is_head" in r.keys() else 0),
                 "kb": json.loads(r["kb"] or "[1,1,1,1]"),
                 "kb1_depts": json.loads((r["kb1_depts"] if "kb1_depts" in r.keys() else "") or '["集团"]'),
                 "kb0_depts": json.loads((r["kb0_depts"] if "kb0_depts" in r.keys() else "") or '["集团"]'),

@@ -179,10 +179,9 @@ body.navfold .navtg{left:8px;}
   <label>姓名</label><input type="text" id="aName" placeholder="如：王小艺">
   <label>角色</label>
   <select id="aRole"><option>HRBP·可编辑</option><option>领导·只读</option><option>管理员</option></select>
-  <label>部门空间（业务数据范围）</label>
-  <select id="aDept"><option>云产品五部</option><option>（示例）云产品四部</option><option>（示例）行业五部</option><option>全部（仅管理员）</option></select>
-  <label>iOA 组织路径 org_path（「/」分隔·决定上下级）</label>
-  <input type="text" id="aOrg" placeholder="如：…/CSIG Human Resources Center/CSIG HRBP Team">
+  <label>所属看板1部门（决定分组·看板1只见本部门）</label>
+  <div style="padding:8px 12px;background:#F1F5F9;border-radius:8px;font-size:13px;font-weight:600;color:var(--navy)"><span id="aDeptShow">（未分配部门）</span></div>
+  <div class="meta" style="margin-top:2px">从部门行的「＋加人」进入会自动带入该部门；新人默认只见本部门、非总BP。</div>
   <label>职级 level</label>
   <input type="text" id="aLevel" placeholder="如：专员 / 经理 / 总监（正式版由 iOA 带出）">
   <div class="err" id="aErr">iOA 账号与姓名必填，且账号不能重复</div>
@@ -259,7 +258,7 @@ function countAccts(node){var n=node.accts.length;for(var k in node.children)n+=
 function buildOrgTree(list){
   var root={children:{},order:[],accts:[]};
   list.forEach(function(a){
-    var segs=(a.org_path||'').split('/').filter(Boolean);
+    var segs=(a.dept||'').split('/').filter(Boolean);  // 按看板1部门(dept)分组
     if(!segs.length){root.accts.push(a);return;}
     var node=root;
     segs.forEach(function(s){if(!node.children[s]){node.children[s]={children:{},order:[],accts:[]};node.order.push(s);}node=node.children[s];});
@@ -272,7 +271,7 @@ function acctRow(a,depth){
   var i=acctIdx(a.id);
   var kb=KB.map(function(k,j){return '<label><input type="checkbox" '+(a.kb[j]?'checked':'')+' onchange="accKb('+i+','+j+',this.checked)">'+k+'</label>';}).join('');
   var roleSel='<select onchange="accRole('+i+',this.value)"><option'+(a.role==='管理员'?' selected':'')+'>管理员</option><option'+(a.role==='HRBP·可编辑'?' selected':'')+'>HRBP·可编辑</option><option'+(a.role==='领导·只读'?' selected':'')+'>领导·只读</option></select>';
-  return '<tr><td style="padding-left:'+(depth*20+24)+'px">'+esc(a.id)+(a.demo?' <span class="chip demo">示例</span>':'')+'</td>'
+  return '<tr><td style="padding-left:'+(depth*20+24)+'px">'+esc(a.id)+(a.demo?' <span class="chip demo">示例</span>':'')+(a.is_head?' <span class="chip ok">总BP</span>':'')+'</td>'
     +'<td>'+esc(a.name)+(a.level?' <span class="chip">'+esc(a.level)+'</span>':'')+'</td>'
     +'<td>'+roleSel+'</td><td><span class="kbchk">'+kb+'</span></td>'
     +'<td class="c"><button class="btn gray" style="padding:2px 10px;font-size:12px" onclick="openDeptCfg(\''+a.id.replace(/'/g,'')+'\')" title="配置该账号可见的看板1/看板0部门（可精确到中心）">看板1·'+((a.kb1_depts||[]).length)+' / 看板0·'+((a.kb0_depts||[]).length)+' ⚙</button></td>'
@@ -282,13 +281,14 @@ function acctRow(a,depth){
 }
 function renderAccts(){
   var root=buildOrgTree(accts);
-  var h='<thead><tr><th>iOA 账号 / 组织层级</th><th style="width:180px">姓名·职级</th><th style="width:140px">角色</th><th>看板访问</th><th class="c" style="width:150px">部门权限</th><th class="c">启用</th><th class="c" style="width:120px">操作</th></tr></thead><tbody>';
-  root.accts.forEach(function(a){h+=acctRow(a,0);});  // 无 org_path（未分配组织）
+  var h='<thead><tr><th>账号 / 看板1 部门</th><th style="width:180px">姓名·职级</th><th style="width:140px">角色</th><th>看板访问</th><th class="c" style="width:150px">部门权限</th><th class="c">启用</th><th class="c" style="width:120px">操作</th></tr></thead><tbody>';
+  root.accts.forEach(function(a){h+=acctRow(a,0);});  // 未分配部门
   (function walk(node,path,depth){
     node.order.forEach(function(seg){
-      var child=node.children[seg],key=path+'/'+seg,collapsed=ACCT_COLLAPSE[key];
+      var child=node.children[seg],key=path+'/'+seg,collapsed=ACCT_COLLAPSE[key],deptKey=key.replace(/^\//,'');
       h+='<tr><td colspan="7" style="background:#F1F5F9;padding:6px 8px 6px '+(depth*20+8)+'px;cursor:pointer;font-weight:600" onclick="acctToggle(\''+key.replace(/'/g,'')+'\')">'
-        +(collapsed?'▸':'▾')+' '+esc(seg)+' <span class="chip">'+countAccts(child)+' 人</span></td></tr>';
+        +(collapsed?'▸':'▾')+' '+esc(seg)+' <span class="chip">'+countAccts(child)+' 人</span>'
+        +'<button class="btn gray" style="margin-left:10px;padding:1px 8px;font-size:11px;font-weight:400" onclick="event.stopPropagation();openAcctInDept(\''+deptKey.replace(/'/g,'')+'\')" title="在本部门添加人员">＋加人</button></td></tr>';
       if(!collapsed){child.accts.forEach(function(a){h+=acctRow(a,depth+1);});walk(child,key,depth+1);}
     });
   })(root,'',0);
@@ -348,15 +348,23 @@ function accRole(i,v){var o=accts[i].role;accts[i].role=v;log('改角色',accts[
 function accKb(i,j,v){accts[i].kb[j]=v?1:0;log('改看板权限',accts[i].id+'：'+KB[j]+' → '+(v?'允许':'禁止'));}
 function accOn(i,v){if(accts[i].id==='bonniewbli'){renderAccts();return;}accts[i].on=v;log(v?'启用账号':'停用账号',accts[i].id);}
 function accDel(i){var a=accts[i];accts.splice(i,1);log('移除账号',a.id+'（'+a.name+'）');renderAccts();}
-function openAcct(){document.getElementById('aId').value='';document.getElementById('aName').value='';document.getElementById('aErr').style.display='none';document.getElementById('maskAcct').classList.add('on');}
+var _addDept='';
+function _openAcctModal(){document.getElementById('aId').value='';document.getElementById('aName').value='';document.getElementById('aErr').style.display='none';
+  var el=document.getElementById('aDeptShow');if(el)el.textContent=_addDept||'（未分配部门）';
+  document.getElementById('maskAcct').classList.add('on');}
+function openAcct(){_addDept='';_openAcctModal();}
+function openAcctInDept(dept){_addDept=dept||'';_openAcctModal();}  // ＋加人：加到指定看板1部门
 function closeAcct(){document.getElementById('maskAcct').classList.remove('on');}
 function saveAcct(){
   var id=document.getElementById('aId').value.trim(),name=document.getElementById('aName').value.trim();
   if(!id||!name||accts.some(function(a){return a.id===id;})){document.getElementById('aErr').style.display='block';return;}
-  accts.push({id:id,name:name,role:document.getElementById('aRole').value,dept:document.getElementById('aDept').value,
-    org_path:document.getElementById('aOrg').value.trim(),level:document.getElementById('aLevel').value.trim(),manager_id:'',
+  var dept=_addDept;  // 所属看板1部门（决定分组 + 看板1只见本部门）
+  accts.push({id:id,name:name,role:document.getElementById('aRole').value,dept:dept,is_head:false,
+    kb1_depts:dept?[dept]:['集团'],kb0_depts:dept?[dept]:['集团'],
+    org_path:'',level:document.getElementById('aLevel').value.trim(),manager_id:'',
     kb:[1,1,1,1],on:true,demo:false});
-  log('添加账号',id+'（'+name+'）· '+document.getElementById('aRole').value+' · '+(document.getElementById('aOrg').value.trim()||'未分配组织'));
+  log('添加账号',id+'（'+name+'）· '+document.getElementById('aRole').value+' · 部门 '+(dept||'未分配'));
+  if(typeof saveCfg==='function')saveCfg();  // 立即落库
   closeAcct();renderAccts();
 }
 /* ===== 项目 ===== */
