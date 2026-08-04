@@ -501,6 +501,15 @@ body.navfold .navtg{left:8px;}
 </div>
 <!-- 看板1 -->
 <div class="view on" id="v-kb1">
+  <div style="display:flex;align-items:center;gap:12px;margin:4px 0 14px">
+    <b style="font-size:19px;color:var(--navy)">部门人力预估表</b>
+    <span style="position:relative;display:inline-block">
+      <button id="deptPick" onclick="toggleDeptMenu(event)" style="display:inline-flex;align-items:center;gap:10px;padding:8px 16px;border:1.5px solid var(--navy,#1e3a8a);border-radius:9px;background:#fff;color:var(--navy,#1e3a8a);font-size:15px;font-weight:700;cursor:pointer">
+        <span id="deptPickLbl">集团</span><span style="font-size:12px;opacity:.65">▾</span>
+      </button>
+      <div id="deptMenu" style="display:none;position:absolute;top:calc(100% + 6px);left:0;min-width:190px;background:#fff;border:1px solid #d3d8e0;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.15);padding:6px;z-index:60"></div>
+    </span>
+  </div>
   <div class="banner" id="demoBanner" style="background:#FDECEC;border-color:#F3B4B4;color:#8C2B2B">
     <span><b>【示例】演示数据已加载</b>——当前含功能演示用假数（demo 标签全程可溯），非真实口径，勿用于汇报</span>
     <button class="btn danger" onclick="demoClear()">删除假数（一键全清）</button>
@@ -927,11 +936,19 @@ function bindYear(){
   kb2base={hc:{name:'期初法定HC',vals:Array(12).fill(D.faHC)},quota:{name:'期初预算当量',vals:D.q_init.slice()}};
 }
 function setYear(y){YEAR=y;bindYear();renderYearTabs();renderAll();renderKb3();log('bonniewbli','切换年份','当前年份 → '+y+'（'+DATA[y].status+'）');}
+/* 看板1 部门下拉：点标题旁 ▾ 展开层级（集团 → 云产品一~五部），选中即切部门 */
+var DEPT_TREE=[{name:'集团',children:['云产品一部','云产品二部','云产品三部','云产品四部','云产品五部']}];
+function _deptItem(name,cur,sub){var on=(cur===name),bg=on?'#EAF1FF':'transparent';
+  return '<div onclick="pickDept(\''+name+'\')" onmouseover="this.style.background=\'#F1F5F9\'" onmouseout="this.style.background=\''+bg+'\'" style="padding:8px '+(sub?'12px 8px 30px':'12px')+';border-radius:6px;cursor:pointer;font-size:14px;white-space:nowrap;background:'+bg+';'+(on?'font-weight:700;color:var(--navy,#1e3a8a)':'color:#333')+'">'+(sub?'· ':'')+name+(on?' ✓':'')+'</div>';}
+function buildDeptMenu(){var cur=window.CUR_DEPT||'集团',h='';DEPT_TREE.forEach(function(t){h+=_deptItem(t.name,cur,false);t.children.forEach(function(ch){h+=_deptItem(ch,cur,true);});});return h;}
+function toggleDeptMenu(e){if(e)e.stopPropagation();var m=document.getElementById('deptMenu');if(!m)return;if(m.style.display==='none'){m.innerHTML=buildDeptMenu();m.style.display='block';}else m.style.display='none';}
+function pickDept(d){var m=document.getElementById('deptMenu');if(m)m.style.display='none';var l=document.getElementById('deptPickLbl');if(l)l.textContent=d;if(window.setDept)window.setDept(d);}
+document.addEventListener('click',function(e){var m=document.getElementById('deptMenu');if(m&&m.style.display!=='none'&&!e.target.closest('#deptPick')&&!e.target.closest('#deptMenu'))m.style.display='none';});
 function renderYearTabs(){
   document.querySelectorAll('.yeartabs').forEach(function(box){
     box.innerHTML='<span class="ytscroll">'+YEARS.map(function(y){
       return '<span class="ytab'+(y===YEAR?' on':'')+'" onclick="setYear('+y+')">'+y+'<span class="st">'+DATA[y].status+'</span>'+(BASEYEARS.indexOf(y)<0?'<span class="ydel" title="删除该年份页签" onclick="event.stopPropagation();delYear('+y+')"><t-icon name="delete" size="12"></t-icon></span>':'')+'</span>';
-    }).join('')+'<span class="ytab add" title="生成该年份空模板并读取系统数" onclick="openYearAdd()"><t-icon name="add" size="12" style="margin-right:2px"></t-icon>新增年份</span></span>'+'<span class="tin" style="margin-left:auto"><select onchange="window.setDept&&window.setDept(this.value)">'+['集团','云产品一部','云产品二部','云产品三部','云产品四部','云产品五部'].map(function(dp){return '<option'+((window.CUR_DEPT||'集团')===dp?' selected':'')+'>'+dp+'</option>';}).join('')+'</select></span><span class="tctl" onclick="var sw=this.querySelector(\'.tsw\');sw.classList.toggle(\'on\');if(window.setAutoSync)setAutoSync(sw.classList.contains(\'on\'))"><span class="tsw on"></span>启用自动同步</span><button class="btn outline" onclick="exportCSV()">导出报表</button>';
+    }).join('')+'<span class="ytab add" title="生成该年份空模板并读取系统数" onclick="openYearAdd()"><t-icon name="add" size="12" style="margin-right:2px"></t-icon>新增年份</span></span>'+'<span class="tctl" style="margin-left:auto" onclick="var sw=this.querySelector(\'.tsw\');sw.classList.toggle(\'on\');if(window.setAutoSync)setAutoSync(sw.classList.contains(\'on\'))"><span class="tsw on"></span>启用自动同步</span><button class="btn outline" onclick="exportCSV()">导出报表</button>';
     var onTab=box.querySelector('.ytab.on');
     if(onTab)onTab.parentNode.scrollLeft=Math.max(0,onTab.offsetLeft-60);
   });
@@ -2182,7 +2199,7 @@ var ORIG={saveCell:saveCell,clearCell:clearCell,saveRowDef:saveRowDef,delRowFrom
 window.USE_API=false;var API_USER='bonniewbli';
 /* 看板1 部门空间：各部门独立存一套数。DEPT 定 IIFE 内，board 接口自动带 ?dept= */
 var DEPT='集团';window.CUR_DEPT=DEPT;
-window.setDept=function(v){DEPT=v;window.CUR_DEPT=v;var el=document.getElementById('deptLbl');if(el)el.textContent='部门空间：'+v+' ▾';return loadYear(YEAR).catch(apiErr);};
+window.setDept=function(v){DEPT=v;window.CUR_DEPT=v;var el=document.getElementById('deptLbl');if(el)el.textContent='部门空间：'+v+' ▾';var pl=document.getElementById('deptPickLbl');if(pl)pl.textContent=v;return loadYear(YEAR).catch(apiErr);};
 window.loadKb0=function(year){return api('GET','/api/kb0/'+year);};  // PM速览：按账号 kb0_depts 聚合各部门预算/预估
 function api(m,p,b){if(p.indexOf('/api/board/')===0)p+=(p.indexOf('?')<0?'?':'&')+'dept='+encodeURIComponent(DEPT);return fetch(p,{method:m,headers:{'Content-Type':'application/json','X-User':API_USER},body:b?JSON.stringify(b):undefined}).then(function(r){return r.json().then(function(j){if(!r.ok)throw j;return j;});});}
 var SEC2FRONT={'总流出（−）':'out','总流入（＋）':'inn','社招∇ 分列':'soc','校招∇ 分列':'camp','法定HC·其中':'hc','预算当量·其中':'quota','云智·总流入（＋）':'yz_inn','云智·总流出（−）':'yz_out','外包·总流入（＋）':'wb_inn','外包·总流出（−）':'wb_out'};
