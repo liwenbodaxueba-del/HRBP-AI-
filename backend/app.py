@@ -98,11 +98,15 @@ def put_config(doc: ConfigDoc, x_user: str = Header("bonniewbli")):
                  int(p.get("on", True)), int(bool(p.get("sys"))), i, (p.get("edit") or "")),
             )
         c.execute("DELETE FROM accounts")
+        ids = {a["id"] for a in doc.accts}
+        if x_user not in ids:
+            raise HTTPException(400, "不可移除当前登录账号（本人账号必须保留）")
         for a in doc.accts:
+            self_on = 1 if a["id"] == x_user else int(a.get("on", True))  # 本人账号强制保持启用，防自锁
             c.execute(
                 "INSERT INTO accounts(id,name,role,dept,kb,on_ok,demo,level,manager_id,org_path,kb1_depts,kb0_depts) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
                 (a["id"], a.get("name", ""), a.get("role", "HRBP·可编辑"), a.get("dept", ""),
-                 json.dumps(a.get("kb", [1, 1, 1, 1])), int(a.get("on", True)), int(bool(a.get("demo"))),
+                 json.dumps(a.get("kb", [1, 1, 1, 1])), self_on, int(bool(a.get("demo"))),
                  a.get("level", ""), a.get("manager_id", ""), a.get("org_path", ""),
                  json.dumps(a.get("kb1_depts", ["集团"]), ensure_ascii=False),
                  json.dumps(a.get("kb0_depts", ["集团"]), ensure_ascii=False)),
