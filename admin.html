@@ -275,7 +275,7 @@ function acctRow(a,depth){
   return '<tr><td style="padding-left:'+(depth*20+24)+'px">'+esc(a.id)+(a.demo?' <span class="chip demo">示例</span>':'')+'</td>'
     +'<td>'+esc(a.name)+(a.level?' <span class="chip">'+esc(a.level)+'</span>':'')+'</td>'
     +'<td>'+roleSel+'</td><td><span class="kbchk">'+kb+'</span></td>'
-    +'<td class="c"><label class="sw"><input type="checkbox" '+(a.on?'checked':'')+' onchange="accOn('+i+',this.checked)"><span class="tk"></span></label></td>'
+    +'<td class="c"><label class="sw"'+(a.id==='bonniewbli'?' title="本人账号不可停用"':'')+'><input type="checkbox" '+(a.on?'checked':'')+(a.id==='bonniewbli'?' disabled':' onchange="accOn('+i+',this.checked)"')+'><span class="tk"></span></label></td>'
     +'<td class="c"><button class="btn gray" style="padding:2px 8px;font-size:12px" onclick="openDeptCfg(\''+a.id.replace(/'/g,'')+'\')" title="配置该账号可见的看板1/看板0部门">部门</button> '
     +'<button class="btn gray" style="padding:2px 8px;font-size:12px" onclick="ioaSync(\''+a.id.replace(/'/g,'')+'\')" title="按 iOA 组织架构回填 org_path/职级/上级（正式版）">iOA同步</button> '
     +(a.id==='bonniewbli'?'<span class="chip ok">当前</span>':'<span class="rowdel" onclick="accDel('+i+')">移除</span>')+'</td></tr>';
@@ -318,7 +318,7 @@ function saveDeptCfg(){var i=acctIdx(_dcId);if(i<0)return;
   closeDeptCfg();renderAccts();}
 function accRole(i,v){var o=accts[i].role;accts[i].role=v;log('改角色',accts[i].id+'：'+o+' → '+v);renderAccts();}
 function accKb(i,j,v){accts[i].kb[j]=v?1:0;log('改看板权限',accts[i].id+'：'+KB[j]+' → '+(v?'允许':'禁止'));}
-function accOn(i,v){accts[i].on=v;log(v?'启用账号':'停用账号',accts[i].id);}
+function accOn(i,v){if(accts[i].id==='bonniewbli'){renderAccts();return;}accts[i].on=v;log(v?'启用账号':'停用账号',accts[i].id);}
 function accDel(i){var a=accts[i];accts.splice(i,1);log('移除账号',a.id+'（'+a.name+'）');renderAccts();}
 function openAcct(){document.getElementById('aId').value='';document.getElementById('aName').value='';document.getElementById('aErr').style.display='none';document.getElementById('maskAcct').classList.add('on');}
 function closeAcct(){document.getElementById('maskAcct').classList.remove('on');}
