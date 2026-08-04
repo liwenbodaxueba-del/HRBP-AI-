@@ -436,6 +436,35 @@ def kb0_adjust_write(year: int, e: Kb0Adjust, x_user: str = Header("bonniewbli")
     return get_kb0(year, x_user)
 
 
+class Kb0AdjustBatch(BaseModel):
+    dept: str
+    cells: list  # [{month, value, note}]
+    metric: str = "chain"
+
+
+@app.post("/api/kb0/{year}/adjust-batch")
+def kb0_adjust_batch(year: int, b: Kb0AdjustBatch, x_user: str = Header("bonniewbli")):
+    """看板0 调节项整行批量写入（🖊 编辑后保存）：仅中心/叶子部门；不碰看板1 源。"""
+    with db() as c:
+        require_writer(c, x_user)
+        if is_agg_dept(b.dept):
+            raise HTTPException(403, f"「{b.dept}」为各中心汇总（只读），请在具体中心填调节项")
+        for cell in b.cells:
+            m = int(cell.get("month", 0))
+            if not (1 <= m <= 12):
+                continue
+            v = cell.get("value")
+            if v is not None and abs(float(v)) > VALUE_ABS_MAX:
+                raise HTTPException(422, "量级异常，拒绝入库")
+            c.execute(
+                "INSERT INTO kb0_adjust(year,dept,metric,month,value,note,updated_by,updated_at) VALUES(?,?,?,?,?,?,?,?) "
+                "ON CONFLICT(year,dept,metric,month) DO UPDATE SET value=excluded.value,note=excluded.note,updated_by=excluded.updated_by,updated_at=excluded.updated_at",
+                (year, b.dept, b.metric, m, v, (cell.get("note") or "").strip(), x_user, now()),
+            )
+        _audit(c, x_user, "看板0调节", f"[{b.dept}] {year} 调节项整行保存（{len(b.cells)} 格）")
+    return get_kb0(year, x_user)
+
+
 class CellEdit(BaseModel):
     metric: str
     month: int  # 1-12
