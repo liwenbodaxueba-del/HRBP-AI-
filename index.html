@@ -455,9 +455,12 @@ body.navfold .navtg{left:8px;}
   <a class="on" data-v="kb0" onclick="go(this)">看板0 · PM 速览</a>
   <a data-v="kb1" id="kb1NavLink" onclick="go(this)" style="position:sticky;top:0;z-index:6;background:var(--b50)">看板1 · 部门人力预估表<span id="kb1NavArrow" onclick="event.stopPropagation();toggleKb1Nav()" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>
   <div id="kb1DeptNav" style="display:none;margin:-2px 0 4px 0"></div>
-  <a data-v="kb2" onclick="go(this)">看板2 · 预算看板</a>
-  <a data-v="kb3" onclick="go(this)">看板3 · 社招滚动台账</a>
-  <a data-v="kb4" onclick="go(this)">看板4 · 云智&外包</a>
+  <a data-v="kb2" id="kb2NavLink" onclick="go(this)">看板2 · 预算看板<span id="kb2NavArrow" onclick="event.stopPropagation();toggleDeptNav('kb2')" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>
+  <div id="kb2DeptNav" style="display:none;margin:-2px 0 4px 0"></div>
+  <a data-v="kb3" id="kb3NavLink" onclick="go(this)">看板3 · 社招滚动台账<span id="kb3NavArrow" onclick="event.stopPropagation();toggleDeptNav('kb3')" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>
+  <div id="kb3DeptNav" style="display:none;margin:-2px 0 4px 0"></div>
+  <a data-v="kb4" id="kb4NavLink" onclick="go(this)">看板4 · 云智&外包<span id="kb4NavArrow" onclick="event.stopPropagation();toggleDeptNav('kb4')" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>
+  <div id="kb4DeptNav" style="display:none;margin:-2px 0 4px 0"></div>
   <a href="admin.html" id="adminEntry" style="margin-top:auto;color:var(--navy);font-weight:600" title="进入管理后台（账号与权限·项目配置）"><t-icon name="setting" size="14" style="vertical-align:-2px;margin-right:6px"></t-icon>管理后台</a>
   <div class="user" data-comment-anchor="b9591073d3-div" style="margin-top:0">iOA：<b>bonniewbli</b><br>（HRBP·可编辑）</div>
 </nav>
@@ -964,29 +967,32 @@ var KB1_OPEN={};
 /* 当前部门是否为『含中心的部』——各中心汇总·只读(不可直接录入，与后端一致) */
 function isDeptAgg(dept){dept=dept||window.CUR_DEPT||'集团';for(var i=0;i<DEPT_TREE.length;i++)if(DEPT_TREE[i].name===dept&&DEPT_TREE[i].children&&DEPT_TREE[i].children.length)return true;return false;}
 /* 侧栏「看板1」下展开部门层级：部→中心，点任一节点即切看板1 该部门空间 */
-function _navA(deptKey,label,padLeft,cur,arrow,stickyTop){var on=(cur===deptKey),sticky=(stickyTop!=null);
+var DEPT_BOARDS=['kb1','kb2','kb3','kb4'];  // 这些看板侧栏都可展开部门树
+function _navA(board,deptKey,label,padLeft,cur,arrow,stickyTop){var on=(cur===deptKey),sticky=(stickyTop!=null);
   var bg=on?'var(--b50)':(sticky?'#fff':'transparent');
   var st=sticky?'position:sticky;top:'+stickyTop+'px;z-index:5;box-shadow:0 1px 0 #EDF3FB;':'';
-  return '<a onclick="pickDeptNav(\''+deptKey.replace(/'/g,"")+'\')" title="'+label+'" style="'+st+'display:block;padding:6px 10px 6px '+padLeft+'px;font-size:12.5px;border-radius:8px;margin-bottom:2px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:'+bg+';'+(on?'color:var(--blue);font-weight:600':'color:var(--ink2)')+'">'+label+arrow+'</a>';}
-function renderKb1Nav(){var host=document.getElementById('kb1DeptNav');if(!host)return;var cur=window.CUR_DEPT||'集团',h='';
-  var kbH=(document.getElementById('kb1NavLink')||{}).offsetHeight||42;  // 部标题钉在「看板1」下方
-  // 看板1可见权限：按当前账号 kb1_depts 过滤（全局管理员看全部）
-  var MY=window.MY, adm=!MY, al=(MY&&MY.kb1_depts)||[];  // 仅 MY 未加载时不过滤；否则一律按 kb1_depts（含管理员，设置即生效）
+  return '<a onclick="pickDeptNav(\''+board+'\',\''+deptKey.replace(/'/g,"")+'\')" title="'+label+'" style="'+st+'display:block;padding:6px 10px 6px '+padLeft+'px;font-size:12.5px;border-radius:8px;margin-bottom:2px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:'+bg+';'+(on?'color:var(--blue);font-weight:600':'color:var(--ink2)')+'">'+label+arrow+'</a>';}
+function renderDeptNav(board){var host=document.getElementById(board+'DeptNav');if(!host)return;var cur=window.CUR_DEPT||'集团',h='';
+  var kbH=(document.getElementById(board+'NavLink')||{}).offsetHeight||42;  // 部标题钉在该看板导航下方
+  var MY=window.MY, adm=!MY, al=(MY&&MY.kb1_depts)||[];  // 按 kb1_depts 过滤（仅 MY 未加载时不过滤）
   function wholeOK(n){return adm||al.indexOf(n)>=0;}
   function centerOK(n,ch){return adm||al.indexOf(n)>=0||al.indexOf(n+'/'+ch)>=0;}
   function partVisible(node){if(adm||al.indexOf(node.name)>=0)return true;
     return (node.children||[]).some(function(ch){return al.indexOf(node.name+'/'+ch)>=0;});}
   DEPT_TREE.forEach(function(node){var hasCh=node.children&&node.children.length,open=hasCh&&KB1_OPEN[node.name];
-    if(!hasCh){if(!wholeOK(node.name))return;h+=_navA(node.name,node.name,20,cur,'');return;}
+    if(!hasCh){if(!wholeOK(node.name))return;h+=_navA(board,node.name,node.name,20,cur,'');return;}
     if(!partVisible(node))return;
-    var arrow='<span onclick="event.stopPropagation();toggleKb1Sub(\''+node.name+'\')" style="float:right;font-size:10px;padding:0 4px;color:var(--ink3)">'+(open?'▾':'▸')+'</span>';
-    h+=_navA(node.name,node.name,20,cur,arrow,open?kbH:null);
-    if(open)node.children.forEach(function(ch){if(centerOK(node.name,ch))h+=_navA(node.name+'/'+ch,'· '+ch,38,cur,'');});
+    var arrow='<span onclick="event.stopPropagation();toggleDeptSub(\''+board+'\',\''+node.name+'\')" style="float:right;font-size:10px;padding:0 4px;color:var(--ink3)">'+(open?'▾':'▸')+'</span>';
+    h+=_navA(board,node.name,node.name,20,cur,arrow,open?kbH:null);
+    if(open)node.children.forEach(function(ch){if(centerOK(node.name,ch))h+=_navA(board,node.name+'/'+ch,'· '+ch,38,cur,'');});
   });
   host.innerHTML=h||'<div style="padding:8px 20px;font-size:12px;color:var(--ink3)">无可见部门</div>';}
-function toggleKb1Sub(name){KB1_OPEN[name]=!KB1_OPEN[name];renderKb1Nav();}
-function toggleKb1Nav(){var h=document.getElementById('kb1DeptNav'),a=document.getElementById('kb1NavArrow');if(!h)return;var open=(h.style.display==='none');h.style.display=open?'block':'none';if(a)a.style.transform=open?'rotate(90deg)':'';if(open)renderKb1Nav();}
-function pickDeptNav(d){goView('kb1');if(window.setDept)window.setDept(d);renderKb1Nav();}
+function renderAllDeptNav(){DEPT_BOARDS.forEach(function(b){var h=document.getElementById(b+'DeptNav');if(h&&h.style.display!=='none')renderDeptNav(b);});}
+function renderKb1Nav(){renderAllDeptNav();}  // 兼容旧调用（setDept/loadMe）
+function toggleDeptSub(board,name){KB1_OPEN[name]=!KB1_OPEN[name];renderDeptNav(board);}
+function toggleDeptNav(board){var h=document.getElementById(board+'DeptNav'),a=document.getElementById(board+'NavArrow');if(!h)return;var open=(h.style.display==='none');h.style.display=open?'block':'none';if(a)a.style.transform=open?'rotate(90deg)':'';if(open)renderDeptNav(board);}
+function toggleKb1Nav(){toggleDeptNav('kb1');}  // 兼容旧调用
+function pickDeptNav(board,d){goView(board);if(window.setDept)window.setDept(d);renderDeptNav(board);}
 function renderYearTabs(){
   document.querySelectorAll('.yeartabs').forEach(function(box){
     box.innerHTML='<span class="ytscroll">'+YEARS.map(function(y){
