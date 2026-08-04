@@ -189,6 +189,17 @@ body.navfold .navtg{left:8px;}
   <div class="row"><button class="btn gray" onclick="closeAcct()">取消</button><button class="btn" onclick="saveAcct()">保存并生效</button></div>
 </div></div>
 
+<!-- 部门权限 modal -->
+<div class="mask" id="maskDept"><div class="modal">
+  <h3>部门权限配置 · <span id="dcWho" style="color:var(--navy)"></span></h3>
+  <div class="meta">看板1可见部门=该账号能在看板1切换/编辑的部门；看板0(PM速览)可见部门=PM速览里聚合展示的部门。二者独立——可"看板1能看、看板0不展示"。</div>
+  <label>看板1 可见部门</label>
+  <div id="dcKb1" style="margin:2px 0 8px"></div>
+  <label>看板0 · PM速览 可见部门</label>
+  <div id="dcKb0" style="margin:2px 0 8px"></div>
+  <div class="row"><button class="btn gray" onclick="closeDeptCfg()">取消</button><button class="btn" onclick="saveDeptCfg()">保存并生效</button></div>
+</div></div>
+
 <!-- 新增项目 modal -->
 <div class="mask" id="maskProj"><div class="modal">
   <h3>新增项目</h3>
@@ -265,7 +276,8 @@ function acctRow(a,depth){
     +'<td>'+esc(a.name)+(a.level?' <span class="chip">'+esc(a.level)+'</span>':'')+'</td>'
     +'<td>'+roleSel+'</td><td><span class="kbchk">'+kb+'</span></td>'
     +'<td class="c"><label class="sw"><input type="checkbox" '+(a.on?'checked':'')+' onchange="accOn('+i+',this.checked)"><span class="tk"></span></label></td>'
-    +'<td class="c"><button class="btn gray" style="padding:2px 8px;font-size:12px" onclick="ioaSync(\''+a.id.replace(/'/g,'')+'\')" title="按 iOA 组织架构回填 org_path/职级/上级（正式版）">iOA同步</button> '
+    +'<td class="c"><button class="btn gray" style="padding:2px 8px;font-size:12px" onclick="openDeptCfg(\''+a.id.replace(/'/g,'')+'\')" title="配置该账号可见的看板1/看板0部门">部门</button> '
+    +'<button class="btn gray" style="padding:2px 8px;font-size:12px" onclick="ioaSync(\''+a.id.replace(/'/g,'')+'\')" title="按 iOA 组织架构回填 org_path/职级/上级（正式版）">iOA同步</button> '
     +(a.id==='bonniewbli'?'<span class="chip ok">当前</span>':'<span class="rowdel" onclick="accDel('+i+')">移除</span>')+'</td></tr>';
 }
 function renderAccts(){
@@ -289,6 +301,21 @@ function ioaSync(id){
     alert('iOA 组织接口未接入（预留桩）：\n'+(d.msg||JSON.stringify(d))+'\n正式版接 iOA OpenAPI 后，按账号自动带出 org_path/职级/上级。');
   });
 }
+/* 部门权限配置：看板1可见部门 / 看板0(PM速览)可见部门，两套独立 */
+var DEPTS_ALL=['集团','云产品一部','云产品二部','云产品三部','云产品四部','云产品五部'];
+var _dcId=null;
+function _dcBox(host,list){document.getElementById(host).innerHTML=DEPTS_ALL.map(function(dp){return '<label style="display:inline-block;margin:3px 14px 3px 0;font-size:13px"><input type="checkbox" value="'+dp+'" '+((list||[]).indexOf(dp)>=0?'checked':'')+'> '+dp+'</label>';}).join('');}
+function _dcRead(host){return [].slice.call(document.querySelectorAll('#'+host+' input:checked')).map(function(x){return x.value;});}
+function openDeptCfg(id){var i=acctIdx(id);if(i<0)return;_dcId=id;var a=accts[i];
+  document.getElementById('dcWho').textContent=a.name+'（'+a.id+'）';
+  _dcBox('dcKb1',a.kb1_depts);_dcBox('dcKb0',a.kb0_depts);
+  document.getElementById('maskDept').classList.add('on');}
+function closeDeptCfg(){document.getElementById('maskDept').classList.remove('on');_dcId=null;}
+function saveDeptCfg(){var i=acctIdx(_dcId);if(i<0)return;
+  accts[i].kb1_depts=_dcRead('dcKb1');accts[i].kb0_depts=_dcRead('dcKb0');
+  log('改部门权限',accts[i].id+'：看板1['+accts[i].kb1_depts.join('/')+'] · 看板0['+accts[i].kb0_depts.join('/')+']');
+  if(typeof saveCfg==='function')saveCfg();
+  closeDeptCfg();renderAccts();}
 function accRole(i,v){var o=accts[i].role;accts[i].role=v;log('改角色',accts[i].id+'：'+o+' → '+v);renderAccts();}
 function accKb(i,j,v){accts[i].kb[j]=v?1:0;log('改看板权限',accts[i].id+'：'+KB[j]+' → '+(v?'允许':'禁止'));}
 function accOn(i,v){accts[i].on=v;log(v?'启用账号':'停用账号',accts[i].id);}
