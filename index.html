@@ -115,6 +115,8 @@ h2.sec{font-size:15px;color:var(--navy);margin:2px 0 4px;}
 .light{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--b100);border-radius:20px;padding:5px 14px;font-size:12px;color:var(--ink2);}
 .dot{width:9px;height:9px;border-radius:50%;}.dot.g{background:var(--green);}.dot.r{background:var(--red);}
 .tblwrap{overflow-x:auto;background:#fff;border:1px solid var(--b100);border-radius:12px;}
+/* 看板1 表头吸顶：限高+内部滚动，让 .bsc th 的 sticky top:0 生效（滑动时表头/首列固定）*/
+#bscWrap{max-height:calc(100vh - 250px);overflow:auto;}
 table.bsc{border-collapse:separate;border-spacing:0;width:100%;font-size:12.5px;font-variant-numeric:tabular-nums;min-width:1120px;}
 .bsc th,.bsc td{border-bottom:1px solid #EDF3FB;border-right:1px solid #F3F7FD;padding:6px 8px;text-align:right;white-space:nowrap;}
 .bsc th{background:var(--navy);color:#fff;font-weight:600;position:sticky;top:0;font-size:12px;z-index:3;}
@@ -451,7 +453,8 @@ body.navfold .navtg{left:8px;}
   </div>
   <div class="grp">看板</div>
   <a data-v="kb0" onclick="go(this)">看板0 · PM 速览</a>
-  <a class="on" data-v="kb1" onclick="go(this)">看板1 · 部门人力预估表【集团】</a>
+  <a class="on" data-v="kb1" onclick="go(this)">看板1 · 部门人力预估表<span id="kb1NavArrow" onclick="event.stopPropagation();toggleKb1Nav()" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>
+  <div id="kb1DeptNav" style="display:none;margin:-2px 0 4px 0"></div>
   <a data-v="kb2" onclick="go(this)">看板2 · 预算看板</a>
   <a data-v="kb3" onclick="go(this)">看板3 · 社招滚动台账</a>
   <a data-v="kb4" onclick="go(this)">看板4 · 云智&外包</a>
@@ -501,14 +504,9 @@ body.navfold .navtg{left:8px;}
 </div>
 <!-- 看板1 -->
 <div class="view on" id="v-kb1">
-  <div style="display:flex;align-items:center;gap:12px;margin:4px 0 14px">
-    <b style="font-size:19px;color:var(--navy)">部门人力预估表</b>
-    <span style="position:relative;display:inline-block">
-      <button id="deptPick" onclick="toggleDeptMenu(event)" style="display:inline-flex;align-items:center;gap:10px;padding:8px 16px;border:1.5px solid var(--navy,#1e3a8a);border-radius:9px;background:#fff;color:var(--navy,#1e3a8a);font-size:15px;font-weight:700;cursor:pointer">
-        <span id="deptPickLbl">集团</span><span style="font-size:12px;opacity:.65">▾</span>
-      </button>
-      <div id="deptMenu" style="display:none;position:absolute;top:calc(100% + 6px);left:0;min-width:190px;background:#fff;border:1px solid #d3d8e0;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.15);padding:6px;z-index:60"></div>
-    </span>
+  <div style="display:flex;align-items:center;gap:10px;margin:4px 0 14px">
+    <b style="font-size:19px;color:var(--navy)">部门人力预估表 · <span id="deptPickLbl">集团</span></b>
+    <span style="font-size:12.5px;color:var(--ink3)">（左侧「看板1」展开可切换部门）</span>
   </div>
   <div class="banner" id="demoBanner" style="background:#FDECEC;border-color:#F3B4B4;color:#8C2B2B">
     <span><b>【示例】演示数据已加载</b>——当前含功能演示用假数（demo 标签全程可溯），非真实口径，勿用于汇报</span>
@@ -944,6 +942,13 @@ function buildDeptMenu(){var cur=window.CUR_DEPT||'集团',h='';DEPT_TREE.forEac
 function toggleDeptMenu(e){if(e)e.stopPropagation();var m=document.getElementById('deptMenu');if(!m)return;if(m.style.display==='none'){m.innerHTML=buildDeptMenu();m.style.display='block';}else m.style.display='none';}
 function pickDept(d){var m=document.getElementById('deptMenu');if(m)m.style.display='none';var l=document.getElementById('deptPickLbl');if(l)l.textContent=d;if(window.setDept)window.setDept(d);}
 document.addEventListener('click',function(e){var m=document.getElementById('deptMenu');if(m&&m.style.display!=='none'&&!e.target.closest('#deptPick')&&!e.target.closest('#deptMenu'))m.style.display='none';});
+/* 侧栏「看板1」下展开部门层级（集团 → 云产品一~五部），点即切看板1 该部门 */
+function renderKb1Nav(){var host=document.getElementById('kb1DeptNav');if(!host)return;var cur=window.CUR_DEPT||'集团',items=[];
+  DEPT_TREE.forEach(function(t){items.push({name:t.name,sub:false});t.children.forEach(function(ch){items.push({name:ch,sub:true});});});
+  host.innerHTML=items.map(function(it){var on=(cur===it.name);
+    return '<a onclick="pickDeptNav(\''+it.name+'\')" style="display:block;padding:6px 12px 6px '+(it.sub?'30px':'20px')+';font-size:12.5px;border-radius:8px;margin-bottom:2px;cursor:pointer;'+(on?'background:var(--b50);color:var(--blue);font-weight:600':'color:var(--ink2)')+'">'+(it.sub?'· ':'')+it.name+'</a>';}).join('');}
+function toggleKb1Nav(){var h=document.getElementById('kb1DeptNav'),a=document.getElementById('kb1NavArrow');if(!h)return;var open=(h.style.display==='none');h.style.display=open?'block':'none';if(a)a.style.transform=open?'rotate(90deg)':'';if(open)renderKb1Nav();}
+function pickDeptNav(d){goView('kb1');if(window.setDept)window.setDept(d);renderKb1Nav();}
 function renderYearTabs(){
   document.querySelectorAll('.yeartabs').forEach(function(box){
     box.innerHTML='<span class="ytscroll">'+YEARS.map(function(y){
@@ -2199,7 +2204,7 @@ var ORIG={saveCell:saveCell,clearCell:clearCell,saveRowDef:saveRowDef,delRowFrom
 window.USE_API=false;var API_USER='bonniewbli';
 /* 看板1 部门空间：各部门独立存一套数。DEPT 定 IIFE 内，board 接口自动带 ?dept= */
 var DEPT='集团';window.CUR_DEPT=DEPT;
-window.setDept=function(v){DEPT=v;window.CUR_DEPT=v;var el=document.getElementById('deptLbl');if(el)el.textContent='部门空间：'+v+' ▾';var pl=document.getElementById('deptPickLbl');if(pl)pl.textContent=v;return loadYear(YEAR).catch(apiErr);};
+window.setDept=function(v){DEPT=v;window.CUR_DEPT=v;var el=document.getElementById('deptLbl');if(el)el.textContent='部门空间：'+v+' ▾';var pl=document.getElementById('deptPickLbl');if(pl)pl.textContent=v;if(window.renderKb1Nav)renderKb1Nav();return loadYear(YEAR).catch(apiErr);};
 window.loadKb0=function(year){return api('GET','/api/kb0/'+year);};  // PM速览：按账号 kb0_depts 聚合各部门预算/预估
 function api(m,p,b){if(p.indexOf('/api/board/')===0)p+=(p.indexOf('?')<0?'?':'&')+'dept='+encodeURIComponent(DEPT);return fetch(p,{method:m,headers:{'Content-Type':'application/json','X-User':API_USER},body:b?JSON.stringify(b):undefined}).then(function(r){return r.json().then(function(j){if(!r.ok)throw j;return j;});});}
 var SEC2FRONT={'总流出（−）':'out','总流入（＋）':'inn','社招∇ 分列':'soc','校招∇ 分列':'camp','法定HC·其中':'hc','预算当量·其中':'quota','云智·总流入（＋）':'yz_inn','云智·总流出（−）':'yz_out','外包·总流入（＋）':'wb_inn','外包·总流出（−）':'wb_out'};
