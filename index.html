@@ -1349,15 +1349,19 @@ function renderKb0Tables(){
   var tag=document.getElementById('kb0DeptTag');  // 责任部门标签（与后台组织分工同源）
   if(tag)tag.innerHTML=depts.length?depts.map(function(d){return '<span style="background:var(--b50);color:var(--blue);font-size:12px;font-weight:600;padding:2px 10px;border-radius:12px">'+esc(d.dept)+'</span>';}).join(''):'<span style="color:var(--ink3);font-size:12.5px">未配置（后台设置）</span>';
   host.innerHTML=depts.map(function(d){return kb0Table(d);}).join('')||'<div class="hint" style="padding:16px">当前账号未配置 PM 速览可见部门 —— 请在管理后台「账号与权限」配置看板0部门。</div>';
-  // 调节项格右键菜单（仅非编辑态文本格；编辑态用输入框+右拉+保存）
-  host.querySelectorAll('td[data-kb0dept]').forEach(function(td){if(td.querySelector('input'))return;td.addEventListener('contextmenu',function(e){e.preventDefault();kb0AdjMenu(td,e);});});
+  // 调节项格右键菜单（编辑态+非编辑态都可用：复制/粘贴/清零/向右填充/备注）
+  host.querySelectorAll('td[data-kb0dept]').forEach(function(td){td.addEventListener('contextmenu',function(e){e.preventDefault();kb0AdjMenu(td,e);});});
 }
-function kb0AdjPen(dept){KB0EDIT[dept]=true;renderKb0Tables();}  // 进整行编辑
+var KB0EDITNOTE={};  // 编辑态临时备注 dept\tmonth -> note；保存时随值一起入库
+function kb0AdjPen(dept){KB0EDIT[dept]=true;  // 进整行编辑：备注从缓存初始化
+  var row=_kb0Row(dept),an=(row&&row.adjustNote)||{};
+  for(var m=1;m<=12;m++){var k=dept+'\t'+m;if(an[m])KB0EDITNOTE[k]=an[m];else delete KB0EDITNOTE[k];}
+  renderKb0Tables();}
 function kb0RowCancel(dept){KB0EDIT[dept]=false;renderKb0Tables();}  // 取消：不保存·回缓存
-function kb0RowSave(dept){var row=_kb0Row(dept),anote=(row&&row.adjustNote)||{},cells=[];
+function kb0RowSave(dept){var cells=[];
   [].forEach.call(document.querySelectorAll('#kb0Host td[data-kb0dept] input'),function(inp){var td=inp.closest('td');if(td.getAttribute('data-kb0dept')!==dept)return;
     var m=+td.getAttribute('data-m'),raw=inp.value,v=(raw===''||raw===null)?null:(parseFloat(raw)||0);
-    cells.push({month:m+1,value:v,note:anote[m+1]||''});});
+    cells.push({month:m+1,value:v,note:KB0EDITNOTE[dept+'\t'+(m+1)]||''});});
   KB0EDIT[dept]=false;window.saveKb0Batch(YEAR,dept,cells);}
 function _kb0Row(dept){var ds=(KB0DATA&&KB0DATA.depts)||[];for(var i=0;i<ds.length;i++)if(ds[i].dept===dept)return ds[i];return null;}
 /* 右拉填充：拖调节格右下角小柄，把该格值填到右侧各格（编辑态·前端，保存时统一入库） */
@@ -1370,14 +1374,19 @@ function kb0FillEnd(){if(!KB0FILL)return;for(var m=KB0FILL.m0+1;m<=KB0FILL.to;m+
   [].forEach.call(KB0FILL.tr.querySelectorAll('td[data-kb0dept]'),function(c){c.style.background='';});
   KB0FILL=null;document.removeEventListener('mousemove',kb0FillMove);document.removeEventListener('mouseup',kb0FillEnd);}
 function kb0AdjMenu(td,ev){
-  var dept=td.getAttribute('data-kb0dept'),m=+td.getAttribute('data-m'),row=_kb0Row(dept);
-  var val=row&&isN(row.adjust[m])?row.adjust[m]:'',note=(row&&row.adjustNote&&row.adjustNote[m+1])||'';
+  var dept=td.getAttribute('data-kb0dept'),m=+td.getAttribute('data-m'),row=_kb0Row(dept),inp=td.querySelector('input'),editing=!!inp;
+  var val=editing?inp.value:(row&&isN(row.adjust[m])?String(row.adjust[m]):'');
+  var note=editing?(KB0EDITNOTE[dept+'\t'+(m+1)]||''):((row&&row.adjustNote&&row.adjustNote[m+1])||'');
   var items=[{t:'复制',fn:function(){clipSet(val===''?'':String(val));}}];
-  items.push({t:'粘贴',dis:CLIP.t===null,fn:function(){var v=parseFloat(CLIP.t);window.saveKb0Adjust(YEAR,dept,m+1,isNaN(v)?null:v,note);}});
-  items.push({t:'清零该格',fn:function(){window.saveKb0Adjust(YEAR,dept,m+1,null,'');}});
-  items.push({t:'向右填充（至12月）',dis:val===''||isNaN(parseFloat(val)),fn:function(){var vv=parseFloat(val);(function step(mm){if(mm>12)return;window.saveKb0Adjust(YEAR,dept,mm,vv).then(function(){step(mm+1);});})(m+2);}});
+  items.push({t:'粘贴',dis:CLIP.t===null,fn:function(){if(editing){inp.value=(''+CLIP.t).replace(/[^0-9.\-]/g,'');}else{var v=parseFloat(CLIP.t);window.saveKb0Adjust(YEAR,dept,m+1,isNaN(v)?null:v,note);}}});
+  items.push({t:'清零该格',fn:function(){if(editing){inp.value='';}else{window.saveKb0Adjust(YEAR,dept,m+1,null,'');}}});
+  items.push({t:'向右填充（至12月）',dis:val===''||isNaN(parseFloat(val)),fn:function(){
+    if(editing){var tr=td.closest('tr');for(var mm=m+1;mm<12;mm++){var i2=tr.querySelector('td[data-kb0dept="'+dept+'"][data-m="'+mm+'"] input');if(i2)i2.value=val;}}
+    else{var vv=parseFloat(val);(function step(mm){if(mm>12)return;window.saveKb0Adjust(YEAR,dept,mm,vv).then(function(){step(mm+1);});})(m+2);}}});
   items.push('-');
-  items.push({t:'备注…',fn:function(){var nt=window.prompt('调节项备注（'+dept+' '+M[m]+'）：',note);if(nt===null)return;window.saveKb0Adjust(YEAR,dept,m+1,(val===''?null:val),nt.trim());}});
+  items.push({t:'备注…',fn:function(){var nt=window.prompt('调节项备注（'+dept+' '+M[m]+'）：',note);if(nt===null)return;nt=nt.trim();
+    if(editing){KB0EDITNOTE[dept+'\t'+(m+1)]=nt;td.classList.toggle('hasnote',!!nt);var mk=td.querySelector('.memo');if(nt&&!mk)td.insertAdjacentHTML('beforeend','<span class="memo"></span>');else if(!nt&&mk)mk.remove();}
+    else{window.saveKb0Adjust(YEAR,dept,m+1,(val===''?null:val),nt);}}});
   ctxShow(items,ev.clientX,ev.clientY);
 }
 /* ===== 看板4 · 云智&外包（两张表，结构同看板1；预算当量/期末在岗留空待接入；总流入/总流出仅手填分支） ===== */
