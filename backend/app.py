@@ -33,7 +33,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 from meta import (CANON_PROJECTS, OUT_KEYS, CAMP_KEYS, IN_DIRECT_KEYS, BP_EDITABLE,
                   IMPORTABLE, VALUE_ABS_MAX, PLAN_METRICS, PLAN_BRANCH_SECS, EXTRA_METRICS, NAT_N_DEFAULT)
 from store import (DB_PATH, db, init_db, now, _audit, _write_cell, get_account,
-                   require_writer, require_admin, can_manage, manageable_ids, _grid, _branches)
+                   require_writer, require_admin, can_manage, manageable_ids, is_agg_dept, _grid, _branches)
 from calc_kb1 import compute
 from sources import SOURCE_METRICS, load_sources_cfg, fetch_source, _month_completed
 from kb3_ledger import (LEDGER_CLS, LEDGER_DATE_F, LEDGER_F2DB, LEDGER_REQUIRED, LEDGER_ST_CANON,
@@ -341,6 +341,8 @@ class CellEdit(BaseModel):
 def edit_cell(year: int, e: CellEdit, dept: str = "集团", x_user: str = Header("bonniewbli")):
     with db() as c:
         require_writer(c, x_user)
+        if is_agg_dept(dept):
+            raise HTTPException(403, f"「{dept}」为各中心汇总（只读），请在具体中心录入")
         yr = c.execute("SELECT * FROM years WHERE year=?", (year,)).fetchone()
         if not yr:
             raise HTTPException(404, "年份不存在")

@@ -296,8 +296,34 @@ init_db()
 
 
 # ---------------- 识空取数（服务端·与前端同口径） ----------------
+# 部门→中心（与前端 index.html/admin.html DEPT_TREE 一致）。部级看板数据 = 其各中心加总（部为只读汇总，数据在中心录入）
+_DEPT_CHILDREN = {
+    "云产品一部": ["计算产品中心", "轻量云产品中心", "异构计算产品中心", "存储产品中心", "网络产品中心", "高性能网络产品中心", "CBS产品中心", "CLS产品中心", "虚拟化产品中心", "TCE产品中心", "TCS产品中心", "云开发产品中心", "中间件产品中心", "云原生产品中心", "国产数据库产品中心", "云原生数据库产品中心", "NoSQL数据库产品中心", "数据库SaaS产品与技术平台中心", "数据库架构与支持中心", "数据库平台研发中心", "区块链产品中心", "IaaS前沿技术组", "产品架构组", "产品管理支持组", "可用性架构组", "MaaS产品中心", "Agent Runtime产品中心", "TIONE产品中心", "计算加速中心"],
+    "云产品二部": ["大数据产品架构与支持中心", "大数据基础产品中心", "TBDS产品中心", "WeData产品中心", "大数据应用产品中心", "产品运营及管理支持组", "数字孪生产品中心"],
+    "云产品三部": ["应用产品一中心", "应用产品二中心", "智能体平台产品中心", "交付中心", "经营分析组", "海外运营组"],
+    "云产品四部": ["运营产品中心", "客户经营平台产品中心", "计费产品中心", "平台产品中心", "产品支持中心", "腾讯云设计一中心", "腾讯云设计二中心", "服务与产品优化组", "综合业务项目管理组", "平台架构组", "身份产品中心"],
+}
+DEPT_CENTERS = {p: [p + "/" + ch for ch in kids] for p, kids in _DEPT_CHILDREN.items()}
+
+
+def is_agg_dept(dept):
+    """该 dept 是否为『含中心的部』——看板取数=各中心加总（只读汇总，不可直接录入）"""
+    return dept in DEPT_CENTERS
+
+
 def _grid(c, year, dept="集团"):
-    """cells → {metric: [v or None]*12}, notes → {metric: {m: note}}（按部门空间 dept）"""
+    """cells → {metric: [v or None]*12}, notes → {metric: {m: note}}（按部门空间 dept）。
+    部级(含中心)→ 各中心加总(只读汇总)；其余→本 dept 直取。"""
+    if dept in DEPT_CENTERS:
+        agg = {}
+        for center in DEPT_CENTERS[dept]:
+            cv, _ = _grid(c, year, center)  # 中心不在 DEPT_CENTERS，直取
+            for k, arr in cv.items():
+                a = agg.setdefault(k, [None] * 12)
+                for m in range(12):
+                    if isinstance(arr[m], (int, float)):
+                        a[m] = (a[m] if isinstance(a[m], (int, float)) else 0) + arr[m]
+        return agg, {}  # 汇总不带备注
     vals, notes = {}, {}
     for r in c.execute("SELECT metric,month,value,note FROM cells WHERE year=? AND dept=?", (year, dept)):
         vals.setdefault(r["metric"], [None] * 12)
