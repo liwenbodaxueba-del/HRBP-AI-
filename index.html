@@ -506,6 +506,7 @@ body.navfold .navtg{left:8px;}
 <div class="view on" id="v-kb1">
   <div style="display:flex;align-items:center;gap:10px;margin:4px 0 14px">
     <b style="font-size:19px;color:var(--navy)">部门人力预估表 · <span id="deptPickLbl">集团</span></b>
+    <span id="deptAggNote" style="font-size:12px;font-weight:600;color:#B45309;background:#FEF3C7;padding:2px 10px;border-radius:12px;display:none">各中心汇总 · 只读（请在具体中心录入）</span>
     <span style="font-size:12.5px;color:var(--ink3)">（左侧「看板1」展开可切换部门）</span>
   </div>
   <div class="banner" id="demoBanner" style="background:#FDECEC;border-color:#F3B4B4;color:#8C2B2B">
@@ -945,6 +946,8 @@ var DEPT_TREE=[
   {name:'云产品五部'}
 ];
 var KB1_OPEN={};
+/* 当前部门是否为『含中心的部』——各中心汇总·只读(不可直接录入，与后端一致) */
+function isDeptAgg(dept){dept=dept||window.CUR_DEPT||'集团';for(var i=0;i<DEPT_TREE.length;i++)if(DEPT_TREE[i].name===dept&&DEPT_TREE[i].children&&DEPT_TREE[i].children.length)return true;return false;}
 /* 侧栏「看板1」下展开部门层级：部→中心，点任一节点即切看板1 该部门空间 */
 function _navA(deptKey,label,padLeft,cur,arrow,stickyTop){var on=(cur===deptKey),sticky=(stickyTop!=null);
   var bg=on?'var(--b50)':(sticky?'#fff':'transparent');
@@ -1084,7 +1087,7 @@ function tr(cls,label,arr,opt){
     var rowEdit=opt.key&&ROWEDIT===opt.key;
     var anchorMonth=opt.editMonths&&opt.editMonths.indexOf(m)>=0;  // editMonths=硬约束:只放开指定月(如法定HC锚定月),并豁免已发生月锁定；即便整行编辑态也不放开其他月
     var monthOK=opt.editMonths?anchorMonth:true;
-    var editable=opt.edit&&monthOK&&(anchorMonth||m>=lock||(rowEdit&&!opt.editMonths&&!opt.futureOnly))&&!RO;  // 行编辑态放宽全月可填（仅未设 editMonths 的行，如新建行/调整行）；opt.futureOnly=只放开未发生月
+    var editable=opt.edit&&monthOK&&(anchorMonth||m>=lock||(rowEdit&&!opt.editMonths&&!opt.futureOnly))&&!RO&&!isDeptAgg();  // 行编辑态放宽全月可填；部级汇总(含中心)只读不可录入
     var mut=(opt.mute==='past'&&m<lock)||(opt.mute==='future'&&m>=lock);  // 估/实双轨标灰
     var cl=(m<lock&&opt.lockShade?'lock ':'')+(editable?'edit adj ':'')+(opt.neg&&v<0?'neg ':'')+(mut?'mut ':'');
     var disp=(v===''||(v===0&&opt.hideZero))?'':(opt.negRow&&v!==0?'−'+v:(opt.plus&&v>0?'+'+v:v));
@@ -2228,7 +2231,7 @@ var ORIG={saveCell:saveCell,clearCell:clearCell,saveRowDef:saveRowDef,delRowFrom
 window.USE_API=false;var API_USER='bonniewbli';
 /* 看板1 部门空间：各部门独立存一套数。DEPT 定 IIFE 内，board 接口自动带 ?dept= */
 var DEPT='集团';window.CUR_DEPT=DEPT;
-window.setDept=function(v){DEPT=v;window.CUR_DEPT=v;var el=document.getElementById('deptLbl');if(el)el.textContent='部门空间：'+v+' ▾';var pl=document.getElementById('deptPickLbl');if(pl)pl.textContent=v;if(window.renderKb1Nav)renderKb1Nav();return loadYear(YEAR).catch(apiErr);};
+window.setDept=function(v){DEPT=v;window.CUR_DEPT=v;var el=document.getElementById('deptLbl');if(el)el.textContent='部门空间：'+v+' ▾';var pl=document.getElementById('deptPickLbl');if(pl)pl.textContent=v;var an=document.getElementById('deptAggNote');if(an)an.style.display=(typeof isDeptAgg==='function'&&isDeptAgg(v))?'inline-block':'none';if(window.renderKb1Nav)renderKb1Nav();return loadYear(YEAR).catch(apiErr);};
 window.loadKb0=function(year){return api('GET','/api/kb0/'+year);};  // PM速览：按账号 kb0_depts 聚合各部门预算/预估
 window.MY=null;  // 当前登录账号权限（看板1可见部门/角色）
 window.loadMe=function(){return api('GET','/api/me').then(function(m){window.MY=m;if(window.renderKb1Nav)renderKb1Nav();return m;}).catch(function(){});};
