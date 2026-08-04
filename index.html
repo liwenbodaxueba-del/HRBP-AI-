@@ -492,7 +492,7 @@ body.navfold .navtg{left:8px;}
 <main>
 <!-- 看板0 · PM 速览（只读三行） -->
 <div class="view" id="v-kb0">
-  <div style="margin:2px 0 12px"><b style="font-size:16px;color:var(--navy)">看板0 · PM 速览</b><span style="color:var(--ink3);font-size:12.5px;margin-left:10px">给 PM 的快捷视图 · 只读：预算当量 / 实际·预估期末在岗（按账号权限展示各部门 · 悬停行名看口径）</span></div>
+  <div style="margin:2px 0 12px;display:flex;align-items:center;flex-wrap:wrap;gap:6px"><b style="font-size:16px;color:var(--navy)">看板0 · PM 速览</b><span style="color:var(--ink3);font-size:12.5px;margin-left:8px">责任部门</span><span id="kb0DeptTag" style="display:inline-flex;flex-wrap:wrap;gap:6px"></span></div>
   <div class="yeartabs"></div>
   <div id="kb0Host"></div>
 </div>
@@ -1332,7 +1332,11 @@ function renderKb0(){
   }
   // 后端：按当前账号 kb0_depts 权限，逐部门渲染（预算当量 + 期末在岗预估，无法定HC）
   window.loadKb0(YEAR).then(function(r){
-    var h=(r.depts||[]).map(function(d){
+    var depts=r.depts||[];
+    // 责任部门标签：与后台「PM速览 组织分工」设置同源(kb0_depts)，同步变化
+    var tag=document.getElementById('kb0DeptTag');
+    if(tag)tag.innerHTML=depts.length?depts.map(function(d){return '<span style="background:var(--b50);color:var(--blue);font-size:12px;font-weight:600;padding:2px 10px;border-radius:12px">'+esc(d.dept)+'</span>';}).join(''):'<span style="color:var(--ink3);font-size:12.5px">未配置（后台设置）</span>';
+    var h=depts.map(function(d){
       var ov=isN(d.chainAvg)&&isN(d.budgetAvg)&&d.chainAvg>d.budgetAvg+0.005;
       return kb0Table(d.dept,(d.budget||[]).map(nnv),(d.chain||[]).map(nnv),f2(d.budgetAvg),f2(d.chainAvg),ov);
     }).join('');
