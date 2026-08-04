@@ -453,7 +453,7 @@ body.navfold .navtg{left:8px;}
   </div>
   <div class="grp">看板</div>
   <a class="on" data-v="kb0" onclick="go(this)">看板0 · PM 速览</a>
-  <a data-v="kb1" id="kb1NavLink" onclick="pickDeptNav('kb1','集团')" style="position:sticky;top:0;z-index:6;background:var(--b50)">看板1 · 集团人力预估表<span id="kb1NavArrow" onclick="event.stopPropagation();toggleKb1Nav()" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>
+  <a data-v="kb1" id="kb1NavLink" onclick="pickDeptNav('kb1','集团')">看板1 · 集团人力预估表<span id="kb1NavArrow" onclick="event.stopPropagation();toggleKb1Nav()" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>
   <div id="kb1DeptNav" style="display:none;margin:-2px 0 4px 0"></div>
   <a data-v="kb2" id="kb2NavLink" onclick="pickDeptNav('kb2','集团')">看板2 · 预算看板<span id="kb2NavArrow" onclick="event.stopPropagation();toggleDeptNav('kb2')" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>
   <div id="kb2DeptNav" style="display:none;margin:-2px 0 4px 0"></div>
@@ -985,7 +985,10 @@ function renderDeptNav(board){var host=document.getElementById(board+'DeptNav');
 function renderAllDeptNav(){DEPT_BOARDS.forEach(function(b){var h=document.getElementById(b+'DeptNav');if(h&&h.style.display!=='none')renderDeptNav(b);});}
 function renderKb1Nav(){renderAllDeptNav();}  // 兼容旧调用（setDept/loadMe）
 function toggleDeptSub(board,name){KB1_OPEN[name]=!KB1_OPEN[name];renderDeptNav(board);}
-function toggleDeptNav(board){var h=document.getElementById(board+'DeptNav'),a=document.getElementById(board+'NavArrow');if(!h)return;var open=(h.style.display==='none');h.style.display=open?'block':'none';if(a)a.style.transform=open?'rotate(90deg)':'';if(open)renderDeptNav(board);}
+function _navSticky(board,on){var lnk=document.getElementById(board+'NavLink');if(!lnk)return;  // 仅展开的看板名固定顶部，收起的不固定
+  if(on){lnk.style.position='sticky';lnk.style.top='0';lnk.style.zIndex='6';lnk.style.background='var(--b50)';}
+  else{lnk.style.position='';lnk.style.top='';lnk.style.zIndex='';lnk.style.background='';}}
+function toggleDeptNav(board){var h=document.getElementById(board+'DeptNav'),a=document.getElementById(board+'NavArrow');if(!h)return;var open=(h.style.display==='none');h.style.display=open?'block':'none';if(a)a.style.transform=open?'rotate(90deg)':'';_navSticky(board,open);if(open)renderDeptNav(board);}
 function toggleKb1Nav(){toggleDeptNav('kb1');}  // 兼容旧调用
 function pickDeptNav(board,d){goView(board);if(window.setDept)window.setDept(d);renderDeptNav(board);}
 function renderYearTabs(){
