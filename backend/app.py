@@ -33,7 +33,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 from meta import (CANON_PROJECTS, OUT_KEYS, CAMP_KEYS, IN_DIRECT_KEYS, BP_EDITABLE,
                   IMPORTABLE, VALUE_ABS_MAX, PLAN_METRICS, PLAN_BRANCH_SECS, EXTRA_METRICS, NAT_N_DEFAULT)
 from store import (DB_PATH, db, init_db, now, _audit, _write_cell, get_account,
-                   require_writer, require_admin, _grid, _branches)
+                   require_writer, require_admin, can_manage, manageable_ids, _grid, _branches)
 from calc_kb1 import compute
 from sources import SOURCE_METRICS, load_sources_cfg, fetch_source, _month_completed
 from kb3_ledger import (LEDGER_CLS, LEDGER_DATE_F, LEDGER_F2DB, LEDGER_REQUIRED, LEDGER_ST_CANON,
@@ -69,7 +69,10 @@ def get_config():
         ]
         accts = [
             {"id": r["id"], "name": r["name"], "role": r["role"], "dept": r["dept"],
-             "kb": json.loads(r["kb"] or "[1,1,1,1]"), "on": bool(r["on_ok"]), "demo": bool(r["demo"])}
+             "kb": json.loads(r["kb"] or "[1,1,1,1]"), "on": bool(r["on_ok"]), "demo": bool(r["demo"]),
+             "level": (r["level"] if "level" in r.keys() else "") or "",
+             "manager_id": (r["manager_id"] if "manager_id" in r.keys() else "") or "",
+             "org_path": (r["org_path"] if "org_path" in r.keys() else "") or ""}
             for r in c.execute("SELECT * FROM accounts")
         ]
         return {"projs": projs, "accts": accts, "ts": int(time.time() * 1000)}
@@ -95,12 +98,65 @@ def put_config(doc: ConfigDoc, x_user: str = Header("bonniewbli")):
         c.execute("DELETE FROM accounts")
         for a in doc.accts:
             c.execute(
-                "INSERT INTO accounts(id,name,role,dept,kb,on_ok,demo) VALUES(?,?,?,?,?,?,?)",
+                "INSERT INTO accounts(id,name,role,dept,kb,on_ok,demo,level,manager_id,org_path) VALUES(?,?,?,?,?,?,?,?,?,?)",
                 (a["id"], a.get("name", ""), a.get("role", "HRBP·可编辑"), a.get("dept", ""),
-                 json.dumps(a.get("kb", [1, 1, 1, 1])), int(a.get("on", True)), int(bool(a.get("demo")))),
+                 json.dumps(a.get("kb", [1, 1, 1, 1])), int(a.get("on", True)), int(bool(a.get("demo"))),
+                 a.get("level", ""), a.get("manager_id", ""), a.get("org_path", "")),
             )
         _audit(c, x_user, "配置更新", f"项目 {len(doc.projs)} 项 / 账号 {len(doc.accts)} 个（管理后台下发）")
         return {"ok": True}
+
+
+# ---------------- 账号层级树（上级只看到自己管辖子树；管理员看全员） ----------------
+@app.get("/api/accounts/tree")
+def accounts_tree(x_user: str = Header("bonniewbli")):
+    """返回调用者可管辖的账号（含自己），带 org_path/level/manager_id，供后台渲染可展开层级列表。
+    非管理员只回其 org_path 子树成员；管理员回全员。前端按 org_path 建树。"""
+    with db() as c:
+        me = get_account(c, x_user)
+        if not me:
+            raise HTTPException(403, f"账号 {x_user} 未配置")
+        ids = set(manageable_ids(c, x_user)) | {x_user}  # 管辖子树 + 自己
+        rows = []
+        for r in c.execute("SELECT * FROM accounts"):
+            if r["id"] not in ids:
+                continue
+            rows.append({
+                "id": r["id"], "name": r["name"], "role": r["role"],
+                "level": (r["level"] if "level" in r.keys() else "") or "",
+                "org_path": (r["org_path"] if "org_path" in r.keys() else "") or "",
+                "manager_id": (r["manager_id"] if "manager_id" in r.keys() else "") or "",
+                "dept": r["dept"], "on": bool(r["on_ok"]), "demo": bool(r["demo"]),
+                "kb": json.loads(r["kb"] or "[1,1,1,1]"),
+                "can_manage": bool(can_manage(c, x_user, r["id"])),  # 我能否管这个人（自己=False）
+            })
+        return {"me": {"id": me["id"], "role": me["role"],
+                       "org_path": (me["org_path"] if "org_path" in me.keys() else "") or ""},
+                "accounts": rows}
+
+
+# ---------------- iOA 组织同步（预留接口：正式版接 iOA OpenAPI；未接入→占位，绝不编造） ----------------
+@app.post("/api/accounts/{acct_id}/ioa-sync")
+def ioa_sync(acct_id: str, x_user: str = Header("bonniewbli")):
+    """按 iOA 账号拉取组织信息（姓名/部门/org_path/职级level/上级manager_id）并回填账号。
+    现为预留桩：iOA 未接入 → 428，不自动建号、不编造。正式版在 sources 层配置 iOA OpenAPI 后打通。"""
+    with db() as c:
+        require_admin(c, x_user)
+        prof = fetch_ioa_profile(acct_id)  # 未接入返回 None
+        if not prof:
+            raise HTTPException(428, {"msg": "iOA 组织接口未接入", "acct": acct_id,
+                                      "expect": ["name", "dept", "org_path", "level", "manager_id"]})
+        c.execute("UPDATE accounts SET name=?, dept=?, org_path=?, level=?, manager_id=? WHERE id=?",
+                  (prof["name"], prof["dept"], prof["org_path"], prof["level"], prof["manager_id"], acct_id))
+        _audit(c, x_user, "iOA同步", f"{acct_id}：{prof['org_path']} · {prof['level']}")
+        return {"ok": True, "profile": prof}
+
+
+def fetch_ioa_profile(acct_id):
+    """iOA 组织/职级拉取（预留）。未配置 iOA 凭据 → None（前端提示"待接 iOA"，不造数据）。
+    正式版：读 ioa_config.json（gitignore）里的 OpenAPI 端点+凭据，按 acct_id 查组织架构，
+    map 字段 → {name, dept, org_path, level, manager_id}。org_path 用 iOA 组织全路径「/」拼接。"""
+    return None
 
 
 # ---------------- 年份 ----------------

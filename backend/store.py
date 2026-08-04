@@ -131,8 +131,21 @@ def init_db():
                 c.execute(f"ALTER TABLE accounts ADD COLUMN {col} TEXT DEFAULT ''")
             except sqlite3.OperationalError:
                 pass  # 列已存在
-        # 回填内置管理员（幂等）：李文博=部门顶层
-        c.execute("UPDATE accounts SET org_path='云产品五部', level='管理员' WHERE id='bonniewbli' AND (org_path IS NULL OR org_path='')")
+        # 账号层级 = iOA HR 组织树（非业务线云产品五部；业务线是"数据范围"另说）。org_path 用 iOA 真实路径，「/」分隔。
+        _HR_CENTER = "Tencent Group/Tencent/S3 – HR & Management Line/CSIG Human Resources Center"
+        _HRBP_TEAM = _HR_CENTER + "/CSIG HRBP Team"
+        # 回填内置管理员（幂等·并修正早期误填的业务线路径）：李文博 = CSIG HRBP Team
+        c.execute("UPDATE accounts SET org_path=?, level='管理员' WHERE id='bonniewbli' AND (org_path IS NULL OR org_path='' OR org_path='云产品五部')",
+                  (_HRBP_TEAM,))
+        # demo 层级账号（幂等·标示例）：演示"上级看下级"——负责人在 HR Center，BP 在 HRBP Team 子树
+        for did, dname, drole, dlevel, dpath, dmgr in [
+            ("demo-hrhead", "（示例）HRBP 负责人", "领导·只读", "总监", _HR_CENTER, ""),
+            ("demo-bp1", "（示例）HRBP·张三", "HRBP·可编辑", "专员", _HRBP_TEAM, "demo-hrhead"),
+            ("demo-bp2", "（示例）HRBP·李四", "HRBP·可编辑", "专员", _HRBP_TEAM, "demo-hrhead"),
+        ]:
+            c.execute("INSERT OR IGNORE INTO accounts(id,name,role,dept,kb,on_ok,demo,level,manager_id,org_path) "
+                      "VALUES(?,?,?,?,?,1,1,?,?,?)",
+                      (did, dname, drole, dpath.split("/")[-1], "[1,1,1,1]", dlevel, dmgr, dpath))
         # 职级→默认模板 seed（首次建库时；后续在后台可改，这里只是起步默认，不是硬编码策略）
         if not c.execute("SELECT 1 FROM role_templates LIMIT 1").fetchone():
             c.executemany(
