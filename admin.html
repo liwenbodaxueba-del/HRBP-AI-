@@ -104,9 +104,8 @@ body.navfold .navtg{left:8px;}
   <a data-v="proj" onclick="go(this)">项目配置</a>
   <div class="grp">记录</div>
   <a data-v="audit" onclick="go(this)">配置审计日志</a>
-  <div class="grp">入口</div>
-  <a href="index.html">← 返回人力预估看板</a>
-  <div class="user">iOA：<b>bonniewbli</b><br>（管理员）</div>
+  <a href="index.html" style="margin-top:auto;color:var(--navy);font-weight:600">← 返回人力预估看板</a>
+  <div class="user" style="margin-top:0">iOA：<b>bonniewbli</b><br>（管理员）</div>
 </nav>
 
 <div class="rcol">
@@ -322,23 +321,38 @@ var DEPT_TREE=[
   {name:'云产品二部',children:['大数据产品架构与支持中心','大数据基础产品中心','TBDS产品中心','WeData产品中心','大数据应用产品中心','产品运营及管理支持组','数字孪生产品中心']},
   {name:'云产品三部',children:['应用产品一中心','应用产品二中心','智能体平台产品中心','交付中心','经营分析组','海外运营组']},
   {name:'云产品四部',children:['运营产品中心','客户经营平台产品中心','计费产品中心','平台产品中心','产品支持中心','腾讯云设计一中心','腾讯云设计二中心','服务与产品优化组','综合业务项目管理组','平台架构组','身份产品中心']},
-  {name:'云产品五部'}
+  {name:'云产品五部',children:[]},
+  {name:'云产品六部',children:[]},{name:'安全产品一部',children:[]},{name:'安全产品二部',children:[]},{name:'安全产品三部',children:[]},
+  {name:'科恩实验室',children:[]},{name:'玄武实验室',children:[]},{name:'优图实验室',children:[]},
+  {name:'企业中台产品部',children:[]},{name:'社交协作产品部',children:[]},{name:'ima产品中心',children:[]},
+  {name:'云产品技术支持部',children:[]},{name:'云技术运营服务部',children:[]},{name:'腾讯会议产品部',children:[]},{name:'营销与交易产品部',children:[]},{name:'云运营管理部',children:[]},{name:'云采购供应管理部',children:[]},{name:'星星海实验室',children:[]},
+  {name:'CSIG产品管理支持中心',children:[]},{name:'战略客户部',children:[]},
+  {name:'智意行业一部',children:[]},{name:'智慧行业二部',children:[]},{name:'智慧行业三部',children:[]},{name:'智慧行业四部',children:[]},{name:'智慧行业五部',children:[]},{name:'智慧行业七部',children:[]},{name:'智慧行业九部',children:[]},{name:'智慧行业十部',children:[]},
+  {name:'港澳台及国际业务部',children:[]},{name:'北区业务部',children:[]},{name:'东区业务部',children:[]},{name:'南区业务部',children:[]},
+  {name:'产业生态合作部',children:[]},{name:'生态运营管理部',children:[]},{name:'服务生态管理部',children:[]},{name:'政企客户成功中心',children:[]},{name:'政企业务运营中心',children:[]},
+  {name:'地图平台部',children:[]},{name:'通途数据中心',children:[]},{name:'地图产品部',children:[]},{name:'智慧出行事业部',children:[]},{name:'智慧零售战略合作部',children:[]},{name:'医疗健康事业部',children:[]},
+  {name:'生命科学实验室',children:[]},{name:'多媒体实验室',children:[]},{name:'量子实验室',children:[]},
+  {name:'元宝产品部',children:[]},{name:'元宝搜索部',children:[]},{name:'业务经营管理部',children:[]},
+  {name:'CSIG质量部',children:[]},{name:'CSIG市场部',children:[]},{name:'CSIG战略管理中心',children:[]},{name:'CSIG行政中心',children:[]},{name:'CSIG办公室',children:[]},{name:'CSIG公关部',children:[]},{name:'CSIG服务研发采购中心',children:[]},{name:'云智研发中心',children:[]},
+  {name:'输入法部',children:[]},{name:'用户体验设计部',children:[]},{name:'浏览器产品部',children:[]},{name:'健康普惠实验室',children:[]},
+  {name:'CSIG职业发展委员会',children:[]},{name:'CSIG技术委员会',children:[]},{name:'CSIG财务管理',children:[]},{name:'CSIG法务部',children:[]}
 ];
 var _dcId=null;
 function _dcLeaf(val,label,list,pad){return '<label style="display:block;margin:2px 0 2px '+pad+'px;font-size:13px"><input type="checkbox" value="'+val.replace(/"/g,'')+'" '+((list||[]).indexOf(val)>=0?'checked':'')+'> '+label+'</label>';}
 function _dcBox(host,list,mode){list=list||[];var kb0=(mode==='kb0'),h='';
   DEPT_TREE.forEach(function(node){
-    if(!node.children){h+=_dcLeaf(node.name,'<b>'+node.name+'</b>',list,2);return;}
-    // kb0：父勾=所有中心都已选(全选才展示部门·中心逐个展示)；kb1：父勾=整部(聚合)
-    var pon=kb0?node.children.every(function(ch){return list.indexOf(node.name+'/'+ch)>=0;}):(list.indexOf(node.name)>=0);
-    h+='<div class="dcgrp" style="margin:2px 0">'
-      +'<div style="display:flex;align-items:center;gap:4px">'
-      +'<span onclick="dcToggle(this)" data-open="0" style="cursor:pointer;width:12px;color:#94a3b8;font-size:10px;user-select:none">▸</span>'
-      +'<label style="font-size:13px;font-weight:600;white-space:nowrap"><input type="checkbox" data-p="1" value="'+node.name+'" '+(pon?'checked':'')+' onchange="'+(kb0?'dcParentKb0(this)':'dcParent(this)')+'"> '+node.name+(kb0?'<span style="font-weight:400;color:var(--ink3);font-size:11px">（全选中心才展示部门汇总）</span>':'')+'</label></div>'
-      +'<div class="dcch" style="display:none;padding-left:24px">';
-    node.children.forEach(function(ch){var ck=node.name+'/'+ch,con=list.indexOf(ck)>=0;
-      h+='<label style="display:block;font-size:13px;margin:2px 0;white-space:nowrap"><input type="checkbox" data-c="1" value="'+ck+'" '+((kb0?con:(pon||con))?'checked':'')+((!kb0&&pon)?' disabled':'')+(kb0?' onchange="dcChildKb0(this)"':'')+'> · '+ch+'</label>';});
-    h+='</div></div>';});
+    if(!node.children){h+=_dcLeaf(node.name,'<b>'+node.name+'</b>',list,2);return;}  // 集团=顶层叶子
+    var hasKids=node.children.length>0;  // 云产品五部 children=[]，无中心：当部渲染但不出箭头
+    var pon=(kb0&&hasKids)?node.children.every(function(ch){return list.indexOf(node.name+'/'+ch)>=0;}):(list.indexOf(node.name)>=0);
+    var arrow=hasKids?'<span onclick="dcToggle(this)" data-open="0" style="cursor:pointer;width:12px;color:#94a3b8;font-size:10px;user-select:none">▸</span>':'<span style="width:12px;display:inline-block"></span>';
+    var onch=hasKids?(' onchange="'+(kb0?'dcParentKb0(this)':'dcParent(this)')+'"'):'';
+    h+='<div class="dcgrp" style="margin:2px 0"><div style="display:flex;align-items:center;gap:4px">'+arrow
+      +'<label style="font-size:13px;font-weight:600;white-space:nowrap"><input type="checkbox" data-p="1" value="'+node.name+'" '+(pon?'checked':'')+onch+'> '+node.name+((kb0&&hasKids)?'<span style="font-weight:400;color:var(--ink3);font-size:11px">（全选中心才展示部门汇总）</span>':'')+'</label></div>';
+    if(hasKids){h+='<div class="dcch" style="display:none;padding-left:24px">';
+      node.children.forEach(function(ch){var ck=node.name+'/'+ch,con=list.indexOf(ck)>=0;
+        h+='<label style="display:block;font-size:13px;margin:2px 0;white-space:nowrap"><input type="checkbox" data-c="1" value="'+ck+'" '+((kb0?con:(pon||con))?'checked':'')+((!kb0&&pon)?' disabled':'')+(kb0?' onchange="dcChildKb0(this)"':'')+'> · '+ch+'</label>';});
+      h+='</div>';}
+    h+='</div>';});
   document.getElementById(host).innerHTML=h;}
 function dcToggle(sp){var grp=sp.closest('.dcgrp'),ch=grp.querySelector('.dcch'),open=sp.getAttribute('data-open')==='1';ch.style.display=open?'none':'block';sp.textContent=open?'▸':'▾';sp.setAttribute('data-open',open?'0':'1');}
 function dcParent(cb){var grp=cb.closest('.dcgrp');[].forEach.call(grp.querySelectorAll('input[data-c]'),function(x){x.checked=cb.checked;x.disabled=cb.checked;});}
@@ -347,7 +361,9 @@ function dcChildKb0(cb){var grp=cb.closest('.dcgrp'),p=grp.querySelector('input[
 function _dcRead(host,mode){var root=document.getElementById(host),out=[],kb0=(mode==='kb0');
   [].forEach.call(root.querySelectorAll('input[type=checkbox]:not([data-p]):not([data-c])'),function(cb){if(cb.checked)out.push(cb.value);});
   [].forEach.call(root.querySelectorAll('.dcgrp'),function(grp){var p=grp.querySelector('input[data-p]');
-    if(kb0){[].forEach.call(grp.querySelectorAll('input[data-c]'),function(cb){if(cb.checked)out.push(cb.value);});}  // kb0:只存选中的中心(部由PM速览按全选派生)
+    if(kb0){var kids=grp.querySelectorAll('input[data-c]');
+      if(kids.length){[].forEach.call(kids,function(cb){if(cb.checked)out.push(cb.value);});}  // kb0:只存选中的中心(部由PM速览按全选派生)
+      else if(p.checked)out.push(p.value);}  // 无中心的部(五部)：按叶子存部键
     else{if(p.checked)out.push(p.value);else [].forEach.call(grp.querySelectorAll('input[data-c]'),function(cb){if(cb.checked)out.push(cb.value);});}});
   return out;}
 function openDeptCfg(id){var i=acctIdx(id);if(i<0)return;_dcId=id;var a=accts[i];

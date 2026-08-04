@@ -385,6 +385,10 @@ def get_kb0(year: int, x_user: str = Header("bonniewbli")):
         b = get_board(year, dept)  # 复用看板1 运算（各自开库连接）
         with db() as c:
             adj = _kb0_adjust(c, year, dept)  # 看板0 调节项（部级=各中心汇总）
+            anote = {}
+            if not is_agg_dept(dept):  # 部级只读无备注；中心/叶子读调节项备注
+                for r in c.execute("SELECT month,note FROM kb0_adjust WHERE year=? AND dept=? AND metric='chain' AND note IS NOT NULL AND note!=''", (year, dept)):
+                    anote[str(r["month"])] = r["note"]
         chain = b["metrics"]["actual"]["vals"]
         chain_adj = [((chain[m] if isinstance(chain[m], (int, float)) else 0) + adj[m])
                      if isinstance(adj[m], (int, float)) else chain[m] for m in range(12)]  # 调整后=期末在岗+调节项
@@ -394,6 +398,7 @@ def get_kb0(year: int, x_user: str = Header("bonniewbli")):
             "budget": b["metrics"]["budget"]["vals"],      # 预算当量
             "chain": chain,                                 # 实际/预估期末在岗
             "adjust": adj,                                  # 调节项（中心/叶子可填）
+            "adjustNote": anote,                            # 调节项备注 {month: note}
             "chainAdj": chain_adj,                          # 调整后期末在岗
             "budgetAvg": b["computed"]["budget_avg"],
             "chainAvg": b["computed"]["chain_avg"],
@@ -407,6 +412,7 @@ class Kb0Adjust(BaseModel):
     dept: str
     month: int
     value: Optional[float] = None
+    note: str = ""
     metric: str = "chain"
 
 
@@ -422,11 +428,40 @@ def kb0_adjust_write(year: int, e: Kb0Adjust, x_user: str = Header("bonniewbli")
         if e.value is not None and abs(e.value) > VALUE_ABS_MAX:
             raise HTTPException(422, "量级异常，拒绝入库")
         c.execute(
-            "INSERT INTO kb0_adjust(year,dept,metric,month,value,updated_by,updated_at) VALUES(?,?,?,?,?,?,?) "
-            "ON CONFLICT(year,dept,metric,month) DO UPDATE SET value=excluded.value,updated_by=excluded.updated_by,updated_at=excluded.updated_at",
-            (year, e.dept, e.metric, e.month, e.value, x_user, now()),
+            "INSERT INTO kb0_adjust(year,dept,metric,month,value,note,updated_by,updated_at) VALUES(?,?,?,?,?,?,?,?) "
+            "ON CONFLICT(year,dept,metric,month) DO UPDATE SET value=excluded.value,note=excluded.note,updated_by=excluded.updated_by,updated_at=excluded.updated_at",
+            (year, e.dept, e.metric, e.month, e.value, (e.note or "").strip(), x_user, now()),
         )
-        _audit(c, x_user, "看板0调节", f"[{e.dept}] {year} {e.month}月 调节项 → {e.value}")
+        _audit(c, x_user, "看板0调节", f"[{e.dept}] {year} {e.month}月 调节项 → {e.value}（{(e.note or '').strip()}）")
+    return get_kb0(year, x_user)
+
+
+class Kb0AdjustBatch(BaseModel):
+    dept: str
+    cells: list  # [{month, value, note}]
+    metric: str = "chain"
+
+
+@app.post("/api/kb0/{year}/adjust-batch")
+def kb0_adjust_batch(year: int, b: Kb0AdjustBatch, x_user: str = Header("bonniewbli")):
+    """看板0 调节项整行批量写入（🖊 编辑后保存）：仅中心/叶子部门；不碰看板1 源。"""
+    with db() as c:
+        require_writer(c, x_user)
+        if is_agg_dept(b.dept):
+            raise HTTPException(403, f"「{b.dept}」为各中心汇总（只读），请在具体中心填调节项")
+        for cell in b.cells:
+            m = int(cell.get("month", 0))
+            if not (1 <= m <= 12):
+                continue
+            v = cell.get("value")
+            if v is not None and abs(float(v)) > VALUE_ABS_MAX:
+                raise HTTPException(422, "量级异常，拒绝入库")
+            c.execute(
+                "INSERT INTO kb0_adjust(year,dept,metric,month,value,note,updated_by,updated_at) VALUES(?,?,?,?,?,?,?,?) "
+                "ON CONFLICT(year,dept,metric,month) DO UPDATE SET value=excluded.value,note=excluded.note,updated_by=excluded.updated_by,updated_at=excluded.updated_at",
+                (year, b.dept, b.metric, m, v, (cell.get("note") or "").strip(), x_user, now()),
+            )
+        _audit(c, x_user, "看板0调节", f"[{b.dept}] {year} 调节项整行保存（{len(b.cells)} 格）")
     return get_kb0(year, x_user)
 
 

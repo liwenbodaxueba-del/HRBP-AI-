@@ -93,7 +93,7 @@ def init_db():
               reason TEXT);                    -- 授权缘由（进审计）
             -- 看板0 调节层：PM 速览专用调整值（独立于看板1 源 cells·不影响源；中心调节汇总到部）
             CREATE TABLE IF NOT EXISTS kb0_adjust(
-              year INTEGER, dept TEXT, metric TEXT, month INTEGER, value REAL,
+              year INTEGER, dept TEXT, metric TEXT, month INTEGER, value REAL, note TEXT,
               updated_by TEXT, updated_at TEXT,
               PRIMARY KEY(year, dept, metric, month));
             """
@@ -192,6 +192,10 @@ def init_db():
             except sqlite3.OperationalError:
                 pass  # 列已存在
         c.execute("UPDATE accounts SET is_sysadmin=1 WHERE id='bonniewbli'")  # 内置系统管理员（幂等）
+        try:
+            c.execute("ALTER TABLE kb0_adjust ADD COLUMN note TEXT")  # 看板0 调节项备注（现有库补列）
+        except sqlite3.OperationalError:
+            pass
         if not c.execute("SELECT 1 FROM accounts WHERE is_head=1 LIMIT 1").fetchone():  # 首次
             for aid, adept, ahead in [("bonniewbli", "集团", 1), ("demo-bp1", "云产品一部", 1),
                                       ("demo-bp2", "云产品一部", 0), ("demo-hrhead", "云产品二部", 1)]:
