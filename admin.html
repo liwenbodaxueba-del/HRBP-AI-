@@ -179,10 +179,9 @@ body.navfold .navtg{left:8px;}
   <label>姓名</label><input type="text" id="aName" placeholder="如：王小艺">
   <label>角色</label>
   <select id="aRole"><option>HRBP·可编辑</option><option>领导·只读</option><option>管理员</option></select>
-  <label>部门空间（业务数据范围）</label>
-  <select id="aDept"><option>云产品五部</option><option>（示例）云产品四部</option><option>（示例）行业五部</option><option>全部（仅管理员）</option></select>
-  <label>iOA 组织路径 org_path（「/」分隔·决定上下级）</label>
-  <input type="text" id="aOrg" placeholder="如：…/CSIG Human Resources Center/CSIG HRBP Team">
+  <label>所属看板1部门（决定分组·看板1只见本部门）</label>
+  <div style="padding:8px 12px;background:#F1F5F9;border-radius:8px;font-size:13px;font-weight:600;color:var(--navy)"><span id="aDeptShow">（未分配部门）</span></div>
+  <div class="meta" style="margin-top:2px">从部门行的「＋加人」进入会自动带入该部门；新人默认只见本部门、非总BP。</div>
   <label>职级 level</label>
   <input type="text" id="aLevel" placeholder="如：专员 / 经理 / 总监（正式版由 iOA 带出）">
   <div class="err" id="aErr">iOA 账号与姓名必填，且账号不能重复</div>
@@ -194,10 +193,19 @@ body.navfold .navtg{left:8px;}
   <h3>部门权限配置 · <span id="dcWho" style="color:var(--navy)"></span></h3>
   <div class="meta">看板1可见部门=该账号能在看板1切换/编辑的部门；看板0(PM速览)可见部门=PM速览里聚合展示的部门。二者独立——可"看板1能看、看板0不展示"。</div>
   <label>看板1 可见部门</label>
-  <div id="dcKb1" style="margin:2px 0 8px"></div>
+  <div id="dcKb1" style="margin:2px 0 8px;max-height:160px;overflow:auto;border:1px solid #E5E9F0;border-radius:8px;padding:6px 10px"></div>
   <label>看板0 · PM速览 组织分工</label>
-  <div id="dcKb0" style="margin:2px 0 8px"></div>
+  <div id="dcKb0" style="margin:2px 0 8px;max-height:160px;overflow:auto;border:1px solid #E5E9F0;border-radius:8px;padding:6px 10px"></div>
   <div class="row"><button class="btn gray" onclick="closeDeptCfg()">取消</button><button class="btn" onclick="saveDeptCfg()">保存并生效</button></div>
+</div></div>
+
+<!-- 转移管理员 modal -->
+<div class="mask" id="maskTransfer"><div class="modal">
+  <h3>转移管理员职位</h3>
+  <div class="meta">把管理员职位移交给下方账号；转移后<b>本人降为「HRBP·可编辑」</b>、对方成为管理员。立即生效并写审计。</div>
+  <label>移交给</label>
+  <select id="trTarget"></select>
+  <div class="row"><button class="btn gray" onclick="closeTransfer()">取消</button><button class="btn" onclick="doTransfer()">确认转移</button></div>
 </div></div>
 
 <!-- 新增项目 modal -->
@@ -259,7 +267,7 @@ function countAccts(node){var n=node.accts.length;for(var k in node.children)n+=
 function buildOrgTree(list){
   var root={children:{},order:[],accts:[]};
   list.forEach(function(a){
-    var segs=(a.org_path||'').split('/').filter(Boolean);
+    var segs=(a.dept||'').split('/').filter(Boolean);  // 按看板1部门(dept)分组
     if(!segs.length){root.accts.push(a);return;}
     var node=root;
     segs.forEach(function(s){if(!node.children[s]){node.children[s]={children:{},order:[],accts:[]};node.order.push(s);}node=node.children[s];});
@@ -271,24 +279,29 @@ function acctToggle(key){ACCT_COLLAPSE[key]=!ACCT_COLLAPSE[key];renderAccts();}
 function acctRow(a,depth){
   var i=acctIdx(a.id);
   var kb=KB.map(function(k,j){return '<label><input type="checkbox" '+(a.kb[j]?'checked':'')+' onchange="accKb('+i+','+j+',this.checked)">'+k+'</label>';}).join('');
-  var roleSel='<select onchange="accRole('+i+',this.value)"><option'+(a.role==='管理员'?' selected':'')+'>管理员</option><option'+(a.role==='HRBP·可编辑'?' selected':'')+'>HRBP·可编辑</option><option'+(a.role==='领导·只读'?' selected':'')+'>领导·只读</option></select>';
-  return '<tr><td style="padding-left:'+(depth*20+24)+'px">'+esc(a.id)+(a.demo?' <span class="chip demo">示例</span>':'')+'</td>'
-    +'<td>'+esc(a.name)+(a.level?' <span class="chip">'+esc(a.level)+'</span>':'')+'</td>'
+  var me=(a.id==='bonniewbli'),meLock=me&&!a.is_sysadmin;  // 本人权限不可自改；系统管理员例外(可配自己)
+  var roleSel=meLock?('<span style="font-size:13px;color:var(--ink2)" title="本人角色不可自改，须由系统管理员配置">'+esc(a.role)+'</span>')
+    :'<select onchange="accRole('+i+',this.value)"><option'+(a.role==='管理员'?' selected':'')+'>管理员</option><option'+(a.role==='HRBP·可编辑'?' selected':'')+'>HRBP·可编辑</option><option'+(a.role==='领导·只读'?' selected':'')+'>领导·只读</option></select>';
+  var deptCell=meLock?('<span style="font-size:12px;color:var(--ink3)" title="本人权限不可自改">看板1·'+((a.kb1_depts||[]).length)+' / 看板0·'+((a.kb0_depts||[]).length)+'</span>')
+    :('<button class="btn gray" style="padding:2px 10px;font-size:12px" onclick="openDeptCfg(\''+a.id.replace(/'/g,'')+'\')" title="配置该账号可见的看板1/看板0部门（可精确到中心）">看板1·'+((a.kb1_depts||[]).length)+' / 看板0·'+((a.kb0_depts||[]).length)+' ⚙</button>');
+  return '<tr><td style="padding-left:'+(depth*20+24)+'px">'+esc(a.id)+(a.demo?' <span class="chip demo">示例</span>':'')+(a.is_head?' <span class="chip ok">总BP</span>':'')+'</td>'
+    +'<td>'+esc(a.name)+(a.is_sysadmin?' <span class="chip" style="background:#DBEAFE;color:#1E40AF;font-weight:600" title="系统管理员：全部可编辑（含改自己）">系统管理员</span>':'')+(a.level?' <span class="chip">'+esc(a.level)+'</span>':'')+'</td>'
     +'<td>'+roleSel+'</td><td><span class="kbchk">'+kb+'</span></td>'
-    +'<td class="c"><label class="sw"><input type="checkbox" '+(a.on?'checked':'')+' onchange="accOn('+i+',this.checked)"><span class="tk"></span></label></td>'
-    +'<td class="c"><button class="btn gray" style="padding:2px 8px;font-size:12px" onclick="openDeptCfg(\''+a.id.replace(/'/g,'')+'\')" title="配置该账号可见的看板1/看板0部门">部门</button> '
-    +'<button class="btn gray" style="padding:2px 8px;font-size:12px" onclick="ioaSync(\''+a.id.replace(/'/g,'')+'\')" title="按 iOA 组织架构回填 org_path/职级/上级（正式版）">iOA同步</button> '
-    +(a.id==='bonniewbli'?'<span class="chip ok">当前</span>':'<span class="rowdel" onclick="accDel('+i+')">移除</span>')+'</td></tr>';
+    +'<td class="c">'+deptCell+'</td>'
+    +'<td class="c">'+(a.id==='bonniewbli'?'<span style="font-size:12px;color:var(--ink3)">启用</span>':'<label class="sw"><input type="checkbox" '+(a.on?'checked':'')+' onchange="accOn('+i+',this.checked)"><span class="tk"></span></label>')+'</td>'
+    +'<td class="c"><button class="btn gray" style="padding:2px 8px;font-size:12px" onclick="ioaSync(\''+a.id.replace(/'/g,'')+'\')" title="按 iOA 组织架构回填 org_path/职级/上级（正式版）">iOA同步</button> '
+    +(a.id==='bonniewbli'?'<span class="chip ok">当前</span>'+(a.role==='管理员'?' <span class="rowdel" style="color:var(--blue)" onclick="openTransfer()" title="把管理员职位移交给他人，自己降为可编辑">转移管理员</span>':''):'<span class="rowdel" onclick="accDel('+i+')">移除</span>')+'</td></tr>';
 }
 function renderAccts(){
   var root=buildOrgTree(accts);
-  var h='<thead><tr><th>iOA 账号 / 组织层级</th><th style="width:180px">姓名·职级</th><th style="width:140px">角色</th><th>看板访问</th><th class="c">启用</th><th class="c" style="width:160px">操作</th></tr></thead><tbody>';
-  root.accts.forEach(function(a){h+=acctRow(a,0);});  // 无 org_path（未分配组织）
+  var h='<thead><tr><th>账号 / 看板1 部门</th><th style="width:180px">姓名·职级</th><th style="width:140px">角色</th><th>看板访问</th><th class="c" style="width:150px">部门权限</th><th class="c">启用</th><th class="c" style="width:120px">操作</th></tr></thead><tbody>';
+  root.accts.forEach(function(a){h+=acctRow(a,0);});  // 未分配部门
   (function walk(node,path,depth){
     node.order.forEach(function(seg){
-      var child=node.children[seg],key=path+'/'+seg,collapsed=ACCT_COLLAPSE[key];
-      h+='<tr><td colspan="6" style="background:#F1F5F9;padding:6px 8px 6px '+(depth*20+8)+'px;cursor:pointer;font-weight:600" onclick="acctToggle(\''+key.replace(/'/g,'')+'\')">'
-        +(collapsed?'▸':'▾')+' '+esc(seg)+' <span class="chip">'+countAccts(child)+' 人</span></td></tr>';
+      var child=node.children[seg],key=path+'/'+seg,collapsed=ACCT_COLLAPSE[key],deptKey=key.replace(/^\//,'');
+      h+='<tr><td colspan="7" style="background:#F1F5F9;padding:6px 8px 6px '+(depth*20+8)+'px;cursor:pointer;font-weight:600" onclick="acctToggle(\''+key.replace(/'/g,'')+'\')">'
+        +(collapsed?'▸':'▾')+' '+esc(seg)+' <span class="chip">'+countAccts(child)+' 人</span>'
+        +'<button class="btn gray" style="margin-left:10px;padding:1px 8px;font-size:11px;font-weight:400" onclick="event.stopPropagation();openAcctInDept(\''+deptKey.replace(/'/g,'')+'\')" title="在本部门添加人员">＋加人</button></td></tr>';
       if(!collapsed){child.accts.forEach(function(a){h+=acctRow(a,depth+1);});walk(child,key,depth+1);}
     });
   })(root,'',0);
@@ -302,33 +315,83 @@ function ioaSync(id){
   });
 }
 /* 部门权限配置：看板1可见部门 / 看板0(PM速览)可见部门，两套独立 */
-var DEPTS_ALL=['集团','云产品一部','云产品二部','云产品三部','云产品四部','云产品五部'];
+/* 部门树（部→中心，与看板 index.html DEPT_TREE 保持一致）。中心键用「部/中心」全路径 */
+var DEPT_TREE=[
+  {name:'集团'},
+  {name:'云产品一部',children:['计算产品中心','轻量云产品中心','异构计算产品中心','存储产品中心','网络产品中心','高性能网络产品中心','CBS产品中心','CLS产品中心','虚拟化产品中心','TCE产品中心','TCS产品中心','云开发产品中心','中间件产品中心','云原生产品中心','国产数据库产品中心','云原生数据库产品中心','NoSQL数据库产品中心','数据库SaaS产品与技术平台中心','数据库架构与支持中心','数据库平台研发中心','区块链产品中心','IaaS前沿技术组','产品架构组','产品管理支持组','可用性架构组','MaaS产品中心','Agent Runtime产品中心','TIONE产品中心','计算加速中心']},
+  {name:'云产品二部',children:['大数据产品架构与支持中心','大数据基础产品中心','TBDS产品中心','WeData产品中心','大数据应用产品中心','产品运营及管理支持组','数字孪生产品中心']},
+  {name:'云产品三部',children:['应用产品一中心','应用产品二中心','智能体平台产品中心','交付中心','经营分析组','海外运营组']},
+  {name:'云产品四部',children:['运营产品中心','客户经营平台产品中心','计费产品中心','平台产品中心','产品支持中心','腾讯云设计一中心','腾讯云设计二中心','服务与产品优化组','综合业务项目管理组','平台架构组','身份产品中心']},
+  {name:'云产品五部'}
+];
 var _dcId=null;
-function _dcBox(host,list){document.getElementById(host).innerHTML=DEPTS_ALL.map(function(dp){return '<label style="display:inline-block;margin:3px 14px 3px 0;font-size:13px"><input type="checkbox" value="'+dp+'" '+((list||[]).indexOf(dp)>=0?'checked':'')+'> '+dp+'</label>';}).join('');}
-function _dcRead(host){return [].slice.call(document.querySelectorAll('#'+host+' input:checked')).map(function(x){return x.value;});}
+function _dcLeaf(val,label,list,pad){return '<label style="display:block;margin:2px 0 2px '+pad+'px;font-size:13px"><input type="checkbox" value="'+val.replace(/"/g,'')+'" '+((list||[]).indexOf(val)>=0?'checked':'')+'> '+label+'</label>';}
+function _dcBox(host,list,mode){list=list||[];var kb0=(mode==='kb0'),h='';
+  DEPT_TREE.forEach(function(node){
+    if(!node.children){h+=_dcLeaf(node.name,'<b>'+node.name+'</b>',list,2);return;}
+    // kb0：父勾=所有中心都已选(全选才展示部门·中心逐个展示)；kb1：父勾=整部(聚合)
+    var pon=kb0?node.children.every(function(ch){return list.indexOf(node.name+'/'+ch)>=0;}):(list.indexOf(node.name)>=0);
+    h+='<div class="dcgrp" style="margin:2px 0">'
+      +'<div style="display:flex;align-items:center;gap:4px">'
+      +'<span onclick="dcToggle(this)" data-open="0" style="cursor:pointer;width:12px;color:#94a3b8;font-size:10px;user-select:none">▸</span>'
+      +'<label style="font-size:13px;font-weight:600;white-space:nowrap"><input type="checkbox" data-p="1" value="'+node.name+'" '+(pon?'checked':'')+' onchange="'+(kb0?'dcParentKb0(this)':'dcParent(this)')+'"> '+node.name+(kb0?'<span style="font-weight:400;color:var(--ink3);font-size:11px">（全选中心才展示部门汇总）</span>':'')+'</label></div>'
+      +'<div class="dcch" style="display:none;padding-left:24px">';
+    node.children.forEach(function(ch){var ck=node.name+'/'+ch,con=list.indexOf(ck)>=0;
+      h+='<label style="display:block;font-size:13px;margin:2px 0;white-space:nowrap"><input type="checkbox" data-c="1" value="'+ck+'" '+((kb0?con:(pon||con))?'checked':'')+((!kb0&&pon)?' disabled':'')+(kb0?' onchange="dcChildKb0(this)"':'')+'> · '+ch+'</label>';});
+    h+='</div></div>';});
+  document.getElementById(host).innerHTML=h;}
+function dcToggle(sp){var grp=sp.closest('.dcgrp'),ch=grp.querySelector('.dcch'),open=sp.getAttribute('data-open')==='1';ch.style.display=open?'none':'block';sp.textContent=open?'▸':'▾';sp.setAttribute('data-open',open?'0':'1');}
+function dcParent(cb){var grp=cb.closest('.dcgrp');[].forEach.call(grp.querySelectorAll('input[data-c]'),function(x){x.checked=cb.checked;x.disabled=cb.checked;});}
+function dcParentKb0(cb){var grp=cb.closest('.dcgrp');[].forEach.call(grp.querySelectorAll('input[data-c]'),function(x){x.checked=cb.checked;});}  // kb0：父=全选/全不选中心(不禁用)
+function dcChildKb0(cb){var grp=cb.closest('.dcgrp'),p=grp.querySelector('input[data-p]');p.checked=[].every.call(grp.querySelectorAll('input[data-c]'),function(x){return x.checked;});}  // 全选中心→父自动勾
+function _dcRead(host,mode){var root=document.getElementById(host),out=[],kb0=(mode==='kb0');
+  [].forEach.call(root.querySelectorAll('input[type=checkbox]:not([data-p]):not([data-c])'),function(cb){if(cb.checked)out.push(cb.value);});
+  [].forEach.call(root.querySelectorAll('.dcgrp'),function(grp){var p=grp.querySelector('input[data-p]');
+    if(kb0){[].forEach.call(grp.querySelectorAll('input[data-c]'),function(cb){if(cb.checked)out.push(cb.value);});}  // kb0:只存选中的中心(部由PM速览按全选派生)
+    else{if(p.checked)out.push(p.value);else [].forEach.call(grp.querySelectorAll('input[data-c]'),function(cb){if(cb.checked)out.push(cb.value);});}});
+  return out;}
 function openDeptCfg(id){var i=acctIdx(id);if(i<0)return;_dcId=id;var a=accts[i];
   document.getElementById('dcWho').textContent=a.name+'（'+a.id+'）';
-  _dcBox('dcKb1',a.kb1_depts);_dcBox('dcKb0',a.kb0_depts);
+  _dcBox('dcKb1',a.kb1_depts,'kb1');_dcBox('dcKb0',a.kb0_depts,'kb0');
   document.getElementById('maskDept').classList.add('on');}
 function closeDeptCfg(){document.getElementById('maskDept').classList.remove('on');_dcId=null;}
 function saveDeptCfg(){var i=acctIdx(_dcId);if(i<0)return;
-  accts[i].kb1_depts=_dcRead('dcKb1');accts[i].kb0_depts=_dcRead('dcKb0');
+  accts[i].kb1_depts=_dcRead('dcKb1','kb1');accts[i].kb0_depts=_dcRead('dcKb0','kb0');
   log('改部门权限',accts[i].id+'：看板1['+accts[i].kb1_depts.join('/')+'] · 看板0['+accts[i].kb0_depts.join('/')+']');
   if(typeof saveCfg==='function')saveCfg();
   closeDeptCfg();renderAccts();}
+function openTransfer(){var sel=document.getElementById('trTarget');
+  sel.innerHTML=accts.filter(function(a){return a.id!=='bonniewbli';}).map(function(a){return '<option value="'+esc(a.id)+'">'+esc(a.name)+'（'+esc(a.id)+'）</option>';}).join('');
+  if(!sel.innerHTML){alert('没有可移交的其他账号，请先添加账号');return;}
+  document.getElementById('maskTransfer').classList.add('on');}
+function closeTransfer(){document.getElementById('maskTransfer').classList.remove('on');}
+function doTransfer(){var to=document.getElementById('trTarget').value;if(!to)return;
+  if(!window.confirm('确认把管理员职位移交给「'+to+'」？转移后你将降为 HRBP·可编辑。'))return;
+  if(!window.USE_API){alert('转移需连后端');return;}
+  api('POST','/api/accounts/transfer-admin',{new_admin:to}).then(function(){
+    closeTransfer();alert('已转移管理员职位给「'+to+'」；你已降为 HRBP·可编辑。页面将刷新。');location.reload();
+  }).catch(function(e){alert('转移失败：'+JSON.stringify((e&&e.detail)||e));});}
 function accRole(i,v){var o=accts[i].role;accts[i].role=v;log('改角色',accts[i].id+'：'+o+' → '+v);renderAccts();}
 function accKb(i,j,v){accts[i].kb[j]=v?1:0;log('改看板权限',accts[i].id+'：'+KB[j]+' → '+(v?'允许':'禁止'));}
-function accOn(i,v){accts[i].on=v;log(v?'启用账号':'停用账号',accts[i].id);}
+function accOn(i,v){if(accts[i].id==='bonniewbli'){renderAccts();return;}accts[i].on=v;log(v?'启用账号':'停用账号',accts[i].id);}
 function accDel(i){var a=accts[i];accts.splice(i,1);log('移除账号',a.id+'（'+a.name+'）');renderAccts();}
-function openAcct(){document.getElementById('aId').value='';document.getElementById('aName').value='';document.getElementById('aErr').style.display='none';document.getElementById('maskAcct').classList.add('on');}
+var _addDept='';
+function _openAcctModal(){document.getElementById('aId').value='';document.getElementById('aName').value='';document.getElementById('aErr').style.display='none';
+  var el=document.getElementById('aDeptShow');if(el)el.textContent=_addDept||'（未分配部门）';
+  document.getElementById('maskAcct').classList.add('on');}
+function openAcct(){_addDept='';_openAcctModal();}
+function openAcctInDept(dept){_addDept=dept||'';_openAcctModal();}  // ＋加人：加到指定看板1部门
 function closeAcct(){document.getElementById('maskAcct').classList.remove('on');}
 function saveAcct(){
   var id=document.getElementById('aId').value.trim(),name=document.getElementById('aName').value.trim();
   if(!id||!name||accts.some(function(a){return a.id===id;})){document.getElementById('aErr').style.display='block';return;}
-  accts.push({id:id,name:name,role:document.getElementById('aRole').value,dept:document.getElementById('aDept').value,
-    org_path:document.getElementById('aOrg').value.trim(),level:document.getElementById('aLevel').value.trim(),manager_id:'',
+  var dept=_addDept;  // 所属看板1部门（决定分组 + 看板1只见本部门）
+  accts.push({id:id,name:name,role:document.getElementById('aRole').value,dept:dept,is_head:false,
+    kb1_depts:dept?[dept]:['集团'],kb0_depts:dept?[dept]:['集团'],
+    org_path:'',level:document.getElementById('aLevel').value.trim(),manager_id:'',
     kb:[1,1,1,1],on:true,demo:false});
-  log('添加账号',id+'（'+name+'）· '+document.getElementById('aRole').value+' · '+(document.getElementById('aOrg').value.trim()||'未分配组织'));
+  log('添加账号',id+'（'+name+'）· '+document.getElementById('aRole').value+' · 部门 '+(dept||'未分配'));
+  if(typeof saveCfg==='function')saveCfg();  // 立即落库
   closeAcct();renderAccts();
 }
 /* ===== 项目 ===== */

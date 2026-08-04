@@ -492,7 +492,7 @@ body.navfold .navtg{left:8px;}
 <main>
 <!-- 看板0 · PM 速览（只读三行） -->
 <div class="view" id="v-kb0">
-  <div style="margin:2px 0 12px"><b style="font-size:16px;color:var(--navy)">看板0 · PM 速览</b><span style="color:var(--ink3);font-size:12.5px;margin-left:10px">给 PM 的快捷视图 · 只读：预算当量 / 实际·预估期末在岗（按账号权限展示各部门 · 悬停行名看口径）</span></div>
+  <div style="margin:2px 0 12px;display:flex;align-items:center;flex-wrap:wrap;gap:6px"><b style="font-size:16px;color:var(--navy)">看板0 · PM 速览</b><span style="color:var(--ink3);font-size:12.5px;margin-left:8px">责任部门</span><span id="kb0DeptTag" style="display:inline-flex;flex-wrap:wrap;gap:6px"></span></div>
   <div class="yeartabs"></div>
   <div id="kb0Host"></div>
 </div>
@@ -506,6 +506,7 @@ body.navfold .navtg{left:8px;}
 <div class="view on" id="v-kb1">
   <div style="display:flex;align-items:center;gap:10px;margin:4px 0 14px">
     <b style="font-size:19px;color:var(--navy)">部门人力预估表 · <span id="deptPickLbl">集团</span></b>
+    <span id="deptAggNote" style="font-size:12px;font-weight:600;color:#B45309;background:#FEF3C7;padding:2px 10px;border-radius:12px;display:none">各中心汇总 · 只读（请在具体中心录入）</span>
     <span style="font-size:12.5px;color:var(--ink3)">（左侧「看板1」展开可切换部门）</span>
   </div>
   <div class="banner" id="demoBanner" style="background:#FDECEC;border-color:#F3B4B4;color:#8C2B2B">
@@ -945,6 +946,8 @@ var DEPT_TREE=[
   {name:'云产品五部'}
 ];
 var KB1_OPEN={};
+/* 当前部门是否为『含中心的部』——各中心汇总·只读(不可直接录入，与后端一致) */
+function isDeptAgg(dept){dept=dept||window.CUR_DEPT||'集团';for(var i=0;i<DEPT_TREE.length;i++)if(DEPT_TREE[i].name===dept&&DEPT_TREE[i].children&&DEPT_TREE[i].children.length)return true;return false;}
 /* 侧栏「看板1」下展开部门层级：部→中心，点任一节点即切看板1 该部门空间 */
 function _navA(deptKey,label,padLeft,cur,arrow,stickyTop){var on=(cur===deptKey),sticky=(stickyTop!=null);
   var bg=on?'var(--b50)':(sticky?'#fff':'transparent');
@@ -952,12 +955,20 @@ function _navA(deptKey,label,padLeft,cur,arrow,stickyTop){var on=(cur===deptKey)
   return '<a onclick="pickDeptNav(\''+deptKey.replace(/'/g,"")+'\')" title="'+label+'" style="'+st+'display:block;padding:6px 10px 6px '+padLeft+'px;font-size:12.5px;border-radius:8px;margin-bottom:2px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:'+bg+';'+(on?'color:var(--blue);font-weight:600':'color:var(--ink2)')+'">'+label+arrow+'</a>';}
 function renderKb1Nav(){var host=document.getElementById('kb1DeptNav');if(!host)return;var cur=window.CUR_DEPT||'集团',h='';
   var kbH=(document.getElementById('kb1NavLink')||{}).offsetHeight||42;  // 部标题钉在「看板1」下方
+  // 看板1可见权限：按当前账号 kb1_depts 过滤（全局管理员看全部）
+  var MY=window.MY, adm=!MY, al=(MY&&MY.kb1_depts)||[];  // 仅 MY 未加载时不过滤；否则一律按 kb1_depts（含管理员，设置即生效）
+  function wholeOK(n){return adm||al.indexOf(n)>=0;}
+  function centerOK(n,ch){return adm||al.indexOf(n)>=0||al.indexOf(n+'/'+ch)>=0;}
+  function partVisible(node){if(adm||al.indexOf(node.name)>=0)return true;
+    return (node.children||[]).some(function(ch){return al.indexOf(node.name+'/'+ch)>=0;});}
   DEPT_TREE.forEach(function(node){var hasCh=node.children&&node.children.length,open=hasCh&&KB1_OPEN[node.name];
-    var arrow=hasCh?'<span onclick="event.stopPropagation();toggleKb1Sub(\''+node.name+'\')" style="float:right;font-size:10px;padding:0 4px;color:var(--ink3)">'+(open?'▾':'▸')+'</span>':'';
+    if(!hasCh){if(!wholeOK(node.name))return;h+=_navA(node.name,node.name,20,cur,'');return;}
+    if(!partVisible(node))return;
+    var arrow='<span onclick="event.stopPropagation();toggleKb1Sub(\''+node.name+'\')" style="float:right;font-size:10px;padding:0 4px;color:var(--ink3)">'+(open?'▾':'▸')+'</span>';
     h+=_navA(node.name,node.name,20,cur,arrow,open?kbH:null);
-    if(hasCh&&KB1_OPEN[node.name])node.children.forEach(function(ch){h+=_navA(node.name+'/'+ch,'· '+ch,38,cur,'');});
+    if(open)node.children.forEach(function(ch){if(centerOK(node.name,ch))h+=_navA(node.name+'/'+ch,'· '+ch,38,cur,'');});
   });
-  host.innerHTML=h;}
+  host.innerHTML=h||'<div style="padding:8px 20px;font-size:12px;color:var(--ink3)">无可见部门</div>';}
 function toggleKb1Sub(name){KB1_OPEN[name]=!KB1_OPEN[name];renderKb1Nav();}
 function toggleKb1Nav(){var h=document.getElementById('kb1DeptNav'),a=document.getElementById('kb1NavArrow');if(!h)return;var open=(h.style.display==='none');h.style.display=open?'block':'none';if(a)a.style.transform=open?'rotate(90deg)':'';if(open)renderKb1Nav();}
 function pickDeptNav(d){goView('kb1');if(window.setDept)window.setDept(d);renderKb1Nav();}
@@ -1076,7 +1087,7 @@ function tr(cls,label,arr,opt){
     var rowEdit=opt.key&&ROWEDIT===opt.key;
     var anchorMonth=opt.editMonths&&opt.editMonths.indexOf(m)>=0;  // editMonths=硬约束:只放开指定月(如法定HC锚定月),并豁免已发生月锁定；即便整行编辑态也不放开其他月
     var monthOK=opt.editMonths?anchorMonth:true;
-    var editable=opt.edit&&monthOK&&(anchorMonth||m>=lock||(rowEdit&&!opt.editMonths&&!opt.futureOnly))&&!RO;  // 行编辑态放宽全月可填（仅未设 editMonths 的行，如新建行/调整行）；opt.futureOnly=只放开未发生月
+    var editable=opt.edit&&monthOK&&(anchorMonth||m>=lock||(rowEdit&&!opt.editMonths&&!opt.futureOnly))&&!RO&&!isDeptAgg();  // 行编辑态放宽全月可填；部级汇总(含中心)只读不可录入
     var mut=(opt.mute==='past'&&m<lock)||(opt.mute==='future'&&m>=lock);  // 估/实双轨标灰
     var cl=(m<lock&&opt.lockShade?'lock ':'')+(editable?'edit adj ':'')+(opt.neg&&v<0?'neg ':'')+(mut?'mut ':'');
     var disp=(v===''||(v===0&&opt.hideZero))?'':(opt.negRow&&v!==0?'−'+v:(opt.plus&&v>0?'+'+v:v));
@@ -1327,15 +1338,16 @@ function renderKb0(){
     var qL=kb2Total('quota',false),BUD=[];for(var mQ=0;mQ<12;mQ++)BUD[mQ]=isN(qL[mQ])?qL[mQ]:'';
     var c=chain(),mgA=[];for(var mA=0;mA<12;mA++)mgA[mA]=(mA<LOCK)?D.actual[mA]:c[mA];
     var qa=avg(BUD),caA=avg(c);
-    host.innerHTML=kb0Table('集团',BUD,mgA,f2(qa),f2(caA),isN(caA)&&isN(qa)&&caA>qa+0.005);
+    host.innerHTML=kb0Table({dept:'集团',budget:BUD,chain:mgA,adjust:[],chainAdj:mgA,agg:false,budgetAvg:qa,chainAvg:caA,chainAdjAvg:caA});
     return;
   }
   // 后端：按当前账号 kb0_depts 权限，逐部门渲染（预算当量 + 期末在岗预估，无法定HC）
   window.loadKb0(YEAR).then(function(r){
-    var h=(r.depts||[]).map(function(d){
-      var ov=isN(d.chainAvg)&&isN(d.budgetAvg)&&d.chainAvg>d.budgetAvg+0.005;
-      return kb0Table(d.dept,(d.budget||[]).map(nnv),(d.chain||[]).map(nnv),f2(d.budgetAvg),f2(d.chainAvg),ov);
-    }).join('');
+    var depts=r.depts||[];
+    // 责任部门标签：与后台「PM速览 组织分工」设置同源(kb0_depts)，同步变化
+    var tag=document.getElementById('kb0DeptTag');
+    if(tag)tag.innerHTML=depts.length?depts.map(function(d){return '<span style="background:var(--b50);color:var(--blue);font-size:12px;font-weight:600;padding:2px 10px;border-radius:12px">'+esc(d.dept)+'</span>';}).join(''):'<span style="color:var(--ink3);font-size:12.5px">未配置（后台设置）</span>';
+    var h=depts.map(function(d){return kb0Table(d);}).join('');
     host.innerHTML=h||'<div class="hint" style="padding:16px">当前账号未配置 PM 速览可见部门 —— 请在管理后台「账号与权限」配置看板0部门。</div>';
   }).catch(function(){});
 }
@@ -1363,16 +1375,31 @@ function kb4Table(prefix,label){
   h+='</table></div>';
   return h;
 }
-function kb0Table(label,BUD,mgA,budAvg,chainAvg,ovA){
-  var yy=String(YEAR).slice(2);
-  var h='<div style="font-size:14px;font-weight:700;color:var(--navy);margin:16px 0 6px">'+label+'</div>';
+function kb0Table(d){
+  var yy=String(YEAR).slice(2),dept=d.dept,agg=d.agg;
+  function nv(v){return (v===null||v===undefined||v==='')?'':v;}
+  var h='<div style="font-size:14px;font-weight:700;color:var(--navy);margin:16px 0 6px">'+esc(dept)+(agg?' <span style="font-weight:400;font-size:11px;color:#B45309;background:#FEF3C7;padding:1px 8px;border-radius:10px">各中心汇总·调节只读</span>':'')+'</div>';
   h+='<div class="tblwrap"><table class="bsc kb0tbl"><tr><th>项目</th>';
   for(var m=0;m<12;m++)h+='<th class="'+(m<LOCK?'':'fut')+'">'+M[m]+(m<LOCK?'<span class="lockic"></span>':'')+'</th>';
   h+='<th>'+yy+'年均</th></tr>';
-  h+=tr('key','预算当量 <span class="badge calc">看板2</span>',BUD,{src:'budget',avg:budAvg,lockShade:true,noTot:true});
-  h+=tr('key',cfgName('actual','实际/预估期末在岗')+' <span class="badge calc">链</span>',mgA,{src:'chain',avg:chainAvg,avgCls:ovA?'neg':'',lockShade:true,noTot:true});
+  var ov=isN(d.chainAdjAvg)&&isN(d.budgetAvg)&&d.chainAdjAvg>d.budgetAvg+0.005;
+  h+=tr('key','预算当量 <span class="badge calc">看板2</span>',(d.budget||[]).map(nv),{src:'budget',avg:f2(d.budgetAvg),lockShade:true,noTot:true});
+  h+=tr('key',cfgName('actual','实际/预估期末在岗')+' <span class="badge calc">链</span>',(d.chain||[]).map(nv),{src:'chain',avg:f2(d.chainAvg),lockShade:true,noTot:true});
+  // 调节项行（中心/叶子可填·部级汇总只读）
+  h+='<tr class="sub"><td style="color:var(--navy);font-weight:600">➕ 调节项'+(agg?'<span style="color:var(--ink3);font-weight:400;font-size:11px">（各中心汇总）</span>':'')+'</td>';
+  var adj=d.adjust||[];
+  for(var mj=0;mj<12;mj++){var av=nv(adj[mj]);
+    if(agg){h+='<td class="mut">'+av+'</td>';}
+    else{h+='<td class="edit adj"><input type="number" step="1" value="'+av+'" onchange="kb0AdjSave(\''+dept.replace(/'/g,'')+'\','+(mj+1)+',this.value)" style="width:100%;min-width:40px;border:1px solid var(--blue-l);padding:2px 4px;font:inherit;text-align:right;background:#fff"></td>';}}
+  h+='<td></td></tr>';
+  h+=tr('key','调整后期末在岗 <span class="badge calc">＝链＋调节</span>',(d.chainAdj||[]).map(nv),{avg:f2(d.chainAdjAvg),avgCls:ov?'neg':'',lockShade:true,noTot:true});
   h+='</table></div>';
   return h;
+}
+function kb0AdjSave(dept,month,raw){
+  if(!window.USE_API||!window.saveKb0Adjust)return;
+  var v=(raw===''||raw===null)?null:(parseFloat(raw)||0);
+  window.saveKb0Adjust(YEAR,dept,month,v);
 }
 /* ===== 单元格交互 ===== */
 /* 看板1/2：Excel 式区域选择、TSV 复制与矩阵粘贴 */
@@ -2216,8 +2243,11 @@ var ORIG={saveCell:saveCell,clearCell:clearCell,saveRowDef:saveRowDef,delRowFrom
 window.USE_API=false;var API_USER='bonniewbli';
 /* 看板1 部门空间：各部门独立存一套数。DEPT 定 IIFE 内，board 接口自动带 ?dept= */
 var DEPT='集团';window.CUR_DEPT=DEPT;
-window.setDept=function(v){DEPT=v;window.CUR_DEPT=v;var el=document.getElementById('deptLbl');if(el)el.textContent='部门空间：'+v+' ▾';var pl=document.getElementById('deptPickLbl');if(pl)pl.textContent=v;if(window.renderKb1Nav)renderKb1Nav();return loadYear(YEAR).catch(apiErr);};
+window.setDept=function(v){DEPT=v;window.CUR_DEPT=v;var el=document.getElementById('deptLbl');if(el)el.textContent='部门空间：'+v+' ▾';var pl=document.getElementById('deptPickLbl');if(pl)pl.textContent=v;var an=document.getElementById('deptAggNote');if(an)an.style.display=(typeof isDeptAgg==='function'&&isDeptAgg(v))?'inline-block':'none';if(window.renderKb1Nav)renderKb1Nav();return loadYear(YEAR).catch(apiErr);};
 window.loadKb0=function(year){return api('GET','/api/kb0/'+year);};  // PM速览：按账号 kb0_depts 聚合各部门预算/预估
+window.saveKb0Adjust=function(year,dept,month,value){return api('POST','/api/kb0/'+year+'/adjust',{dept:dept,month:month,value:value}).then(function(){if(window.renderKb0)renderKb0();if(typeof toast==='function')toast('调节项已保存（看板0·不影响源数据）');}).catch(apiErr);};
+window.MY=null;  // 当前登录账号权限（看板1可见部门/角色）
+window.loadMe=function(){return api('GET','/api/me').then(function(m){window.MY=m;if(window.renderKb1Nav)renderKb1Nav();return m;}).catch(function(){});};
 function api(m,p,b){if(p.indexOf('/api/board/')===0)p+=(p.indexOf('?')<0?'?':'&')+'dept='+encodeURIComponent(DEPT);return fetch(p,{method:m,headers:{'Content-Type':'application/json','X-User':API_USER},body:b?JSON.stringify(b):undefined}).then(function(r){return r.json().then(function(j){if(!r.ok)throw j;return j;});});}
 var SEC2FRONT={'总流出（−）':'out','总流入（＋）':'inn','社招∇ 分列':'soc','校招∇ 分列':'camp','法定HC·其中':'hc','预算当量·其中':'quota','云智·总流入（＋）':'yz_inn','云智·总流出（−）':'yz_out','外包·总流入（＋）':'wb_inn','外包·总流出（−）':'wb_out'};
 var FRONT2SEC={out:'总流出（−）',inn:'总流入（＋）',soc:'社招∇ 分列',camp:'校招∇ 分列',hc:'法定HC·其中',quota:'预算当量·其中',yz_inn:'云智·总流入（＋）',yz_out:'云智·总流出（−）',wb_inn:'外包·总流入（＋）',wb_out:'外包·总流出（−）'};
@@ -2640,7 +2670,7 @@ fetch('/api/health').then(function(r){return r.json();}).then(function(h){
   USE_API=true;
   apiTag();
   addImportBtn();
-  return loadCfg().then(loadYears).then(function(){return loadYear(YEAR);}).then(function(){return loadLedger();}).then(function(){return loadPrefs();}).then(function(){return loadGPrefs();}).then(function(){return loadSources();}).then(function(){renderAuditApi();})
+  return loadCfg().then(loadYears).then(function(){return window.loadMe();}).then(function(){return loadYear(YEAR);}).then(function(){return loadLedger();}).then(function(){return loadPrefs();}).then(function(){return loadGPrefs();}).then(function(){return loadSources();}).then(function(){renderAuditApi();})
     .then(function(){return api('GET','/api/version');}).then(function(r){SYNC.ver=r.v;SYNC.on=true;syncStart();syncMark('自动同步开 · '+_hhmm());}).catch(function(){});
 }).catch(function(){/* 无后端：本地空态模式 */});
 })();

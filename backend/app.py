@@ -33,7 +33,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 from meta import (CANON_PROJECTS, OUT_KEYS, CAMP_KEYS, IN_DIRECT_KEYS, BP_EDITABLE,
                   IMPORTABLE, VALUE_ABS_MAX, PLAN_METRICS, PLAN_BRANCH_SECS, EXTRA_METRICS, NAT_N_DEFAULT)
 from store import (DB_PATH, db, init_db, now, _audit, _write_cell, get_account,
-                   require_writer, require_admin, can_manage, manageable_ids, _grid, _branches)
+                   require_writer, require_admin, can_manage, manageable_ids, is_agg_dept, DEPT_CENTERS, _kb0_adjust, _grid, _branches)
 from calc_kb1 import compute
 from sources import SOURCE_METRICS, load_sources_cfg, fetch_source, _month_completed
 from kb3_ledger import (LEDGER_CLS, LEDGER_DATE_F, LEDGER_F2DB, LEDGER_REQUIRED, LEDGER_ST_CANON,
@@ -69,6 +69,8 @@ def get_config():
         ]
         accts = [
             {"id": r["id"], "name": r["name"], "role": r["role"], "dept": r["dept"],
+             "is_head": bool(r["is_head"] if "is_head" in r.keys() else 0),
+             "is_sysadmin": bool(r["is_sysadmin"] if "is_sysadmin" in r.keys() else 0),
              "kb": json.loads(r["kb"] or "[1,1,1,1]"), "on": bool(r["on_ok"]), "demo": bool(r["demo"]),
              "level": (r["level"] if "level" in r.keys() else "") or "",
              "manager_id": (r["manager_id"] if "manager_id" in r.keys() else "") or "",
@@ -97,18 +99,73 @@ def put_config(doc: ConfigDoc, x_user: str = Header("bonniewbli")):
                  p.get("src", ""), p.get("srcCls", "bp"), int(bool(p.get("add"))), int(bool(p.get("unbind"))),
                  int(p.get("on", True)), int(bool(p.get("sys"))), i, (p.get("edit") or "")),
             )
+        me_old = get_account(c, x_user)  # 本人现有账号：权限字段防自改（系统管理员除外）
+        me_sys = bool(me_old["is_sysadmin"]) if me_old else False
+        sys_map = {r["id"]: (r["is_sysadmin"] or 0) for r in c.execute("SELECT id,is_sysadmin FROM accounts")}  # is_sysadmin 保原值·不经配置篡改
         c.execute("DELETE FROM accounts")
+        ids = {a["id"] for a in doc.accts}
+        if x_user not in ids:
+            raise HTTPException(400, "不可移除当前登录账号（本人账号必须保留）")
         for a in doc.accts:
+            keep_sys = int(sys_map.get(a["id"], 0) or 0)
+            if a["id"] == x_user and me_old and not me_sys:
+                # 非系统管理员的本人：权限字段一律用旧值（不能自己配自己），仅姓名可改
+                c.execute(
+                    "INSERT INTO accounts(id,name,role,dept,kb,on_ok,demo,level,manager_id,org_path,kb1_depts,kb0_depts,is_head,is_sysadmin) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (x_user, a.get("name", me_old["name"]), me_old["role"], me_old["dept"],
+                     me_old["kb"], 1, me_old["demo"],
+                     me_old["level"] or "", me_old["manager_id"] or "", me_old["org_path"] or "",
+                     me_old["kb1_depts"] or '["集团"]', me_old["kb0_depts"] or '["集团"]',
+                     int(me_old["is_head"] or 0), keep_sys),
+                )
+                continue
+            # 其他账号 / 系统管理员本人：用下发值（本人 on 强制启用防自锁；is_sysadmin 保原值）
             c.execute(
-                "INSERT INTO accounts(id,name,role,dept,kb,on_ok,demo,level,manager_id,org_path,kb1_depts,kb0_depts) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO accounts(id,name,role,dept,kb,on_ok,demo,level,manager_id,org_path,kb1_depts,kb0_depts,is_head,is_sysadmin) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (a["id"], a.get("name", ""), a.get("role", "HRBP·可编辑"), a.get("dept", ""),
-                 json.dumps(a.get("kb", [1, 1, 1, 1])), int(a.get("on", True)), int(bool(a.get("demo"))),
+                 json.dumps(a.get("kb", [1, 1, 1, 1])), (1 if a["id"] == x_user else int(a.get("on", True))), int(bool(a.get("demo"))),
                  a.get("level", ""), a.get("manager_id", ""), a.get("org_path", ""),
                  json.dumps(a.get("kb1_depts", ["集团"]), ensure_ascii=False),
-                 json.dumps(a.get("kb0_depts", ["集团"]), ensure_ascii=False)),
+                 json.dumps(a.get("kb0_depts", ["集团"]), ensure_ascii=False),
+                 int(bool(a.get("is_head"))), keep_sys),
             )
         _audit(c, x_user, "配置更新", f"项目 {len(doc.projs)} 项 / 账号 {len(doc.accts)} 个（管理后台下发）")
         return {"ok": True}
+
+
+# ---------------- 转移管理员职位（现任管理员移交给他人，自己降为可编辑） ----------------
+class TransferAdmin(BaseModel):
+    new_admin: str
+
+
+@app.post("/api/accounts/transfer-admin")
+def transfer_admin(t: TransferAdmin, x_user: str = Header("bonniewbli")):
+    with db() as c:
+        require_admin(c, x_user)  # 仅现任管理员可转移
+        if t.new_admin == x_user:
+            raise HTTPException(400, "不能转移给自己")
+        target = get_account(c, t.new_admin)
+        if not target:
+            raise HTTPException(404, "目标账号不存在")
+        me = get_account(c, x_user)
+        sys = int(me["is_sysadmin"] or 0)  # 若现任是系统管理员，一并移交
+        c.execute("UPDATE accounts SET role='管理员', is_sysadmin=? WHERE id=?", (sys, t.new_admin))  # 目标接管
+        c.execute("UPDATE accounts SET role='HRBP·可编辑', is_sysadmin=0 WHERE id=?", (x_user,))       # 现任交出
+        _audit(c, x_user, "转移管理员", f"{'系统' if sys else ''}管理员职位：{x_user} → {t.new_admin}（{target['name']}）")
+        return {"ok": True, "new_admin": t.new_admin}
+
+
+# ---------------- 当前登录账号自身权限（前端据此过滤看板1可见部门等） ----------------
+@app.get("/api/me")
+def get_me(x_user: str = Header("bonniewbli")):
+    with db() as c:
+        a = get_account(c, x_user)
+        if not a:
+            raise HTTPException(403, f"账号 {x_user} 未配置")
+        return {"id": a["id"], "name": a["name"], "role": a["role"], "dept": a.get("dept", "") or "",
+                "is_head": bool(a.get("is_head", 0)), "is_sysadmin": bool(a.get("is_sysadmin", 0)),
+                "kb1_depts": json.loads((a.get("kb1_depts") or "") or '["集团"]'),
+                "kb0_depts": json.loads((a.get("kb0_depts") or "") or '["集团"]')}
 
 
 # ---------------- 账号层级树（上级只看到自己管辖子树；管理员看全员） ----------------
@@ -131,6 +188,8 @@ def accounts_tree(x_user: str = Header("bonniewbli")):
                 "org_path": (r["org_path"] if "org_path" in r.keys() else "") or "",
                 "manager_id": (r["manager_id"] if "manager_id" in r.keys() else "") or "",
                 "dept": r["dept"], "on": bool(r["on_ok"]), "demo": bool(r["demo"]),
+                "is_head": bool(r["is_head"] if "is_head" in r.keys() else 0),
+                "is_sysadmin": bool(r["is_sysadmin"] if "is_sysadmin" in r.keys() else 0),
                 "kb": json.loads(r["kb"] or "[1,1,1,1]"),
                 "kb1_depts": json.loads((r["kb1_depts"] if "kb1_depts" in r.keys() else "") or '["集团"]'),
                 "kb0_depts": json.loads((r["kb0_depts"] if "kb0_depts" in r.keys() else "") or '["集团"]'),
@@ -301,7 +360,7 @@ def _user_depts(c, user_id, field="kb0_depts"):
     except Exception:
         depts = []
     if depts:
-        return [d for d in depts if d in DEPTS_ALL]
+        return depts  # 直接用配置的部门（可含「部/中心」中心路径）
     return DEPTS_ALL if a.get("role") == "管理员" else ["集团"]
 
 
@@ -312,18 +371,63 @@ def get_kb0(year: int, x_user: str = Header("bonniewbli")):
         if not c.execute("SELECT 1 FROM years WHERE year=?", (year,)).fetchone():
             raise HTTPException(404, "年份不存在")
         depts = _user_depts(c, x_user)
+    # 看板0：逐个中心展示；某部所有中心都在 → 额外展示该部汇总（中心全选才现部门）
+    show, seen = [], set()
+    for d in depts:
+        if d not in seen:
+            show.append(d); seen.add(d)
+    for part, centers in DEPT_CENTERS.items():
+        if part not in seen and centers and all(ct in seen for ct in centers):
+            show.append(part); seen.add(part)
+    depts = show
     rows = []
     for dept in depts:
         b = get_board(year, dept)  # 复用看板1 运算（各自开库连接）
+        with db() as c:
+            adj = _kb0_adjust(c, year, dept)  # 看板0 调节项（部级=各中心汇总）
+        chain = b["metrics"]["actual"]["vals"]
+        chain_adj = [((chain[m] if isinstance(chain[m], (int, float)) else 0) + adj[m])
+                     if isinstance(adj[m], (int, float)) else chain[m] for m in range(12)]  # 调整后=期末在岗+调节项
+        nums = [x for x in chain_adj if isinstance(x, (int, float))]
         rows.append({
-            "dept": dept,
+            "dept": dept, "agg": is_agg_dept(dept),  # agg=部级(只读汇总)
             "budget": b["metrics"]["budget"]["vals"],      # 预算当量
-            "chain": b["metrics"]["actual"]["vals"],        # 实际/预估期末在岗（已并链）
+            "chain": chain,                                 # 实际/预估期末在岗
+            "adjust": adj,                                  # 调节项（中心/叶子可填）
+            "chainAdj": chain_adj,                          # 调整后期末在岗
             "budgetAvg": b["computed"]["budget_avg"],
             "chainAvg": b["computed"]["chain_avg"],
+            "chainAdjAvg": round(sum(nums) / len(nums), 2) if nums else None,
             "lock": b["lock"], "demo": b["demo"],
         })
     return {"year": year, "lock": rows[0]["lock"] if rows else 0, "depts": rows}
+
+
+class Kb0Adjust(BaseModel):
+    dept: str
+    month: int
+    value: Optional[float] = None
+    metric: str = "chain"
+
+
+@app.post("/api/kb0/{year}/adjust")
+def kb0_adjust_write(year: int, e: Kb0Adjust, x_user: str = Header("bonniewbli")):
+    """看板0 调节项写入：仅中心/叶子部门（部级为汇总·只读）；独立存储不碰看板1 源数据。"""
+    with db() as c:
+        require_writer(c, x_user)
+        if not (1 <= e.month <= 12):
+            raise HTTPException(422, "月份须为 1-12")
+        if is_agg_dept(e.dept):
+            raise HTTPException(403, f"「{e.dept}」为各中心汇总（只读），请在具体中心填调节项")
+        if e.value is not None and abs(e.value) > VALUE_ABS_MAX:
+            raise HTTPException(422, "量级异常，拒绝入库")
+        c.execute(
+            "INSERT INTO kb0_adjust(year,dept,metric,month,value,updated_by,updated_at) VALUES(?,?,?,?,?,?,?) "
+            "ON CONFLICT(year,dept,metric,month) DO UPDATE SET value=excluded.value,updated_by=excluded.updated_by,updated_at=excluded.updated_at",
+            (year, e.dept, e.metric, e.month, e.value, x_user, now()),
+        )
+        _audit(c, x_user, "看板0调节", f"[{e.dept}] {year} {e.month}月 调节项 → {e.value}")
+    return get_kb0(year, x_user)
 
 
 class CellEdit(BaseModel):
@@ -337,6 +441,8 @@ class CellEdit(BaseModel):
 def edit_cell(year: int, e: CellEdit, dept: str = "集团", x_user: str = Header("bonniewbli")):
     with db() as c:
         require_writer(c, x_user)
+        if is_agg_dept(dept):
+            raise HTTPException(403, f"「{dept}」为各中心汇总（只读），请在具体中心录入")
         yr = c.execute("SELECT * FROM years WHERE year=?", (year,)).fetchone()
         if not yr:
             raise HTTPException(404, "年份不存在")
