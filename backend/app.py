@@ -33,7 +33,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 from meta import (CANON_PROJECTS, OUT_KEYS, CAMP_KEYS, IN_DIRECT_KEYS, BP_EDITABLE,
                   IMPORTABLE, VALUE_ABS_MAX, PLAN_METRICS, PLAN_BRANCH_SECS, EXTRA_METRICS, NAT_N_DEFAULT)
 from store import (DB_PATH, db, init_db, now, _audit, _write_cell, get_account,
-                   require_writer, require_admin, can_manage, manageable_ids, is_agg_dept, _grid, _branches)
+                   require_writer, require_admin, can_manage, manageable_ids, is_agg_dept, DEPT_CENTERS, _grid, _branches)
 from calc_kb1 import compute
 from sources import SOURCE_METRICS, load_sources_cfg, fetch_source, _month_completed
 from kb3_ledger import (LEDGER_CLS, LEDGER_DATE_F, LEDGER_F2DB, LEDGER_REQUIRED, LEDGER_ST_CANON,
@@ -371,6 +371,15 @@ def get_kb0(year: int, x_user: str = Header("bonniewbli")):
         if not c.execute("SELECT 1 FROM years WHERE year=?", (year,)).fetchone():
             raise HTTPException(404, "年份不存在")
         depts = _user_depts(c, x_user)
+    # 看板0：逐个中心展示；某部所有中心都在 → 额外展示该部汇总（中心全选才现部门）
+    show, seen = [], set()
+    for d in depts:
+        if d not in seen:
+            show.append(d); seen.add(d)
+    for part, centers in DEPT_CENTERS.items():
+        if part not in seen and centers and all(ct in seen for ct in centers):
+            show.append(part); seen.add(part)
+    depts = show
     rows = []
     for dept in depts:
         b = get_board(year, dept)  # 复用看板1 运算（各自开库连接）

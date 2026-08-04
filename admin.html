@@ -326,34 +326,37 @@ var DEPT_TREE=[
 ];
 var _dcId=null;
 function _dcLeaf(val,label,list,pad){return '<label style="display:block;margin:2px 0 2px '+pad+'px;font-size:13px"><input type="checkbox" value="'+val.replace(/"/g,'')+'" '+((list||[]).indexOf(val)>=0?'checked':'')+'> '+label+'</label>';}
-function _dcBox(host,list){list=list||[];var h='';
+function _dcBox(host,list,mode){list=list||[];var kb0=(mode==='kb0'),h='';
   DEPT_TREE.forEach(function(node){
     if(!node.children){h+=_dcLeaf(node.name,'<b>'+node.name+'</b>',list,2);return;}
-    var pon=list.indexOf(node.name)>=0;
+    // kb0：父勾=所有中心都已选(全选才展示部门·中心逐个展示)；kb1：父勾=整部(聚合)
+    var pon=kb0?node.children.every(function(ch){return list.indexOf(node.name+'/'+ch)>=0;}):(list.indexOf(node.name)>=0);
     h+='<div class="dcgrp" style="margin:2px 0">'
       +'<div style="display:flex;align-items:center;gap:4px">'
       +'<span onclick="dcToggle(this)" data-open="0" style="cursor:pointer;width:12px;color:#94a3b8;font-size:10px;user-select:none">▸</span>'
-      +'<label style="font-size:13px;font-weight:600;white-space:nowrap"><input type="checkbox" data-p="1" value="'+node.name+'" '+(pon?'checked':'')+' onchange="dcParent(this)"> '+node.name+'</label></div>'
+      +'<label style="font-size:13px;font-weight:600;white-space:nowrap"><input type="checkbox" data-p="1" value="'+node.name+'" '+(pon?'checked':'')+' onchange="'+(kb0?'dcParentKb0(this)':'dcParent(this)')+'"> '+node.name+(kb0?'<span style="font-weight:400;color:var(--ink3);font-size:11px">（全选中心才展示部门汇总）</span>':'')+'</label></div>'
       +'<div class="dcch" style="display:none;padding-left:24px">';
     node.children.forEach(function(ch){var ck=node.name+'/'+ch,con=list.indexOf(ck)>=0;
-      h+='<label style="display:block;font-size:13px;margin:2px 0;white-space:nowrap"><input type="checkbox" data-c="1" value="'+ck+'" '+((pon||con)?'checked':'')+(pon?' disabled':'')+'> · '+ch+'</label>';});
+      h+='<label style="display:block;font-size:13px;margin:2px 0;white-space:nowrap"><input type="checkbox" data-c="1" value="'+ck+'" '+((kb0?con:(pon||con))?'checked':'')+((!kb0&&pon)?' disabled':'')+(kb0?' onchange="dcChildKb0(this)"':'')+'> · '+ch+'</label>';});
     h+='</div></div>';});
   document.getElementById(host).innerHTML=h;}
 function dcToggle(sp){var grp=sp.closest('.dcgrp'),ch=grp.querySelector('.dcch'),open=sp.getAttribute('data-open')==='1';ch.style.display=open?'none':'block';sp.textContent=open?'▸':'▾';sp.setAttribute('data-open',open?'0':'1');}
 function dcParent(cb){var grp=cb.closest('.dcgrp');[].forEach.call(grp.querySelectorAll('input[data-c]'),function(x){x.checked=cb.checked;x.disabled=cb.checked;});}
-function _dcRead(host){var root=document.getElementById(host),out=[];
+function dcParentKb0(cb){var grp=cb.closest('.dcgrp');[].forEach.call(grp.querySelectorAll('input[data-c]'),function(x){x.checked=cb.checked;});}  // kb0：父=全选/全不选中心(不禁用)
+function dcChildKb0(cb){var grp=cb.closest('.dcgrp'),p=grp.querySelector('input[data-p]');p.checked=[].every.call(grp.querySelectorAll('input[data-c]'),function(x){return x.checked;});}  // 全选中心→父自动勾
+function _dcRead(host,mode){var root=document.getElementById(host),out=[],kb0=(mode==='kb0');
   [].forEach.call(root.querySelectorAll('input[type=checkbox]:not([data-p]):not([data-c])'),function(cb){if(cb.checked)out.push(cb.value);});
   [].forEach.call(root.querySelectorAll('.dcgrp'),function(grp){var p=grp.querySelector('input[data-p]');
-    if(p.checked)out.push(p.value);
-    else [].forEach.call(grp.querySelectorAll('input[data-c]'),function(cb){if(cb.checked)out.push(cb.value);});});
+    if(kb0){[].forEach.call(grp.querySelectorAll('input[data-c]'),function(cb){if(cb.checked)out.push(cb.value);});}  // kb0:只存选中的中心(部由PM速览按全选派生)
+    else{if(p.checked)out.push(p.value);else [].forEach.call(grp.querySelectorAll('input[data-c]'),function(cb){if(cb.checked)out.push(cb.value);});}});
   return out;}
 function openDeptCfg(id){var i=acctIdx(id);if(i<0)return;_dcId=id;var a=accts[i];
   document.getElementById('dcWho').textContent=a.name+'（'+a.id+'）';
-  _dcBox('dcKb1',a.kb1_depts);_dcBox('dcKb0',a.kb0_depts);
+  _dcBox('dcKb1',a.kb1_depts,'kb1');_dcBox('dcKb0',a.kb0_depts,'kb0');
   document.getElementById('maskDept').classList.add('on');}
 function closeDeptCfg(){document.getElementById('maskDept').classList.remove('on');_dcId=null;}
 function saveDeptCfg(){var i=acctIdx(_dcId);if(i<0)return;
-  accts[i].kb1_depts=_dcRead('dcKb1');accts[i].kb0_depts=_dcRead('dcKb0');
+  accts[i].kb1_depts=_dcRead('dcKb1','kb1');accts[i].kb0_depts=_dcRead('dcKb0','kb0');
   log('改部门权限',accts[i].id+'：看板1['+accts[i].kb1_depts.join('/')+'] · 看板0['+accts[i].kb0_depts.join('/')+']');
   if(typeof saveCfg==='function')saveCfg();
   closeDeptCfg();renderAccts();}
