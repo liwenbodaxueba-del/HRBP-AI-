@@ -230,37 +230,37 @@ def add_year(y: YearNew, x_user: str = Header("bonniewbli")):
 
 
 # ---------------- 看板读写 ----------------
-def _prev_dec_ending(c, year, _depth=0):
-    """上一年 12 月期末在岗（跨年链首种子）：优先取上年 12 月实际值；
+def _prev_dec_ending(c, year, dept="集团", _depth=0):
+    """上一年 12 月期末在岗（跨年链首种子·同部门空间）：优先取上年 12 月实际值；
     上年也是整年预估（lock=0）时，递推其运算链的 12 月值（最多回溯一层，再往前判无源→None，不编造）。"""
     py = year - 1
     pyr = c.execute("SELECT * FROM years WHERE year=?", (py,)).fetchone()
     if not pyr:
         return None
-    pv = _grid(c, py)[0]
+    pv = _grid(c, py, dept)[0]
     dec = (pv.get("actual") or [None] * 12)[11]
     if isinstance(dec, (int, float)):
         return dec  # 上年 12 月实际在岗直接作种子
     if _depth >= 1:
         return None  # 只回溯一层，避免深链；再往前无实际则判缺数
     pnat = pyr["nat_n"] if "nat_n" in pyr.keys() else NAT_N_DEFAULT
-    pseed = _prev_dec_ending(c, py, _depth + 1) if pyr["lock_month"] == 0 else None
-    pcomp = compute(pv, _branches(c, py), pyr["lock_month"],
-                    prev_er=_grid(c, py - 1)[0].get("er_out"), nat_n=pnat, seed=pseed)
+    pseed = _prev_dec_ending(c, py, dept, _depth + 1) if pyr["lock_month"] == 0 else None
+    pcomp = compute(pv, _branches(c, py, dept), pyr["lock_month"],
+                    prev_er=_grid(c, py - 1, dept)[0].get("er_out"), nat_n=pnat, seed=pseed)
     return pcomp["chain"][11]
 
 
 @app.get("/api/board/{year}")
-def get_board(year: int):
+def get_board(year: int, dept: str = "集团"):
     with db() as c:
         yr = c.execute("SELECT * FROM years WHERE year=?", (year,)).fetchone()
         if not yr:
             raise HTTPException(404, "年份不存在")
-        vals, notes = _grid(c, year)
-        brs = _branches(c, year)
-        prev_er = _grid(c, year - 1)[0].get("er_out")
+        vals, notes = _grid(c, year, dept)
+        brs = _branches(c, year, dept)
+        prev_er = _grid(c, year - 1, dept)[0].get("er_out")
         nat_n = yr["nat_n"] if "nat_n" in yr.keys() else NAT_N_DEFAULT
-        seed = _prev_dec_ending(c, year) if yr["lock_month"] == 0 else None
+        seed = _prev_dec_ending(c, year, dept) if yr["lock_month"] == 0 else None
         comp = compute(vals, brs, yr["lock_month"], prev_er=prev_er, nat_n=nat_n, seed=seed)
         metrics = {k: {"vals": vals.get(k, [None] * 12), "notes": notes.get(k, {})} for k, *_ in CANON_PROJECTS}
         for k in EXTRA_METRICS:  # 看板2 期初基线（fa_hc/q_init）一并下发
@@ -273,10 +273,10 @@ def get_board(year: int):
             if av[m] is None and comp["chain"][m] is not None:
                 av[m] = comp["chain"][m]
         metrics["actual"]["vals"] = av
-        demo = bool(c.execute("SELECT 1 FROM cells WHERE year=? AND source='demo' LIMIT 1", (year,)).fetchone()
-                    or c.execute("SELECT 1 FROM branches WHERE year=? AND created_by='demo' LIMIT 1", (year,)).fetchone()
-                    or c.execute("SELECT 1 FROM ledger_rows WHERE batch=-999 LIMIT 1").fetchone())
-        return {"year": year, "status": yr["status"], "lock": yr["lock_month"], "seed": seed,
+        demo = bool(c.execute("SELECT 1 FROM cells WHERE year=? AND dept=? AND source='demo' LIMIT 1", (year, dept)).fetchone()
+                    or c.execute("SELECT 1 FROM branches WHERE year=? AND dept=? AND created_by='demo' LIMIT 1", (year, dept)).fetchone()
+                    or (dept == "集团" and c.execute("SELECT 1 FROM ledger_rows WHERE batch=-999 LIMIT 1").fetchone()))
+        return {"year": year, "dept": dept, "status": yr["status"], "lock": yr["lock_month"], "seed": seed,
                 "metrics": metrics, "branches": brs, "computed": comp, "nat": comp["nat"],
                 "demo": demo, "ts": int(time.time() * 1000)}
 
@@ -289,7 +289,7 @@ class CellEdit(BaseModel):
 
 
 @app.post("/api/board/{year}/cell")
-def edit_cell(year: int, e: CellEdit, x_user: str = Header("bonniewbli")):
+def edit_cell(year: int, e: CellEdit, dept: str = "集团", x_user: str = Header("bonniewbli")):
     with db() as c:
         require_writer(c, x_user)
         yr = c.execute("SELECT * FROM years WHERE year=?", (year,)).fetchone()
@@ -315,7 +315,7 @@ def edit_cell(year: int, e: CellEdit, x_user: str = Header("bonniewbli")):
             raise HTTPException(422, "量级异常，拒绝入库")
         if e.metric.startswith("branch:"):
             bid = int(e.metric.split(":", 1)[1])
-            b = c.execute("SELECT * FROM branches WHERE id=? AND year=?", (bid, year)).fetchone()
+            b = c.execute("SELECT * FROM branches WHERE id=? AND year=? AND dept=?", (bid, year, dept)).fetchone()
             if not b:
                 raise HTTPException(404, "分支不存在")
             c.execute(
@@ -326,8 +326,8 @@ def edit_cell(year: int, e: CellEdit, x_user: str = Header("bonniewbli")):
             )
             _audit(c, x_user, "调节录入", f"{year} 分支「{b['name']}」 {e.month}月 → {e.value}（{e.note.strip()}）")
         elif e.metric in EXTRA_METRICS:
-            _write_cell(c, year, e.metric, e.month, e.value, e.note.strip(), "bp", x_user)
-            _audit(c, x_user, "调节录入", f"{year}「{EXTRA_METRICS[e.metric]}」 {e.month}月 → {e.value}（{e.note.strip()}）")
+            _write_cell(c, year, e.metric, e.month, e.value, e.note.strip(), "bp", x_user, dept)
+            _audit(c, x_user, "调节录入", f"[{dept}] {year}「{EXTRA_METRICS[e.metric]}」 {e.month}月 → {e.value}（{e.note.strip()}）")
         else:
             if proj is None:
                 raise HTTPException(404, "指标不存在")
@@ -337,9 +337,9 @@ def edit_cell(year: int, e: CellEdit, x_user: str = Header("bonniewbli")):
                 raise HTTPException(403, f"「{proj['name']}」已在管理后台关闭手改")
             if proj_edit == "" and not proj["add_ok"]:
                 raise HTTPException(403, f"「{proj['name']}」已在管理后台关闭手动录入")
-            _write_cell(c, year, e.metric, e.month, e.value, e.note.strip(), "bp", x_user)
-            _audit(c, x_user, "调节录入", f"{year}「{proj['name']}」 {e.month}月 → {e.value}（{e.note.strip()}）")
-    return get_board(year)
+            _write_cell(c, year, e.metric, e.month, e.value, e.note.strip(), "bp", x_user, dept)
+            _audit(c, x_user, "调节录入", f"[{dept}] {year}「{proj['name']}」 {e.month}月 → {e.value}（{e.note.strip()}）")
+    return get_board(year, dept)
 
 
 class BranchNew(BaseModel):
@@ -349,7 +349,7 @@ class BranchNew(BaseModel):
 
 
 @app.post("/api/board/{year}/branch")
-def add_branch(year: int, b: BranchNew, x_user: str = Header("bonniewbli")):
+def add_branch(year: int, b: BranchNew, dept: str = "集团", x_user: str = Header("bonniewbli")):
     if b.sign not in ("+", "-"):
         raise HTTPException(422, "方向须为 + 或 −")
     if not b.name.strip():
@@ -357,11 +357,11 @@ def add_branch(year: int, b: BranchNew, x_user: str = Header("bonniewbli")):
     with db() as c:
         require_writer(c, x_user)
         c.execute(
-            "INSERT INTO branches(year,sec,name,sign,on_ok,created_by,created_at) VALUES(?,?,?,?,1,?,?)",
-            (year, b.sec, b.name.strip(), b.sign, x_user, now()),
+            "INSERT INTO branches(year,dept,sec,name,sign,on_ok,created_by,created_at) VALUES(?,?,?,?,?,1,?,?)",
+            (year, dept, b.sec, b.name.strip(), b.sign, x_user, now()),
         )
-        _audit(c, x_user, "新增分支", f"{year} {b.sec} · {b.name.strip()}（{b.sign}）")
-    return get_board(year)
+        _audit(c, x_user, "新增分支", f"[{dept}] {year} {b.sec} · {b.name.strip()}（{b.sign}）")
+    return get_board(year, dept)
 
 
 class BranchRename(BaseModel):
@@ -369,7 +369,7 @@ class BranchRename(BaseModel):
 
 
 @app.put("/api/board/{year}/branch/{bid}")
-def rename_branch(year: int, bid: int, b: BranchRename, x_user: str = Header("bonniewbli")):
+def rename_branch(year: int, bid: int, b: BranchRename, dept: str = "集团", x_user: str = Header("bonniewbli")):
     if not b.name.strip():
         raise HTTPException(422, "分支名称必填")
     with db() as c:
@@ -379,11 +379,11 @@ def rename_branch(year: int, bid: int, b: BranchRename, x_user: str = Header("bo
             raise HTTPException(404, "分支不存在")
         c.execute("UPDATE branches SET name=? WHERE id=?", (b.name.strip(), bid))
         _audit(c, x_user, "改分支定义", f"{year} {row['sec']} · 「{row['name']}」→「{b.name.strip()}」")
-    return get_board(year)
+    return get_board(year, dept)
 
 
 @app.delete("/api/board/{year}/branch/{bid}")
-def del_branch(year: int, bid: int, x_user: str = Header("bonniewbli")):
+def del_branch(year: int, bid: int, dept: str = "集团", x_user: str = Header("bonniewbli")):
     with db() as c:
         require_writer(c, x_user)
         b = c.execute("SELECT * FROM branches WHERE id=? AND year=?", (bid, year)).fetchone()
@@ -391,7 +391,7 @@ def del_branch(year: int, bid: int, x_user: str = Header("bonniewbli")):
             raise HTTPException(404, "分支不存在")
         c.execute("DELETE FROM branches WHERE id=?", (bid,))
         _audit(c, x_user, "删除分支", f"{year} {b['sec']} · {b['name']}")
-    return get_board(year)
+    return get_board(year, dept)
 
 
 # ---------------- 上传兜底：CSV 导入 → 校验闸 → 快照入库 ----------------
@@ -802,7 +802,7 @@ def set_natparam(year: int, p: NatParam, x_user: str = Header("bonniewbli")):
 
 # ---------------- 分支停用 / 还原（不删数据） ----------------
 @app.post("/api/board/{year}/branch/{bid}/toggle")
-def branch_toggle(year: int, bid: int, x_user: str = Header("bonniewbli")):
+def branch_toggle(year: int, bid: int, dept: str = "集团", x_user: str = Header("bonniewbli")):
     with db() as c:
         require_writer(c, x_user)
         b = c.execute("SELECT * FROM branches WHERE id=? AND year=?", (bid, year)).fetchone()
@@ -812,7 +812,7 @@ def branch_toggle(year: int, bid: int, x_user: str = Header("bonniewbli")):
         c.execute("UPDATE branches SET on_ok=? WHERE id=?", (newv, bid))
         _audit(c, x_user, "启用分支" if newv else "停用分支",
                f"{year} {b['sec']} · {b['name']}（数据保留" + ("，已恢复计入合计）" if newv else "，可随时还原）"))
-    return get_board(year)
+    return get_board(year, dept)
 
 
 # ---------------- 单元格变更历史（口径可复现） ----------------

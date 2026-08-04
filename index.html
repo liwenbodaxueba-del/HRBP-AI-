@@ -460,7 +460,7 @@ body.navfold .navtg{left:8px;}
 
 <div class="rcol">
 <div class="topbar">
-  <div class="dept">部门空间：云产品五部 ▾</div>
+  <div class="dept" id="deptLbl">部门空间：集团 ▾</div>
   <div class="sp"></div>
   <span class="sync" id="syncTag"><t-icon name="check-circle-filled" style="vertical-align:-2px;margin-right:3px"></t-icon>已就绪</span>
   <div class="fresh" id="freshTag">数据源：○ 未接入 · 单元格留空待取数</div>
@@ -931,7 +931,7 @@ function renderYearTabs(){
   document.querySelectorAll('.yeartabs').forEach(function(box){
     box.innerHTML='<span class="ytscroll">'+YEARS.map(function(y){
       return '<span class="ytab'+(y===YEAR?' on':'')+'" onclick="setYear('+y+')">'+y+'<span class="st">'+DATA[y].status+'</span>'+(BASEYEARS.indexOf(y)<0?'<span class="ydel" title="删除该年份页签" onclick="event.stopPropagation();delYear('+y+')"><t-icon name="delete" size="12"></t-icon></span>':'')+'</span>';
-    }).join('')+'<span class="ytab add" title="生成该年份空模板并读取系统数" onclick="openYearAdd()"><t-icon name="add" size="12" style="margin-right:2px"></t-icon>新增年份</span></span>'+'<span class="tin" style="margin-left:auto"><select><option>请选择部门</option><option>云产品五部</option><option>云产品一部</option><option>云产品三部</option></select></span><span class="tctl" onclick="var sw=this.querySelector(\'.tsw\');sw.classList.toggle(\'on\');if(window.setAutoSync)setAutoSync(sw.classList.contains(\'on\'))"><span class="tsw on"></span>启用自动同步</span><button class="btn outline" onclick="exportCSV()">导出报表</button>';
+    }).join('')+'<span class="ytab add" title="生成该年份空模板并读取系统数" onclick="openYearAdd()"><t-icon name="add" size="12" style="margin-right:2px"></t-icon>新增年份</span></span>'+'<span class="tin" style="margin-left:auto"><select onchange="window.setDept&&window.setDept(this.value)">'+['集团','云产品一部','云产品二部','云产品三部','云产品四部','云产品五部'].map(function(dp){return '<option'+((window.CUR_DEPT||'集团')===dp?' selected':'')+'>'+dp+'</option>';}).join('')+'</select></span><span class="tctl" onclick="var sw=this.querySelector(\'.tsw\');sw.classList.toggle(\'on\');if(window.setAutoSync)setAutoSync(sw.classList.contains(\'on\'))"><span class="tsw on"></span>启用自动同步</span><button class="btn outline" onclick="exportCSV()">导出报表</button>';
     var onTab=box.querySelector('.ytab.on');
     if(onTab)onTab.parentNode.scrollLeft=Math.max(0,onTab.offsetLeft-60);
   });
@@ -2174,7 +2174,10 @@ bindYear();renderYearTabs();renderAll();renderAudit();renderKb3();renderCoverage
 (function(){
 var ORIG={saveCell:saveCell,clearCell:clearCell,saveRowDef:saveRowDef,delRowFromDef:delRowFromDef,saveYear:saveYear,setYear:setYear,renderAudit:renderAudit,exportCSV:exportCSV};
 window.USE_API=false;var API_USER='bonniewbli';
-function api(m,p,b){return fetch(p,{method:m,headers:{'Content-Type':'application/json','X-User':API_USER},body:b?JSON.stringify(b):undefined}).then(function(r){return r.json().then(function(j){if(!r.ok)throw j;return j;});});}
+/* 看板1 部门空间：各部门独立存一套数。DEPT 定 IIFE 内，board 接口自动带 ?dept= */
+var DEPT='集团';window.CUR_DEPT=DEPT;
+window.setDept=function(v){DEPT=v;window.CUR_DEPT=v;var el=document.getElementById('deptLbl');if(el)el.textContent='部门空间：'+v+' ▾';return loadYear(YEAR).catch(apiErr);};
+function api(m,p,b){if(p.indexOf('/api/board/')===0)p+=(p.indexOf('?')<0?'?':'&')+'dept='+encodeURIComponent(DEPT);return fetch(p,{method:m,headers:{'Content-Type':'application/json','X-User':API_USER},body:b?JSON.stringify(b):undefined}).then(function(r){return r.json().then(function(j){if(!r.ok)throw j;return j;});});}
 var SEC2FRONT={'总流出（−）':'out','总流入（＋）':'inn','社招∇ 分列':'soc','校招∇ 分列':'camp','法定HC·其中':'hc','预算当量·其中':'quota','云智·总流入（＋）':'yz_inn','云智·总流出（−）':'yz_out','外包·总流入（＋）':'wb_inn','外包·总流出（−）':'wb_out'};
 var FRONT2SEC={out:'总流出（−）',inn:'总流入（＋）',soc:'社招∇ 分列',camp:'校招∇ 分列',hc:'法定HC·其中',quota:'预算当量·其中',yz_inn:'云智·总流入（＋）',yz_out:'云智·总流出（−）',wb_inn:'外包·总流入（＋）',wb_out:'外包·总流出（−）'};
 function nn(v){return (v===null||v===undefined)?'':v;}
@@ -2265,7 +2268,7 @@ delRowFromDef=function(){
   var key=curDef.key;if(!key||!cmap[key])return;
   var r=cmap[key].row;
   if(!r.api)return ORIG.delRowFromDef();
-  fetch('/api/board/'+YEAR+'/branch/'+r.id,{method:'DELETE',headers:{'X-User':API_USER}})
+  fetch('/api/board/'+YEAR+'/branch/'+r.id+'?dept='+encodeURIComponent(DEPT),{method:'DELETE',headers:{'X-User':API_USER}})
     .then(function(res){return res.json().then(function(j){if(!res.ok)throw j;return j;});})
     .then(function(b){closeDef();applyBoard(b);renderAuditApi();}).catch(apiErr);
 };
