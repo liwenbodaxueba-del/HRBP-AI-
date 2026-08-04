@@ -124,6 +124,27 @@ def init_db():
             c.execute("ALTER TABLE projects ADD COLUMN edit TEXT DEFAULT ''")
         except sqlite3.OperationalError:
             pass  # 列已存在
+        # ---- 2608 看板1 部门维度：cells/branches 加 dept（部门空间·各部门独立存一套；现有数据归"集团"）----
+        # cells 复合主键要含 dept，SQLite 改主键须重建表（幂等：无 dept 列时才建）
+        _cells_cols = [r[1] for r in c.execute("PRAGMA table_info(cells)")]
+        if "dept" not in _cells_cols:
+            c.executescript(
+                """
+                ALTER TABLE cells RENAME TO _cells_old;
+                CREATE TABLE cells(
+                  year INTEGER, dept TEXT NOT NULL DEFAULT '集团', metric TEXT, month INTEGER,
+                  value REAL, note TEXT, source TEXT, updated_by TEXT, updated_at TEXT,
+                  PRIMARY KEY(year, dept, metric, month));
+                INSERT INTO cells(year,dept,metric,month,value,note,source,updated_by,updated_at)
+                  SELECT year,'集团',metric,month,value,note,source,updated_by,updated_at FROM _cells_old;
+                DROP TABLE _cells_old;
+                """
+            )
+        for _t in ("branches", "cells_history"):  # id 是主键，加列即可
+            try:
+                c.execute(f"ALTER TABLE {_t} ADD COLUMN dept TEXT NOT NULL DEFAULT '集团'")
+            except sqlite3.OperationalError:
+                pass  # 列已存在
         # ---- 2608 权限层级 P1：accounts 接组织树（level 职级 / manager_id 上级 / org_path 物化路径）----
         # org_path 用「/」分隔，如 云产品五部/MPaaS/直播产品中心 → 判「上级管下级」= 前缀匹配子树，无需递归爬上级
         for col in ("level", "manager_id", "org_path"):
@@ -146,6 +167,19 @@ def init_db():
             c.execute("INSERT OR IGNORE INTO accounts(id,name,role,dept,kb,on_ok,demo,level,manager_id,org_path) "
                       "VALUES(?,?,?,?,?,1,1,?,?,?)",
                       (did, dname, drole, dpath.split("/")[-1], "[1,1,1,1]", dlevel, dmgr, dpath))
+        # ---- 2608 看板1/看板0 部门权限：两套独立可配部门（看板1可见范围 / PM速览可见范围·后台各配）----
+        for _col in ("kb1_depts", "kb0_depts"):
+            try:
+                c.execute(f'ALTER TABLE accounts ADD COLUMN {_col} TEXT DEFAULT \'["集团"]\'')
+            except sqlite3.OperationalError:
+                pass  # 列已存在
+        _ALLD = '["集团","云产品一部","云产品二部","云产品三部","云产品四部","云产品五部"]'
+        # 内置管理员两处都看全；demo：hrhead 看板1看全、看板0只看部分（演示"看板1能看·看板0不需要"）
+        c.execute("UPDATE accounts SET kb1_depts=?, kb0_depts=? WHERE id='bonniewbli' AND (kb0_depts IS NULL OR kb0_depts='' OR kb0_depts='[\"集团\"]')",
+                  (_ALLD, _ALLD))
+        c.execute("UPDATE accounts SET kb1_depts=?, kb0_depts=? WHERE id='demo-bp1'", ('["云产品一部","云产品二部"]', '["云产品一部","云产品二部"]'))
+        c.execute("UPDATE accounts SET kb1_depts=?, kb0_depts=? WHERE id='demo-bp2'", ('["云产品三部"]', '["云产品三部"]'))
+        c.execute("UPDATE accounts SET kb1_depts=?, kb0_depts=? WHERE id='demo-hrhead'", (_ALLD, '["集团","云产品一部","云产品二部","云产品三部"]'))
         # 职级→默认模板 seed（首次建库时；后续在后台可改，这里只是起步默认，不是硬编码策略）
         if not c.execute("SELECT 1 FROM role_templates LIMIT 1").fetchone():
             c.executemany(
@@ -197,20 +231,20 @@ def _audit(c, user, action, detail):
     c.execute("INSERT INTO audit(ts,user,action,detail) VALUES(?,?,?,?)", (now(), user, action, detail))
 
 
-def _write_cell(c, year, metric, month, value, note, source, user):
-    """统一写格：任何变更留 cells_history（口径可复现——上周汇报的数字这周还能查到）"""
-    old = c.execute("SELECT value FROM cells WHERE year=? AND metric=? AND month=?", (year, metric, month)).fetchone()
+def _write_cell(c, year, metric, month, value, note, source, user, dept="集团"):
+    """统一写格：任何变更留 cells_history（口径可复现）。dept=部门空间，各部门独立存储。"""
+    old = c.execute("SELECT value FROM cells WHERE year=? AND dept=? AND metric=? AND month=?", (year, dept, metric, month)).fetchone()
     oldv = old["value"] if old else None
     c.execute(
-        "INSERT INTO cells(year,metric,month,value,note,source,updated_by,updated_at) VALUES(?,?,?,?,?,?,?,?) "
-        "ON CONFLICT(year,metric,month) DO UPDATE SET value=excluded.value,note=excluded.note,"
+        "INSERT INTO cells(year,dept,metric,month,value,note,source,updated_by,updated_at) VALUES(?,?,?,?,?,?,?,?,?) "
+        "ON CONFLICT(year,dept,metric,month) DO UPDATE SET value=excluded.value,note=excluded.note,"
         "source=excluded.source,updated_by=excluded.updated_by,updated_at=excluded.updated_at",
-        (year, metric, month, value, note, source, user, now()),
+        (year, dept, metric, month, value, note, source, user, now()),
     )
     if oldv != value:
         c.execute(
-            "INSERT INTO cells_history(year,metric,month,old_value,new_value,source,changed_by,changed_at,note) VALUES(?,?,?,?,?,?,?,?,?)",
-            (year, metric, month, oldv, value, source, user, now(), note),
+            "INSERT INTO cells_history(year,dept,metric,month,old_value,new_value,source,changed_by,changed_at,note) VALUES(?,?,?,?,?,?,?,?,?,?)",
+            (year, dept, metric, month, oldv, value, source, user, now(), note),
         )
 
 
@@ -262,10 +296,10 @@ init_db()
 
 
 # ---------------- 识空取数（服务端·与前端同口径） ----------------
-def _grid(c, year):
-    """cells → {metric: [v or None]*12}, notes → {metric: {m: note}}"""
+def _grid(c, year, dept="集团"):
+    """cells → {metric: [v or None]*12}, notes → {metric: {m: note}}（按部门空间 dept）"""
     vals, notes = {}, {}
-    for r in c.execute("SELECT metric,month,value,note FROM cells WHERE year=?", (year,)):
+    for r in c.execute("SELECT metric,month,value,note FROM cells WHERE year=? AND dept=?", (year, dept)):
         vals.setdefault(r["metric"], [None] * 12)
         if 1 <= r["month"] <= 12:
             vals[r["metric"]][r["month"] - 1] = r["value"]
@@ -274,9 +308,9 @@ def _grid(c, year):
     return vals, notes
 
 
-def _branches(c, year):
+def _branches(c, year, dept="集团"):
     out = []
-    for b in c.execute("SELECT * FROM branches WHERE year=? AND on_ok=1 ORDER BY id", (year,)):
+    for b in c.execute("SELECT * FROM branches WHERE year=? AND dept=? AND on_ok=1 ORDER BY id", (year, dept)):
         vals = [None] * 12
         bnotes = {}
         for r in c.execute("SELECT month,value,note FROM branch_cells WHERE branch_id=?", (b["id"],)):
