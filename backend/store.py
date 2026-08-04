@@ -91,6 +91,11 @@ def init_db():
               granted_at TEXT,
               expires_at TEXT,                 -- 有效期（空=永久）
               reason TEXT);                    -- 授权缘由（进审计）
+            -- 看板0 调节层：PM 速览专用调整值（独立于看板1 源 cells·不影响源；中心调节汇总到部）
+            CREATE TABLE IF NOT EXISTS kb0_adjust(
+              year INTEGER, dept TEXT, metric TEXT, month INTEGER, value REAL,
+              updated_by TEXT, updated_at TEXT,
+              PRIMARY KEY(year, dept, metric, month));
             """
         )
         if not c.execute("SELECT 1 FROM years LIMIT 1").fetchone():
@@ -343,6 +348,23 @@ def _grid(c, year, dept="集团"):
             if r["note"]:
                 notes.setdefault(r["metric"], {})[r["month"]] = r["note"]
     return vals, notes
+
+
+def _kb0_adjust(c, year, dept, metric="chain"):
+    """看板0 调节项 [v or None]*12：部级(含中心)=各中心调节加总；其余=本 dept 直取（识空不补0）"""
+    if dept in DEPT_CENTERS:
+        agg = [None] * 12
+        for center in DEPT_CENTERS[dept]:
+            cv = _kb0_adjust(c, year, center, metric)
+            for m in range(12):
+                if isinstance(cv[m], (int, float)):
+                    agg[m] = (agg[m] if isinstance(agg[m], (int, float)) else 0) + cv[m]
+        return agg
+    out = [None] * 12
+    for r in c.execute("SELECT month,value FROM kb0_adjust WHERE year=? AND dept=? AND metric=?", (year, dept, metric)):
+        if 1 <= r["month"] <= 12:
+            out[r["month"] - 1] = r["value"]
+    return out
 
 
 def _branches(c, year, dept="集团"):

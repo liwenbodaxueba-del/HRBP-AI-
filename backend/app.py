@@ -33,7 +33,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 from meta import (CANON_PROJECTS, OUT_KEYS, CAMP_KEYS, IN_DIRECT_KEYS, BP_EDITABLE,
                   IMPORTABLE, VALUE_ABS_MAX, PLAN_METRICS, PLAN_BRANCH_SECS, EXTRA_METRICS, NAT_N_DEFAULT)
 from store import (DB_PATH, db, init_db, now, _audit, _write_cell, get_account,
-                   require_writer, require_admin, can_manage, manageable_ids, is_agg_dept, DEPT_CENTERS, _grid, _branches)
+                   require_writer, require_admin, can_manage, manageable_ids, is_agg_dept, DEPT_CENTERS, _kb0_adjust, _grid, _branches)
 from calc_kb1 import compute
 from sources import SOURCE_METRICS, load_sources_cfg, fetch_source, _month_completed
 from kb3_ledger import (LEDGER_CLS, LEDGER_DATE_F, LEDGER_F2DB, LEDGER_REQUIRED, LEDGER_ST_CANON,
@@ -383,15 +383,51 @@ def get_kb0(year: int, x_user: str = Header("bonniewbli")):
     rows = []
     for dept in depts:
         b = get_board(year, dept)  # 复用看板1 运算（各自开库连接）
+        with db() as c:
+            adj = _kb0_adjust(c, year, dept)  # 看板0 调节项（部级=各中心汇总）
+        chain = b["metrics"]["actual"]["vals"]
+        chain_adj = [((chain[m] if isinstance(chain[m], (int, float)) else 0) + adj[m])
+                     if isinstance(adj[m], (int, float)) else chain[m] for m in range(12)]  # 调整后=期末在岗+调节项
+        nums = [x for x in chain_adj if isinstance(x, (int, float))]
         rows.append({
-            "dept": dept,
+            "dept": dept, "agg": is_agg_dept(dept),  # agg=部级(只读汇总)
             "budget": b["metrics"]["budget"]["vals"],      # 预算当量
-            "chain": b["metrics"]["actual"]["vals"],        # 实际/预估期末在岗（已并链）
+            "chain": chain,                                 # 实际/预估期末在岗
+            "adjust": adj,                                  # 调节项（中心/叶子可填）
+            "chainAdj": chain_adj,                          # 调整后期末在岗
             "budgetAvg": b["computed"]["budget_avg"],
             "chainAvg": b["computed"]["chain_avg"],
+            "chainAdjAvg": round(sum(nums) / len(nums), 2) if nums else None,
             "lock": b["lock"], "demo": b["demo"],
         })
     return {"year": year, "lock": rows[0]["lock"] if rows else 0, "depts": rows}
+
+
+class Kb0Adjust(BaseModel):
+    dept: str
+    month: int
+    value: Optional[float] = None
+    metric: str = "chain"
+
+
+@app.post("/api/kb0/{year}/adjust")
+def kb0_adjust_write(year: int, e: Kb0Adjust, x_user: str = Header("bonniewbli")):
+    """看板0 调节项写入：仅中心/叶子部门（部级为汇总·只读）；独立存储不碰看板1 源数据。"""
+    with db() as c:
+        require_writer(c, x_user)
+        if not (1 <= e.month <= 12):
+            raise HTTPException(422, "月份须为 1-12")
+        if is_agg_dept(e.dept):
+            raise HTTPException(403, f"「{e.dept}」为各中心汇总（只读），请在具体中心填调节项")
+        if e.value is not None and abs(e.value) > VALUE_ABS_MAX:
+            raise HTTPException(422, "量级异常，拒绝入库")
+        c.execute(
+            "INSERT INTO kb0_adjust(year,dept,metric,month,value,updated_by,updated_at) VALUES(?,?,?,?,?,?,?) "
+            "ON CONFLICT(year,dept,metric,month) DO UPDATE SET value=excluded.value,updated_by=excluded.updated_by,updated_at=excluded.updated_at",
+            (year, e.dept, e.metric, e.month, e.value, x_user, now()),
+        )
+        _audit(c, x_user, "看板0调节", f"[{e.dept}] {year} {e.month}月 调节项 → {e.value}")
+    return get_kb0(year, x_user)
 
 
 class CellEdit(BaseModel):
