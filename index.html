@@ -935,18 +935,26 @@ function bindYear(){
 }
 function setYear(y){YEAR=y;bindYear();renderYearTabs();renderAll();renderKb3();log('bonniewbli','切换年份','当前年份 → '+y+'（'+DATA[y].status+'）');}
 /* 看板1 部门下拉：点标题旁 ▾ 展开层级（集团 → 云产品一~五部），选中即切部门 */
-var DEPT_TREE=[{name:'集团',children:['云产品一部','云产品二部','云产品三部','云产品四部','云产品五部']}];
-function _deptItem(name,cur,sub){var on=(cur===name),bg=on?'#EAF1FF':'transparent';
-  return '<div onclick="pickDept(\''+name+'\')" onmouseover="this.style.background=\'#F1F5F9\'" onmouseout="this.style.background=\''+bg+'\'" style="padding:8px '+(sub?'12px 8px 30px':'12px')+';border-radius:6px;cursor:pointer;font-size:14px;white-space:nowrap;background:'+bg+';'+(on?'font-weight:700;color:var(--navy,#1e3a8a)':'color:#333')+'">'+(sub?'· ':'')+name+(on?' ✓':'')+'</div>';}
-function buildDeptMenu(){var cur=window.CUR_DEPT||'集团',h='';DEPT_TREE.forEach(function(t){h+=_deptItem(t.name,cur,false);t.children.forEach(function(ch){h+=_deptItem(ch,cur,true);});});return h;}
-function toggleDeptMenu(e){if(e)e.stopPropagation();var m=document.getElementById('deptMenu');if(!m)return;if(m.style.display==='none'){m.innerHTML=buildDeptMenu();m.style.display='block';}else m.style.display='none';}
-function pickDept(d){var m=document.getElementById('deptMenu');if(m)m.style.display='none';var l=document.getElementById('deptPickLbl');if(l)l.textContent=d;if(window.setDept)window.setDept(d);}
-document.addEventListener('click',function(e){var m=document.getElementById('deptMenu');if(m&&m.style.display!=='none'&&!e.target.closest('#deptPick')&&!e.target.closest('#deptMenu'))m.style.display='none';});
-/* 侧栏「看板1」下展开部门层级（集团 → 云产品一~五部），点即切看板1 该部门 */
-function renderKb1Nav(){var host=document.getElementById('kb1DeptNav');if(!host)return;var cur=window.CUR_DEPT||'集团',items=[];
-  DEPT_TREE.forEach(function(t){items.push({name:t.name,sub:false});t.children.forEach(function(ch){items.push({name:ch,sub:true});});});
-  host.innerHTML=items.map(function(it){var on=(cur===it.name);
-    return '<a onclick="pickDeptNav(\''+it.name+'\')" style="display:block;padding:6px 12px 6px '+(it.sub?'30px':'20px')+';font-size:12.5px;border-radius:8px;margin-bottom:2px;cursor:pointer;'+(on?'background:var(--b50);color:var(--blue);font-weight:600':'color:var(--ink2)')+'">'+(it.sub?'· ':'')+it.name+'</a>';}).join('');}
+/* 部门层级树（部 → 中心，第3层）。中心 dept 键用「部/中心」全路径保证唯一 */
+var DEPT_TREE=[
+  {name:'集团'},
+  {name:'云产品一部',children:['计算产品中心','轻量云产品中心','异构计算产品中心','存储产品中心','网络产品中心','高性能网络产品中心','CBS产品中心','CLS产品中心','虚拟化产品中心','TCE产品中心','TCS产品中心','云开发产品中心','中间件产品中心','云原生产品中心','国产数据库产品中心','云原生数据库产品中心','NoSQL数据库产品中心','数据库SaaS产品与技术平台中心','数据库架构与支持中心','数据库平台研发中心','区块链产品中心','IaaS前沿技术组','产品架构组','产品管理支持组','可用性架构组','MaaS产品中心','Agent Runtime产品中心','TIONE产品中心','计算加速中心']},
+  {name:'云产品二部'},{name:'云产品三部'},{name:'云产品四部'},{name:'云产品五部'}
+];
+var KB1_OPEN={};
+/* 侧栏「看板1」下展开部门层级：部→中心，点任一节点即切看板1 该部门空间 */
+function _navA(deptKey,label,padLeft,cur,arrow,sticky){var on=(cur===deptKey);
+  var bg=on?'var(--b50)':(sticky?'#fff':'transparent');
+  var st=sticky?'position:sticky;top:0;z-index:5;box-shadow:0 1px 0 #EDF3FB;':'';
+  return '<a onclick="pickDeptNav(\''+deptKey.replace(/'/g,"")+'\')" title="'+label+'" style="'+st+'display:block;padding:6px 10px 6px '+padLeft+'px;font-size:12.5px;border-radius:8px;margin-bottom:2px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:'+bg+';'+(on?'color:var(--blue);font-weight:600':'color:var(--ink2)')+'">'+label+arrow+'</a>';}
+function renderKb1Nav(){var host=document.getElementById('kb1DeptNav');if(!host)return;var cur=window.CUR_DEPT||'集团',h='';
+  DEPT_TREE.forEach(function(node){var hasCh=node.children&&node.children.length,open=hasCh&&KB1_OPEN[node.name];
+    var arrow=hasCh?'<span onclick="event.stopPropagation();toggleKb1Sub(\''+node.name+'\')" style="float:right;font-size:10px;padding:0 4px;color:var(--ink3)">'+(open?'▾':'▸')+'</span>':'';
+    h+=_navA(node.name,node.name,20,cur,arrow,open);
+    if(hasCh&&KB1_OPEN[node.name])node.children.forEach(function(ch){h+=_navA(node.name+'/'+ch,'· '+ch,38,cur,'');});
+  });
+  host.innerHTML=h;}
+function toggleKb1Sub(name){KB1_OPEN[name]=!KB1_OPEN[name];renderKb1Nav();}
 function toggleKb1Nav(){var h=document.getElementById('kb1DeptNav'),a=document.getElementById('kb1NavArrow');if(!h)return;var open=(h.style.display==='none');h.style.display=open?'block':'none';if(a)a.style.transform=open?'rotate(90deg)':'';if(open)renderKb1Nav();}
 function pickDeptNav(d){goView('kb1');if(window.setDept)window.setDept(d);renderKb1Nav();}
 function renderYearTabs(){
