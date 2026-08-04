@@ -100,7 +100,8 @@ body.navfold .navtg{left:8px;}
 <nav class="side">
   <div class="brand">HC Forecast Board<small>管理后台 · demo</small></div>
   <div class="grp">配置</div>
-  <a class="on" data-v="acct" onclick="go(this)">账号与权限</a>
+  <a class="on" data-v="acct" onclick="go(this)">部门维度权限设置</a>
+  <a data-v="line" onclick="go(this)">线维权限设置</a>
   <a data-v="proj" onclick="go(this)">项目配置</a>
   <div class="grp">记录</div>
   <a data-v="audit" onclick="go(this)">配置审计日志</a>
@@ -133,7 +134,7 @@ body.navfold .navtg{left:8px;}
 <main>
 <!-- ================= 账号与权限 ================= -->
 <div class="view on" id="v-acct">
-  <h2 class="sec">账号与权限（iOA 统一登录）</h2>
+  <h2 class="sec">部门维度权限设置（iOA 统一登录）</h2>
   <div class="note"><b>角色模型</b>：管理员 = 全部配置+全看板读写；HRBP·可编辑 = 本部门空间看板读写（调节录入/导入/导出）；领导·只读 = 本部门空间看板只读。
   权限按<b>部门空间</b>隔离；看板0-3 可按账号单独勾选。带 <span class="chip demo">示例</span> 的为演示行，正式版从 iOA 组织架构同步。</div>
   <div class="bar">
@@ -141,6 +142,20 @@ body.navfold .navtg{left:8px;}
     <span class="hint" style="margin:0">正式版：输入 iOA 账号自动带出姓名/部门；此处为 demo 手输。</span>
   </div>
   <div class="tblwrap"><table class="adm" id="acctTbl"></table></div>
+</div>
+
+<!-- ================= 线维权限设置 ================= -->
+<div class="view" id="v-line">
+  <h2 class="sec">线维权限设置（iOA 统一登录）</h2>
+  <div class="note"><b>线维权限</b>：按<b>业务线 / 产品线</b>（如 MPaaS / CPaaS / EdgeOne / 工线）授权，与部门维度<b>独立</b>——同一账号可按线授予跨部门的看板可见 / 可编辑范围。正式版从 iOA 组织架构带出业务线归属。</div>
+  <div class="bar">
+    <button class="btn" onclick="alert('demo：线维授权待接 iOA 业务线，先搭建骨架')">＋ 添加线维授权</button>
+    <span class="hint" style="margin:0">正式版：按 iOA 业务线带出线-账号映射；此处为骨架。</span>
+  </div>
+  <div class="tblwrap"><table class="adm" id="lineTbl">
+    <thead><tr><th>业务线</th><th style="width:180px">账号</th><th>看板访问</th><th class="c" style="width:120px">可编辑</th><th class="c">启用</th></tr></thead>
+    <tbody><tr><td colspan="5" style="text-align:center;color:var(--ink3);padding:22px">暂无线维授权 · 正式版接 iOA 业务线后配置（<b>不编造</b>）</td></tr></tbody>
+  </table></div>
 </div>
 
 <!-- ================= 项目配置 ================= -->
@@ -181,8 +196,6 @@ body.navfold .navtg{left:8px;}
   <label>所属看板1部门（决定分组·看板1只见本部门）</label>
   <div style="padding:8px 12px;background:#F1F5F9;border-radius:8px;font-size:13px;font-weight:600;color:var(--navy)"><span id="aDeptShow">（未分配部门）</span></div>
   <div class="meta" style="margin-top:2px">从部门行的「＋加人」进入会自动带入该部门；新人默认只见本部门、非总BP。</div>
-  <label>职级 level</label>
-  <input type="text" id="aLevel" placeholder="如：专员 / 经理 / 总监（正式版由 iOA 带出）">
   <div class="err" id="aErr">iOA 账号与姓名必填，且账号不能重复</div>
   <div class="row"><button class="btn gray" onclick="closeAcct()">取消</button><button class="btn" onclick="saveAcct()">保存并生效</button></div>
 </div></div>
@@ -267,6 +280,7 @@ function buildOrgTree(list){
   var root={children:{},order:[],accts:[]};
   list.forEach(function(a){
     var segs=(a.dept||'').split('/').filter(Boolean);  // 按看板1部门(dept)分组
+    if(segs[0]==='集团')segs=segs.slice(1);  // 集团=全局，不作为部门分组，系统管理员置顶
     if(!segs.length){root.accts.push(a);return;}
     var node=root;
     segs.forEach(function(s){if(!node.children[s]){node.children[s]={children:{},order:[],accts:[]};node.order.push(s);}node=node.children[s];});
@@ -284,7 +298,7 @@ function acctRow(a,depth){
   var deptCell=meLock?('<span style="font-size:12px;color:var(--ink3)" title="本人权限不可自改">看板1·'+((a.kb1_depts||[]).length)+' / 看板0·'+((a.kb0_depts||[]).length)+'</span>')
     :('<button class="btn gray" style="padding:2px 10px;font-size:12px" onclick="openDeptCfg(\''+a.id.replace(/'/g,'')+'\')" title="配置该账号可见的看板1/看板0部门（可精确到中心）">看板1·'+((a.kb1_depts||[]).length)+' / 看板0·'+((a.kb0_depts||[]).length)+' ⚙</button>');
   return '<tr><td style="padding-left:'+(depth*20+24)+'px">'+esc(a.id)+(a.demo?' <span class="chip demo">示例</span>':'')+(a.is_head?' <span class="chip ok">总BP</span>':'')+'</td>'
-    +'<td>'+esc(a.name)+(a.is_sysadmin?' <span class="chip" style="background:#DBEAFE;color:#1E40AF;font-weight:600" title="系统管理员：全部可编辑（含改自己）">系统管理员</span>':'')+(a.level?' <span class="chip">'+esc(a.level)+'</span>':'')+'</td>'
+    +'<td>'+esc(a.name)+(a.is_sysadmin?' <span class="chip" style="background:#DBEAFE;color:#1E40AF;font-weight:600" title="系统管理员：全部可编辑（含改自己）">系统管理员</span>':'')+'</td>'
     +'<td>'+roleSel+'</td><td><span class="kbchk">'+kb+'</span></td>'
     +'<td class="c">'+deptCell+'</td>'
     +'<td class="c">'+(a.id==='bonniewbli'?'<span style="font-size:12px;color:var(--ink3)">启用</span>':'<label class="sw"><input type="checkbox" '+(a.on?'checked':'')+' onchange="accOn('+i+',this.checked)"><span class="tk"></span></label>')+'</td>'
@@ -293,7 +307,7 @@ function acctRow(a,depth){
 }
 function renderAccts(){
   var root=buildOrgTree(accts);
-  var h='<thead><tr><th>账号 / 看板1 部门</th><th style="width:180px">姓名·职级</th><th style="width:140px">角色</th><th>看板访问</th><th class="c" style="width:150px">部门权限</th><th class="c">启用</th><th class="c" style="width:120px">操作</th></tr></thead><tbody>';
+  var h='<thead><tr><th>账号 / 看板1 部门</th><th style="width:180px">姓名</th><th style="width:140px">角色</th><th>看板访问</th><th class="c" style="width:150px">部门权限</th><th class="c">启用</th><th class="c" style="width:120px">操作</th></tr></thead><tbody>';
   root.accts.forEach(function(a){h+=acctRow(a,0);});  // 未分配部门
   (function walk(node,path,depth){
     node.order.forEach(function(seg){
@@ -404,7 +418,7 @@ function saveAcct(){
   var dept=_addDept;  // 所属看板1部门（决定分组 + 看板1只见本部门）
   accts.push({id:id,name:name,role:document.getElementById('aRole').value,dept:dept,is_head:false,
     kb1_depts:dept?[dept]:['集团'],kb0_depts:dept?[dept]:['集团'],
-    org_path:'',level:document.getElementById('aLevel').value.trim(),manager_id:'',
+    org_path:'',level:'',manager_id:'',
     kb:[1,1,1,1],on:true,demo:false});
   log('添加账号',id+'（'+name+'）· '+document.getElementById('aRole').value+' · 部门 '+(dept||'未分配'));
   if(typeof saveCfg==='function')saveCfg();  // 立即落库
