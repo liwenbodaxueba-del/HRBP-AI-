@@ -956,7 +956,7 @@ function _navA(deptKey,label,padLeft,cur,arrow,stickyTop){var on=(cur===deptKey)
 function renderKb1Nav(){var host=document.getElementById('kb1DeptNav');if(!host)return;var cur=window.CUR_DEPT||'集团',h='';
   var kbH=(document.getElementById('kb1NavLink')||{}).offsetHeight||42;  // 部标题钉在「看板1」下方
   // 看板1可见权限：按当前账号 kb1_depts 过滤（全局管理员看全部）
-  var MY=window.MY, adm=(!MY)||MY.role==='管理员', al=(MY&&MY.kb1_depts)||[];
+  var MY=window.MY, adm=!MY, al=(MY&&MY.kb1_depts)||[];  // 仅 MY 未加载时不过滤；否则一律按 kb1_depts（含管理员，设置即生效）
   function wholeOK(n){return adm||al.indexOf(n)>=0;}
   function centerOK(n,ch){return adm||al.indexOf(n)>=0||al.indexOf(n+'/'+ch)>=0;}
   function partVisible(node){if(adm||al.indexOf(node.name)>=0)return true;
