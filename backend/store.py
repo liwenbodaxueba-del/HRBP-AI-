@@ -185,6 +185,9 @@ def init_db():
         c.execute("UPDATE accounts SET kb1_depts=?, kb0_depts=? WHERE id='demo-bp1'", ('["云产品一部"]', '["云产品一部"]'))
         c.execute("UPDATE accounts SET kb1_depts=?, kb0_depts=? WHERE id='demo-bp2'", ('["云产品一部"]', '["云产品一部"]'))
         c.execute("UPDATE accounts SET kb1_depts=?, kb0_depts=? WHERE id='demo-hrhead'", ('["云产品二部"]', '["云产品二部"]'))
+        # demo 账号 dept 固定=所属看板1部门（幂等·修正早期把 org_path 末段误写进 dept，如「CSIG HRBP Team」）
+        for _aid, _adept in [("demo-bp1", "云产品一部"), ("demo-bp2", "云产品一部"), ("demo-hrhead", "云产品二部")]:
+            c.execute("UPDATE accounts SET dept=? WHERE id=? AND demo=1", (_adept, _aid))
         # ---- 2608 账号按看板1部门归属 + 总BP：dept=所属看板1部门；is_head=部门总BP(管本部门其他账号/加人)----
         for _pcol in ("is_head", "is_sysadmin"):  # is_head=部门总BP；is_sysadmin=系统管理员(可配自己·可转移)
             try:

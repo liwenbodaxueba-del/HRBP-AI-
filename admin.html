@@ -461,14 +461,15 @@ var lines;try{lines=JSON.parse(localStorage.getItem('hcfb_lines')||'null');}catc
 if(!lines||!lines.length){lines=JSON.parse(JSON.stringify(LINES_DEFAULT));try{localStorage.setItem('hcfb_lines',JSON.stringify(lines));}catch(e){}}
 function saveLines(){try{localStorage.setItem('hcfb_lines',JSON.stringify(lines));}catch(e){}}
 function allDepts(){return DEPT_TREE.filter(function(n){return n.name!=='集团';}).map(function(n){return n.name;});}
-function lnAssigned(){var m={};lines.forEach(function(l){(l.depts||[]).forEach(function(d){m[d]=l.name;});});return m;}
+function lnAssigned(){var m={};lines.forEach(function(l){(l.depts||[]).forEach(function(d){(m[d]=m[d]||[]).push(l.name);});});return m;}  // dept→[线名...]（可重复归线·线间无加总关系）
 var lnEdit=-1;
 function openLn(idx){
   lnEdit=(typeof idx==='number')?idx:-1;
   var cur=lnEdit>-1?lines[lnEdit]:null,as=lnAssigned(),all=allDepts();
   document.getElementById('lnGrid').innerHTML=all.map(function(d){
-    var mine=cur&&cur.depts.indexOf(d)>-1,other=as[d]&&!mine;
-    return '<label'+(other?' style="opacity:.5"':'')+'><input type="checkbox" value="'+esc(d)+'" '+(mine?'checked ':'')+(other?'disabled':'')+'>'+esc(d)+(other?' <span style="font-size:10.5px;color:var(--ink3);background:#EEF2F8;border-radius:8px;padding:1px 7px;margin-left:6px">已在「'+esc(as[d])+'」</span>':'')+'</label>';}).join('');
+    var mine=cur&&cur.depts.indexOf(d)>-1;
+    var others=(as[d]||[]).filter(function(n){return !cur||n!==cur.name;});  // 该部门已归入的其他线（可重复归线·不禁用）
+    return '<label><input type="checkbox" value="'+esc(d)+'" '+(mine?'checked ':'')+'>'+esc(d)+(others.length?' <span style="font-size:10.5px;color:var(--ink3);background:#EEF2F8;border-radius:8px;padding:1px 7px;margin-left:6px">也在「'+others.map(esc).join('、')+'」</span>':'')+'</label>';}).join('');
   document.getElementById('lnTitle').textContent=cur?('编辑线级看板 · '+cur.name):'创建线级看板';
   document.getElementById('lnBtn').textContent=cur?'保存修改':'创建';
   document.getElementById('lnName').value=cur?cur.name:'';document.getElementById('lnErr').style.display='none';
