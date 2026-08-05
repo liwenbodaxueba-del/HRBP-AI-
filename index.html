@@ -473,7 +473,7 @@ body.navfold .navtg{left:8px;}
 
 <div class="rcol">
 <div class="topbar">
-  <div class="dept" id="deptLbl">部门空间：合计（各部门加总）▾</div>
+  <div class="dept" id="deptLbl">部门空间：合计（各部门加总）</div>
   <div class="sp"></div>
   <span class="sync" id="syncTag"><t-icon name="check-circle-filled" style="vertical-align:-2px;margin-right:3px"></t-icon>已就绪</span>
   <div class="fresh" id="freshTag">数据源：○ 未接入 · 单元格留空待取数</div>
@@ -2492,14 +2492,14 @@ var ORIG={saveCell:saveCell,clearCell:clearCell,saveRowDef:saveRowDef,delRowFrom
 window.USE_API=false;var API_USER='bonniewbli';
 /* 看板1 部门空间：各部门独立存一套数。DEPT 定 IIFE 内，board 接口自动带 ?dept= */
 var DEPT='集团';window.CUR_DEPT=DEPT;
-window.setDept=function(v){DEPT=v;window.CUR_DEPT=v;var el=document.getElementById('deptLbl');if(el)el.textContent='部门空间：'+deptDisp(v)+' ▾';var pl=document.getElementById('deptPickLbl');if(pl)pl.textContent=deptDisp(v);var an=document.getElementById('deptAggNote');if(an){var ag=(typeof isDeptAgg==='function'&&isDeptAgg(v));an.style.display=ag?'inline-block':'none';if(ag)an.textContent=(v==='集团'?'各部门汇总 · 只读（请在具体部门/中心录入）':'各中心汇总 · 只读（请在具体中心录入）');}if(window.renderKb1Nav)renderKb1Nav();if(typeof renderKb3==='function')renderKb3();saveNavState();return loadYear(YEAR).catch(apiErr);};
+window.setDept=function(v){DEPT=v;window.CUR_DEPT=v;var el=document.getElementById('deptLbl');if(el)el.textContent='部门空间：'+deptDisp(v);var pl=document.getElementById('deptPickLbl');if(pl)pl.textContent=deptDisp(v);var an=document.getElementById('deptAggNote');if(an){var ag=(typeof isDeptAgg==='function'&&isDeptAgg(v));an.style.display=ag?'inline-block':'none';if(ag)an.textContent=(v==='集团'?'各部门汇总 · 只读（请在具体部门/中心录入）':'各中心汇总 · 只读（请在具体中心录入）');}if(window.renderKb1Nav)renderKb1Nav();if(typeof renderKb3==='function')renderKb3();saveNavState();return loadYear(YEAR).catch(apiErr);};
 window.MY=null;  // 当前登录账号权限（看板1可见部门/角色）
 window.loadMe=function(){return api('GET','/api/me').then(function(m){window.MY=m;var ae=document.getElementById('adminEntry');if(ae)ae.style.display=(m&&m.role==='管理员')?'':'none';
   // 默认进「自己权限的第一个部门/中心」，而非合计（看板1 不默认全部门加总）
   var perms=((m&&m.kb1_depts)||[]).filter(function(d){return d!=='集团';});
   var fd=perms.length?perms[0]:DEPT;
   DEPT=fd;window.CUR_DEPT=fd;
-  var el=document.getElementById('deptLbl');if(el)el.textContent='部门空间：'+deptDisp(fd)+' ▾';
+  var el=document.getElementById('deptLbl');if(el)el.textContent='部门空间：'+deptDisp(fd);
   var pl=document.getElementById('deptPickLbl');if(pl)pl.textContent=deptDisp(fd);
   var an=document.getElementById('deptAggNote');if(an){var ag=(typeof isDeptAgg==='function'&&isDeptAgg(fd));an.style.display=ag?'inline-block':'none';if(ag)an.textContent=(fd==='集团'?'各部门汇总 · 只读（请在具体部门/中心录入）':'各中心汇总 · 只读（请在具体中心录入）');}
   if(window.renderKb1Nav)renderKb1Nav();return m;}).catch(function(){});};
