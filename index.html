@@ -1139,7 +1139,8 @@ function goLineView(lineName){PMG_ON=false;SEL_LINE=lineName;goView('line');load
 function toggleLineNav(lineName){var h=document.getElementById('lineNav_'+lineName),a=document.getElementById('lineArrow_'+lineName),lnk=document.getElementById('lineLink_'+lineName);
   if(!h)return;var open=(h.style.display==='none');h.style.display=open?'block':'none';
   if(a)a.style.transform=open?'rotate(90deg)':'';
-  if(lnk)lnk.style.background=open?'var(--b50)':'';  // 展开的线名高亮
+  if(lnk){if(open){lnk.style.position='sticky';lnk.style.top='0';lnk.style.zIndex='6';lnk.style.background='var(--b50)';}  // 展开时线名钉顶(同看板1-4)
+    else{lnk.style.position='';lnk.style.top='';lnk.style.zIndex='';lnk.style.background='';}}
   if(open)renderLineNav(lineName);}
 /* 看板1-4 侧栏：可展开扁平部门树（无线级，部门同级；部→中心）。点部门=进该看板该部门空间。 */
 var DEPT_BOARDS=['kb1','kb2','kb3','kb4'];
@@ -1155,7 +1156,12 @@ function renderDeptNav(board){var host=document.getElementById(board+'DeptNav');
   function partVisible(node){if(adm||al.indexOf(node.name)>=0)return true;
     return (node.children||[]).some(function(ch){return al.indexOf(node.name+'/'+ch)>=0;});}
   DEPT_TREE.forEach(function(node){if(node.name==='集团')return;  // 集团=看板本身(点看板名进)，树里不列
-    var hasCh=node.children&&node.children.length,open=hasCh&&KB1_OPEN[node.name];
+    var hasCh=node.children&&node.children.length;
+    if(board!=='kb1'){  // 看板2/3/4：只到部门级（不拆中心；仅看板1拆中心）
+      if(!(hasCh?partVisible(node):wholeOK(node.name)))return;
+      h+=_navA(board,node.name,node.name,20,cur,'');return;
+    }
+    var open=hasCh&&KB1_OPEN[node.name];  // 看板1：部→中心（可再拆子PM组）
     if(!hasCh){if(!wholeOK(node.name))return;h+=_navA(board,node.name,node.name,20,cur,'');return;}
     if(!partVisible(node))return;
     var arrow='<span onclick="event.stopPropagation();toggleDeptSub(\''+board+'\',\''+node.name+'\')" style="float:right;font-size:10px;padding:0 4px;color:var(--ink3)">'+(open?'▾':'▸')+'</span>';
