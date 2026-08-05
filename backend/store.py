@@ -331,6 +331,7 @@ _DEPT_CHILDREN = {
     "云产品四部": ["运营产品中心", "客户经营平台产品中心", "计费产品中心", "平台产品中心", "产品支持中心", "腾讯云设计一中心", "腾讯云设计二中心", "服务与产品优化组", "综合业务项目管理组", "平台架构组", "身份产品中心"],
 }
 DEPT_CENTERS = {p: [p + "/" + ch for ch in kids] for p, kids in _DEPT_CHILDREN.items()}
+_BUDGET_BASE = {"q_init", "fa_hc"}  # 看板2 预算基线：以部门维度取数(部门自身)，中心维度BP手填，部门不上卷此两项
 
 # 全部顶层部门（与 DEPT_TREE 一致，去「集团」）。「集团」不是独立部门，而是各部门加总口径（合计）。
 ALL_DEPTS = ["云产品一部", "云产品二部", "云产品三部", "云产品四部", "云产品五部", "云产品六部",
@@ -365,10 +366,16 @@ def _grid(c, year, dept="集团"):
         for center in DEPT_CENTERS[dept]:
             cv, _ = _grid(c, year, center)  # 中心不在 DEPT_CENTERS，直取
             for k, arr in cv.items():
+                if k in _BUDGET_BASE:  # 预算当量基线(q_init/fa_hc)以部门维度取看板2，不从中心加总
+                    continue
                 a = agg.setdefault(k, [None] * 12)
                 for m in range(12):
                     if isinstance(arr[m], (int, float)):
                         a[m] = (a[m] if isinstance(a[m], (int, float)) else 0) + arr[m]
+        # 预算当量=部门维度看看板2：q_init/fa_hc 取本部门自身 cells（中心维度由 BP 手填，不上卷；部门只加总其他项）
+        for r in c.execute("SELECT metric,month,value FROM cells WHERE year=? AND dept=? AND metric IN ('q_init','fa_hc')", (year, dept)):
+            if 1 <= r["month"] <= 12:
+                agg.setdefault(r["metric"], [None] * 12)[r["month"] - 1] = r["value"]
         return agg, {}  # 汇总不带备注
     vals, notes = {}, {}
     for r in c.execute("SELECT metric,month,value,note FROM cells WHERE year=? AND dept=?", (year, dept)):

@@ -76,7 +76,11 @@ body{background:var(--page);color:var(--ink);font-family:"Microsoft YaHei","Ping
 .empbar b{color:#7A3E00;}
 .layout{display:flex;height:100vh;overflow:hidden;}
 .rcol{flex:1;min-width:0;display:flex;flex-direction:column;overflow-y:auto;height:100vh;}
-nav.side{width:172px;background:#fff;border-right:1px solid var(--b100);padding:14px 10px;flex-shrink:0;display:flex;flex-direction:column;height:100vh;overflow-y:auto;}
+nav.side{width:var(--sidew,172px);background:#fff;border-right:1px solid var(--b100);padding:14px 10px;flex-shrink:0;display:flex;flex-direction:column;height:100vh;overflow-y:auto;}
+#sideResizer{width:6px;flex-shrink:0;align-self:stretch;cursor:col-resize;background:transparent;transition:background .1s;}
+#sideResizer:hover,#sideResizer.drag{background:var(--blue-l);}
+body.navfold #sideResizer{display:none;}
+body.sidedrag nav.side{transition:none !important;}
 nav.side a{display:block;padding:9px 12px;border-radius:8px;color:var(--ink2);text-decoration:none;font-size:13px;margin-bottom:4px;cursor:pointer;}
 nav.side a.on{background:var(--b50);color:var(--blue);font-weight:600;}
 nav.side .grp{font-size:11px;color:var(--ink3);margin:14px 6px 6px;}
@@ -2416,7 +2420,15 @@ window.USE_API=false;var API_USER='bonniewbli';
 var DEPT='集团';window.CUR_DEPT=DEPT;
 window.setDept=function(v){DEPT=v;window.CUR_DEPT=v;var el=document.getElementById('deptLbl');if(el)el.textContent='部门空间：'+deptDisp(v)+' ▾';var pl=document.getElementById('deptPickLbl');if(pl)pl.textContent=deptDisp(v);var an=document.getElementById('deptAggNote');if(an){var ag=(typeof isDeptAgg==='function'&&isDeptAgg(v));an.style.display=ag?'inline-block':'none';if(ag)an.textContent=(v==='集团'?'各部门汇总 · 只读（请在具体部门/中心录入）':'各中心汇总 · 只读（请在具体中心录入）');}if(window.renderKb1Nav)renderKb1Nav();if(typeof renderKb3==='function')renderKb3();return loadYear(YEAR).catch(apiErr);};
 window.MY=null;  // 当前登录账号权限（看板1可见部门/角色）
-window.loadMe=function(){return api('GET','/api/me').then(function(m){window.MY=m;var ae=document.getElementById('adminEntry');if(ae)ae.style.display=(m&&m.role==='管理员')?'':'none';if(window.renderKb1Nav)renderKb1Nav();return m;}).catch(function(){});};
+window.loadMe=function(){return api('GET','/api/me').then(function(m){window.MY=m;var ae=document.getElementById('adminEntry');if(ae)ae.style.display=(m&&m.role==='管理员')?'':'none';
+  // 默认进「自己权限的第一个部门/中心」，而非合计（看板1 不默认全部门加总）
+  var perms=((m&&m.kb1_depts)||[]).filter(function(d){return d!=='集团';});
+  var fd=perms.length?perms[0]:DEPT;
+  DEPT=fd;window.CUR_DEPT=fd;
+  var el=document.getElementById('deptLbl');if(el)el.textContent='部门空间：'+deptDisp(fd)+' ▾';
+  var pl=document.getElementById('deptPickLbl');if(pl)pl.textContent=deptDisp(fd);
+  var an=document.getElementById('deptAggNote');if(an){var ag=(typeof isDeptAgg==='function'&&isDeptAgg(fd));an.style.display=ag?'inline-block':'none';if(ag)an.textContent=(fd==='集团'?'各部门汇总 · 只读（请在具体部门/中心录入）':'各中心汇总 · 只读（请在具体中心录入）');}
+  if(window.renderKb1Nav)renderKb1Nav();return m;}).catch(function(){});};
 function api(m,p,b){if(p.indexOf('/api/board/')===0)p+=(p.indexOf('?')<0?'?':'&')+'dept='+encodeURIComponent(DEPT);return fetch(p,{method:m,headers:{'Content-Type':'application/json','X-User':API_USER},body:b?JSON.stringify(b):undefined}).then(function(r){return r.json().then(function(j){if(!r.ok)throw j;return j;});});}
 var SEC2FRONT={'总流出（−）':'out','总流入（＋）':'inn','社招∇ 分列':'soc','校招∇ 分列':'camp','法定HC·其中':'hc','预算当量·其中':'quota','云智·总流入（＋）':'yz_inn','云智·总流出（−）':'yz_out','外包·总流入（＋）':'wb_inn','外包·总流出（−）':'wb_out'};
 var FRONT2SEC={out:'总流出（−）',inn:'总流入（＋）',soc:'社招∇ 分列',camp:'校招∇ 分列',hc:'法定HC·其中',quota:'预算当量·其中',yz_inn:'云智·总流入（＋）',yz_out:'云智·总流出（−）',wb_inn:'外包·总流入（＋）',wb_out:'外包·总流出（−）'};
@@ -2857,6 +2869,21 @@ function navFold(f){
   document.body.appendChild(btn);
   var f=false;try{f=localStorage.getItem('hcfb_navfold')==='1';}catch(e){}
   navFold(f);
+})();
+/* ===== 侧栏宽度可拖拽调整（分隔条·存 localStorage·刷新保持） ===== */
+(function(){
+  var MINW=140,MAXW=480;
+  function clampW(w){return Math.max(MINW,Math.min(MAXW,w));}
+  var sw=172;try{var s=parseInt(localStorage.getItem('hcfb_sidew'));if(s)sw=clampW(s);}catch(e){}
+  document.documentElement.style.setProperty('--sidew',sw+'px');
+  var nav=document.querySelector('nav.side');if(!nav||!nav.parentNode)return;
+  var rz=document.createElement('div');rz.id='sideResizer';rz.title='拖拽调整目录宽度';
+  nav.parentNode.insertBefore(rz,nav.nextSibling);  // 侧栏与主区之间的分隔条
+  var dragging=false;
+  rz.addEventListener('mousedown',function(e){dragging=true;rz.classList.add('drag');document.body.classList.add('sidedrag');document.body.style.userSelect='none';e.preventDefault();});
+  window.addEventListener('mousemove',function(e){if(!dragging)return;document.documentElement.style.setProperty('--sidew',clampW(e.clientX)+'px');});
+  window.addEventListener('mouseup',function(){if(!dragging)return;dragging=false;rz.classList.remove('drag');document.body.classList.remove('sidedrag');document.body.style.userSelect='';var w=parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sidew'))||172;try{localStorage.setItem('hcfb_sidew',w);}catch(e){}});
+  rz.addEventListener('dblclick',function(){document.documentElement.style.setProperty('--sidew','172px');try{localStorage.setItem('hcfb_sidew',172);}catch(e){}});  // 双击复位
 })();
 </script>
 <script>

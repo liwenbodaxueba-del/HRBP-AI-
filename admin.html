@@ -227,7 +227,7 @@ body.navfold .navtg{left:8px;}
   <select id="aRole"><option>HRBP·可编辑</option><option>领导·只读</option><option>管理员</option></select>
   <label>所属看板1部门（决定分组·看板1只见本部门）</label>
   <div style="padding:8px 12px;background:#F1F5F9;border-radius:8px;font-size:13px;font-weight:600;color:var(--navy)"><span id="aDeptShow">（未分配部门）</span></div>
-  <div class="meta" style="margin-top:2px">从部门行的「＋加人」进入会自动带入该部门；新人默认只见本部门、非总BP。</div>
+  <div class="meta" style="margin-top:2px">从部门行的「＋加人」进入会自动带入该部门；新人默认只见本部门、非部门BP。系统管理员可兼任多个部门的部门BP。</div>
   <div class="err" id="aErr">iOA 账号与姓名必填，且账号不能重复</div>
   <div class="row"><button class="btn gray" onclick="closeAcct()">取消</button><button class="btn" onclick="saveAcct()">保存并生效</button></div>
 </div></div>
@@ -403,7 +403,7 @@ function acctRow(a,depth){
   var me=(a.id==='bonniewbli'),meLock=me&&!a.is_sysadmin;  // 本人权限不可自改；系统管理员例外(可配自己)
   var roleSel=meLock?('<span style="font-size:13px;color:var(--ink2)" title="本人角色不可自改，须由系统管理员配置">'+esc(a.role)+'</span>')
     :'<select onchange="accRole('+i+',this.value)"><option'+(a.role==='管理员'?' selected':'')+'>管理员</option><option'+(a.role==='HRBP·可编辑'?' selected':'')+'>HRBP·可编辑</option><option'+(a.role==='领导·只读'?' selected':'')+'>领导·只读</option></select>';
-  return '<tr><td style="padding-left:'+(depth*20+24)+'px">'+esc(a.id)+(a.demo?' <span class="chip demo">示例</span>':'')+(a.is_head?' <span class="chip ok">总BP</span>':'')+'</td>'
+  return '<tr><td style="padding-left:'+(depth*20+24)+'px">'+esc(a.id)+(a.demo?' <span class="chip demo">示例</span>':'')+(a.is_head?' <span class="chip ok">部门BP</span>':'')+'</td>'
     +'<td>'+esc(a.name)+(a.is_sysadmin?' <span class="chip" style="background:#DBEAFE;color:#1E40AF;font-weight:600" title="系统管理员：全部可编辑（含改自己）">系统管理员</span>':'')+'</td>'
     +'<td>'+roleSel+'</td><td>'+pmCellByDept(a.dept)+'</td>'
     +'<td class="c">'+kbPermCell(a,i)+'</td>'
