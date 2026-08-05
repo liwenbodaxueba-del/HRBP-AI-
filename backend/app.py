@@ -32,7 +32,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 # meta=指标口径 · store=存储/权限/审计 · calc_kb1=看板1/2运算引擎 · sources=外部源直连 · kb3_ledger=看板3台账解析
 from meta import (CANON_PROJECTS, OUT_KEYS, CAMP_KEYS, IN_DIRECT_KEYS, BP_EDITABLE,
                   IMPORTABLE, VALUE_ABS_MAX, PLAN_METRICS, PLAN_BRANCH_SECS, EXTRA_METRICS, NAT_N_DEFAULT)
-from store import (DB_PATH, IS_DEMO_DB, db, init_db, now, _audit, _write_cell, get_account,
+from store import (DB_PATH, is_demo_db, db_mode_state, set_db_mode, db, init_db, now, _audit, _write_cell, get_account,
                    require_writer, require_admin, can_manage, manageable_ids, is_agg_dept, DEPT_CENTERS, _kb0_adjust, _grid, _branches)
 from calc_kb1 import compute
 from sources import SOURCE_METRICS, load_sources_cfg, fetch_source, _month_completed
@@ -381,7 +381,7 @@ def get_board(year: int, dept: str = "集团"):
                 av[m] = comp["chain"][m]
         metrics["actual"]["vals"] = av
         # 假数库(hcfb_demo.db)：整库皆示例 → 直接置 demo 横幅；真库则按 source='demo' 兜底判断
-        demo = bool(IS_DEMO_DB
+        demo = bool(is_demo_db()
                     or c.execute("SELECT 1 FROM cells WHERE year=? AND dept=? AND source='demo' LIMIT 1", (year, dept)).fetchone()
                     or c.execute("SELECT 1 FROM branches WHERE year=? AND dept=? AND created_by='demo' LIMIT 1", (year, dept)).fetchone()
                     or (dept == "集团" and c.execute("SELECT 1 FROM ledger_rows WHERE batch=-999 LIMIT 1").fetchone()))
@@ -789,6 +789,23 @@ def source_sync(metric: str, q: SyncReq, x_user: str = Header("bonniewbli")):
                (f"；跳过未完结月 {','.join(map(str, skipped))}（月末快照未成立）" if skipped else ""))
     return {"ok": True, "metric": metric, "source": cfg.get("name", "?"),
             "applied": applied, "diffs": diffs, "skipped": skipped}
+
+
+# ---------------- 数据库切换：假数库 hcfb_demo.db ↔ 真库 hcfb.db（顶栏按钮·运行时切·无需重启）----------------
+class DbMode(BaseModel):
+    mode: str  # demo / real
+
+
+@app.get("/api/dbmode")
+def get_dbmode():
+    return db_mode_state()
+
+
+@app.post("/api/dbmode")
+def post_dbmode(m: DbMode, x_user: str = Header("bonniewbli")):
+    with db() as c:
+        require_admin(c, x_user)  # 全局切库影响所有人：仅系统管理员可切
+    return set_db_mode(m.mode)
 
 
 # ---------------- 示例（演示假数）数据：source='demo' 全程打标，一键彻底清除 ----------------

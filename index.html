@@ -2626,7 +2626,31 @@ renderAudit=function(){if(!USE_API)return ORIG.renderAudit();renderAuditApi();};
 // 旧「一键导入/清除假数」已下线：假数改由独立假数库 hcfb_demo.db 提供（结构=真库副本，只灌系统取数、不含 BP 手填）。
 // 生成/重建：backend/seed_demo.py；切真库：设 HCFB_DB=hcfb.db 或删除 hcfb_demo.db。保留空函数防旧调用/语音口令误触。
 demoLoad=function(){alert('示例数据现由独立假数库 hcfb_demo.db 提供（运行 backend/seed_demo.py 生成，仅系统取数）。已不再用「一键导入」——那会灌回带 BP 手填的旧式假数。');};
-demoClear=function(){alert('假数现在独立库 hcfb_demo.db 里。要切回真实空库：设环境变量 HCFB_DB=hcfb.db，或删除 backend/hcfb_demo.db 后重启。');};
+demoClear=function(){alert('假数在独立库 hcfb_demo.db 里。切真库/假数库请用顶栏「假数库/真库」切换按钮（仅管理员），或设 HCFB_DB=hcfb.db 锁定。');};
+/* ===== 假数库 ↔ 真库 运行时切换（顶栏按钮·仅管理员·全局生效）===== */
+dbModeRefresh=function(){
+  var btn=document.getElementById('dbModeBtn');if(!btn)return Promise.resolve();
+  var isAdmin=window.MY&&window.MY.role==='管理员';
+  if(!isAdmin){btn.style.display='none';return Promise.resolve();}
+  return api('GET','/api/dbmode').then(function(st){
+    window.DBMODE=st;btn.style.display='';
+    var demo=(st.mode==='demo');
+    btn.innerHTML='<t-icon name="'+(demo?'server':'cloud')+'" size="14" style="vertical-align:-2px;margin-right:4px"></t-icon>'+(demo?'假数库':'真库')+(st.forced_env?' · 锁定':'');
+    btn.title=(demo?'当前读【假数库 hcfb_demo.db】· 演示系统假数；点击切到真库':'当前读【真库 hcfb.db】· 空态待真实 API；点击切到假数库')+(st.forced_env?'（HCFB_DB 环境变量锁定 · 运行时不可切）':'');
+    btn.style.color=demo?'#8C2B2B':'';btn.disabled=!!st.forced_env;
+  }).catch(function(){});
+};
+dbModeToggle=function(){
+  var st=window.DBMODE||{};
+  if(st.forced_env)return alert('已通过 HCFB_DB 环境变量锁定数据库，运行时不可切换。');
+  var to=(st.mode==='demo')?'real':'demo';
+  if(to==='demo'&&!st.demo_exists)return alert('假数库 hcfb_demo.db 不存在，请先运行 backend/seed_demo.py 生成。');
+  var msg=(to==='real')
+    ? '切换到【真库 hcfb.db】？\n真库靠真实 API 写入，当前为空态（库中无数据留空不编造）；假数库数据不会丢，可随时切回。\n\n全局生效 · 影响所有人。'
+    : '切换到【假数库 hcfb_demo.db】？\n显示演示用系统假数，页面挂【示例】横幅。\n\n全局生效 · 影响所有人。';
+  if(!window.confirm(msg))return;
+  api('POST','/api/dbmode',{mode:to}).then(function(){location.reload();}).catch(apiErr);
+};
 srcSync=function(metric){
   if(!USE_API)return alert('连接后端后可取数（当前为本地模式）');
   if(RO)return alert('当前账号为只读权限');
@@ -2867,6 +2891,7 @@ exportCSV=function(){if(!USE_API)return ORIG.exportCSV();window.open('/api/expor
 function addImportBtn(){
   var bar=document.querySelector('.topbar');if(!bar||document.getElementById('impSnapBtn'))return;
   // 旧「导入示例数据/删除假数」按钮已下线：假数改由独立假数库 hcfb_demo.db 提供（后端选库·横幅自动标示例）
+  var dbBtn=document.createElement('button');dbBtn.id='dbModeBtn';dbBtn.className='tbi';dbBtn.style.display='none';dbBtn.onclick=dbModeToggle;  // 假数库/真库 切换（仅管理员可见·loadMe 后 dbModeRefresh 填充）
   var b=document.createElement('button');b.id='impSnapBtn';b.className='tbi';b.innerHTML='<t-icon name="upload" size="14" style="vertical-align:-2px;margin-right:4px"></t-icon>导入快照CSV';b.title='上传兜底：metric,month,value；校验闸不合格整批拒绝';
   var inp=document.createElement('input');inp.type='file';inp.accept='.csv';inp.style.display='none';
   inp.onchange=function(){var f=inp.files[0];if(!f)return;var fd=new FormData();fd.append('file',f);
@@ -2878,7 +2903,7 @@ function addImportBtn(){
     inp.value='';};
   b.onclick=function(){inp.click();};
   var firstBtn=bar.querySelector('.btn');
-  if(firstBtn){bar.insertBefore(b,firstBtn);}else{bar.appendChild(b);}
+  if(firstBtn){bar.insertBefore(dbBtn,firstBtn);bar.insertBefore(b,firstBtn);}else{bar.appendChild(dbBtn);bar.appendChild(b);}
   bar.appendChild(inp);
 }
 /* ===== 多端实时同步：每 ~3s 轮询 /api/version（=审计表 MAX(id)，任何改动即变），
@@ -2917,7 +2942,7 @@ fetch('/api/health').then(function(r){return r.json();}).then(function(h){
   USE_API=true;
   apiTag();
   addImportBtn();
-  return loadCfg().then(loadYears).then(function(){return window.loadMe();}).then(function(){return loadYear(YEAR);}).then(function(){return loadLedger();}).then(function(){return loadPrefs();}).then(function(){return loadSources();}).then(function(){renderAuditApi();restoreNavState();})
+  return loadCfg().then(loadYears).then(function(){return window.loadMe();}).then(function(){dbModeRefresh();return loadYear(YEAR);}).then(function(){return loadLedger();}).then(function(){return loadPrefs();}).then(function(){return loadSources();}).then(function(){renderAuditApi();restoreNavState();})
     .then(function(){return api('GET','/api/version');}).then(function(r){SYNC.ver=r.v;SYNC.on=true;syncStart();syncMark('自动同步开 · '+_hhmm());}).catch(function(){});
 }).catch(function(){/* 无后端：本地空态模式 */});
 })();

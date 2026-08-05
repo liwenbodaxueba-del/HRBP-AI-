@@ -9,17 +9,64 @@ from fastapi import HTTPException
 
 from meta import CANON_PROJECTS, NAT_N_DEFAULT
 
-# DB 选择：HCFB_DB 环境变量优先（绝对路径直用，相对则相对 backend 目录）；
-# 否则若存在假数库 hcfb_demo.db 则默认用它（开发/演示）；否则用真库 hcfb.db（真库靠真实 API 写入·空态）。
-# IS_DEMO_DB 供前端显示「示例数据」横幅（[[feedback_no_fabricated_data]]：假数必须标示例）。
-_ENV_DB = os.environ.get("HCFB_DB")
+# DB 选择（运行时可切·顶栏按钮）：
+#   优先级：HCFB_DB 环境变量(forced·锁定不可切) > 持久化模式文件 db_mode > 假数库存在则默认假数库 > 真库 hcfb.db。
+#   真库 hcfb.db 靠真实 API 写入(空态·库中无数据留空不编造)；假数库 hcfb_demo.db 由 seed_demo.py 生成(仅系统取数)。
+#   db() 每次现取全局 DB_PATH、无连接池 → set_db_mode() 运行时改它即切库，无需重启。
+#   is_demo_db() 供前端【示例】横幅（[[feedback_no_fabricated_data]]：假数必须标示例）。
 _DB_DIR = os.path.dirname(__file__)
-if _ENV_DB:
-    DB_PATH = _ENV_DB if os.path.isabs(_ENV_DB) else os.path.join(_DB_DIR, _ENV_DB)
-else:
-    _demo_db = os.path.join(_DB_DIR, "hcfb_demo.db")
-    DB_PATH = _demo_db if os.path.exists(_demo_db) else os.path.join(_DB_DIR, "hcfb.db")
-IS_DEMO_DB = os.path.basename(DB_PATH) == "hcfb_demo.db"
+_REAL_DB = os.path.join(_DB_DIR, "hcfb.db")
+_DEMO_DB = os.path.join(_DB_DIR, "hcfb_demo.db")
+_MODE_FILE = os.path.join(_DB_DIR, "db_mode")  # 记住上次按钮选择，重启后沿用（gitignore）
+_ENV_DB = os.environ.get("HCFB_DB")
+DB_FORCED_ENV = bool(_ENV_DB)  # 环境变量锁定时按钮不可切
+
+
+def _resolve_path(mode):
+    return _DEMO_DB if mode == "demo" else _REAL_DB
+
+
+def _initial_db_path():
+    if _ENV_DB:
+        return _ENV_DB if os.path.isabs(_ENV_DB) else os.path.join(_DB_DIR, _ENV_DB)
+    try:
+        m = open(_MODE_FILE, encoding="utf-8").read().strip()
+        if m in ("demo", "real"):
+            return _resolve_path(m)
+    except OSError:
+        pass
+    return _DEMO_DB if os.path.exists(_DEMO_DB) else _REAL_DB
+
+
+DB_PATH = _initial_db_path()
+
+
+def is_demo_db():
+    return os.path.basename(DB_PATH) == "hcfb_demo.db"
+
+
+def db_mode_state():
+    return {"mode": "demo" if is_demo_db() else "real", "is_demo": is_demo_db(),
+            "demo_exists": os.path.exists(_DEMO_DB), "real_exists": os.path.exists(_REAL_DB),
+            "forced_env": DB_FORCED_ENV, "db_file": os.path.basename(DB_PATH)}
+
+
+def set_db_mode(mode):
+    """运行时切库（demo=假数库 / real=真库）。db() 无连接池，切换后下一次取数即生效。"""
+    global DB_PATH
+    if DB_FORCED_ENV:
+        raise HTTPException(409, "已通过 HCFB_DB 环境变量锁定数据库，运行时不可切换")
+    if mode not in ("demo", "real"):
+        raise HTTPException(422, "mode 须为 demo / real")
+    if mode == "demo" and not os.path.exists(_DEMO_DB):
+        raise HTTPException(404, "假数库 hcfb_demo.db 不存在，请先运行 backend/seed_demo.py 生成")
+    DB_PATH = _resolve_path(mode)
+    try:
+        with open(_MODE_FILE, "w", encoding="utf-8") as f:
+            f.write(mode)
+    except OSError:
+        pass
+    return db_mode_state()
 
 
 # ---------------- DB ----------------
