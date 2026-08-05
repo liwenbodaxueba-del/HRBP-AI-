@@ -467,7 +467,7 @@ body.navfold .navtg{left:8px;}
 
 <div class="rcol">
 <div class="topbar">
-  <div class="dept" id="deptLbl">部门空间：集团 ▾</div>
+  <div class="dept" id="deptLbl">部门空间：合计（各部门加总）▾</div>
   <div class="sp"></div>
   <span class="sync" id="syncTag"><t-icon name="check-circle-filled" style="vertical-align:-2px;margin-right:3px"></t-icon>已就绪</span>
   <div class="fresh" id="freshTag">数据源：○ 未接入 · 单元格留空待取数</div>
@@ -511,7 +511,7 @@ body.navfold .navtg{left:8px;}
 <!-- 看板1 -->
 <div class="view on" id="v-kb1">
   <div style="display:flex;align-items:center;gap:10px;margin:4px 0 14px">
-    <b style="font-size:19px;color:var(--navy)">集团人力预估表 · <span id="deptPickLbl">集团</span></b>
+    <b style="font-size:19px;color:var(--navy)">集团人力预估表 · <span id="deptPickLbl">合计（各部门加总）</span></b>
     <span id="deptAggNote" style="font-size:12px;font-weight:600;color:#B45309;background:#FEF3C7;padding:2px 10px;border-radius:12px;display:none">各中心汇总 · 只读（请在具体中心录入）</span>
     <span style="font-size:12.5px;color:var(--ink3)">（左侧「看板1」展开可切换部门）</span>
   </div>
@@ -1030,6 +1030,8 @@ function pmgSave(month,value){
 }
 /* 当前部门是否为『含中心的部』——各中心汇总·只读(不可直接录入，与后端一致) */
 function isDeptAgg(dept){dept=dept||window.CUR_DEPT||'集团';for(var i=0;i<DEPT_TREE.length;i++)if(DEPT_TREE[i].name===dept&&DEPT_TREE[i].children&&DEPT_TREE[i].children.length)return true;return false;}
+/* 顶层「集团」不是独立部门，而是各部门加总口径 —— 显示为「合计（各部门加总）」 */
+function deptDisp(d){return d==='集团'?'合计（各部门加总）':d;}
 /* 侧栏「看板1」下展开部门层级：部→中心，点任一节点即切看板1 该部门空间 */
 /* 业务线维度（顶层，与看板0同级）：线→部→中心。线=分组层，点线名仅展开/收起；点部门或中心=选中该部门空间并进看板1。 */
 var DEPT_LINES_DEFAULT=[
@@ -1242,7 +1244,7 @@ var srcMap={
 function levelNote(){
   var d=window.CUR_DEPT||'集团';
   if(d.indexOf('/')>=0)return '取数层级 · <b>中心</b>：数仓<b>直取</b>（中心＝取数最小粒度）';
-  if(d==='集团')return '取数层级 · <b>集团</b>：＝各部门该项之和（＝全部中心之和）';
+  if(d==='集团')return '取数层级 · <b>合计</b>：＝各部门该项之和（各部门＝其下中心之和）· 非独立部门';
   if(typeof isDeptAgg==='function'&&isDeptAgg(d))return '取数层级 · <b>部门</b>：＝其下各中心该项之和；中心并成<b>子PM组</b>后：组＝组内中心之和，部门＝各组＋未进组中心（同层级）之和';
   return '取数层级 · <b>部门</b>（暂无中心拆分）：数仓直取，接入中心后自动改为各中心求和';
 }
@@ -2410,7 +2412,7 @@ var ORIG={saveCell:saveCell,clearCell:clearCell,saveRowDef:saveRowDef,delRowFrom
 window.USE_API=false;var API_USER='bonniewbli';
 /* 看板1 部门空间：各部门独立存一套数。DEPT 定 IIFE 内，board 接口自动带 ?dept= */
 var DEPT='集团';window.CUR_DEPT=DEPT;
-window.setDept=function(v){DEPT=v;window.CUR_DEPT=v;var el=document.getElementById('deptLbl');if(el)el.textContent='部门空间：'+v+' ▾';var pl=document.getElementById('deptPickLbl');if(pl)pl.textContent=v;var an=document.getElementById('deptAggNote');if(an)an.style.display=(typeof isDeptAgg==='function'&&isDeptAgg(v))?'inline-block':'none';if(window.renderKb1Nav)renderKb1Nav();if(typeof renderKb3==='function')renderKb3();return loadYear(YEAR).catch(apiErr);};
+window.setDept=function(v){DEPT=v;window.CUR_DEPT=v;var el=document.getElementById('deptLbl');if(el)el.textContent='部门空间：'+deptDisp(v)+' ▾';var pl=document.getElementById('deptPickLbl');if(pl)pl.textContent=deptDisp(v);var an=document.getElementById('deptAggNote');if(an)an.style.display=(typeof isDeptAgg==='function'&&isDeptAgg(v))?'inline-block':'none';if(window.renderKb1Nav)renderKb1Nav();if(typeof renderKb3==='function')renderKb3();return loadYear(YEAR).catch(apiErr);};
 window.MY=null;  // 当前登录账号权限（看板1可见部门/角色）
 window.loadMe=function(){return api('GET','/api/me').then(function(m){window.MY=m;var ae=document.getElementById('adminEntry');if(ae)ae.style.display=(m&&m.role==='管理员')?'':'none';if(window.renderKb1Nav)renderKb1Nav();return m;}).catch(function(){});};
 function api(m,p,b){if(p.indexOf('/api/board/')===0)p+=(p.indexOf('?')<0?'?':'&')+'dept='+encodeURIComponent(DEPT);return fetch(p,{method:m,headers:{'Content-Type':'application/json','X-User':API_USER},body:b?JSON.stringify(b):undefined}).then(function(r){return r.json().then(function(j){if(!r.ok)throw j;return j;});});}
