@@ -93,6 +93,33 @@ body.navfold nav.side{width:0 !important;flex-basis:0 !important;min-width:0 !im
 .navtg{position:fixed;top:62px;left:160px;z-index:35;width:24px;height:24px;border-radius:50%;background:#fff;border:1px solid var(--b100);color:var(--ink3);font-size:12px;line-height:22px;text-align:center;cursor:pointer;box-shadow:0 2px 6px rgba(10,46,110,.12);transition:left .15s ease;user-select:none;}
 .navtg:hover{color:var(--blue);border-color:var(--blue-l);}
 body.navfold .navtg{left:8px;}
+/* ===== v2：设置子PM看板 / 中心清单 ===== */
+.chip.adminb{background:var(--b100);color:var(--navy);font-weight:600;}
+.addp{display:inline-block;background:#E8EFFB;color:var(--ink2);border-radius:8px;padding:3px 9px;font-size:11.5px;margin-left:12px;font-weight:400;cursor:pointer;}
+.addp:hover{color:var(--blue);}
+.ctr{display:inline-flex;align-items:center;gap:6px;background:#EEF2F8;color:var(--ink2);border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ctr:hover{background:var(--b50);color:var(--navy);}
+.ctr.none{color:var(--ink3);}
+.gear{color:var(--ink3);}
+.ctrgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 14px;overflow-y:auto;padding:2px 2px 6px;max-height:60vh;}
+.ctrgrid label{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink2);padding:5px 8px;border-radius:7px;}
+.ctrgrid label:hover{background:var(--b50);}
+.pmbox{display:grid;grid-template-columns:1fr 1fr;gap:16px;overflow:hidden;min-height:0;flex:1;}
+.pmcol{display:flex;flex-direction:column;min-height:0;}
+.pmcol h4{font-size:12px;color:var(--ink3);font-weight:600;margin-bottom:8px;}
+.pmlist{overflow-y:auto;border:1px solid var(--b100);border-radius:10px;padding:6px;flex:1;}
+.pmlist label{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink2);cursor:pointer;padding:5px 8px;border-radius:7px;}
+.pmlist label:hover{background:var(--b50);}
+.pmlist input{accent-color:var(--blue);width:14px;height:14px;}
+.pmmk{display:flex;gap:8px;margin-top:10px;}
+.pmmk input[type=text]{flex:1;border:1px solid var(--b100);border-radius:8px;padding:7px 10px;font-size:12.5px;font-family:inherit;width:auto;}
+.tree{overflow-y:auto;border:1px solid var(--b100);border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.9;color:var(--ink2);flex:1;}
+.tree .l1{color:var(--navy);font-weight:700;}
+.tree .l2{padding-left:16px;}
+.tree .l3{padding-left:34px;color:var(--ink3);}
+.tree .lvl{font-size:10.5px;color:var(--ink3);background:#EEF2F8;border-radius:8px;padding:1px 7px;margin-left:8px;}
+.tree .gname{color:var(--blue);font-weight:600;}
+.tree .del{color:var(--red);font-size:11px;margin-left:8px;cursor:pointer;}
 </style>
 </head>
 <body>
@@ -211,6 +238,28 @@ body.navfold .navtg{left:8px;}
   <div class="row"><button class="btn gray" onclick="closeDeptCfg()">取消</button><button class="btn" onclick="saveDeptCfg()">保存并生效</button></div>
 </div></div>
 
+<!-- 设置子PM看板 modal -->
+<div class="mask" id="maskPm"><div class="modal" style="width:720px;max-height:82vh;display:flex;flex-direction:column">
+  <h3>设置子PM看板（分组与层级）</h3>
+  <div class="meta" id="pmMeta">从该部门下的中心里选择若干中心，命名后创建子PM看板组。建组后：组为二级层级，组内中心降为三级；未进组的中心仍为二级。</div>
+  <div class="pmbox">
+    <div class="pmcol"><h4>可选中心（该部门下全部中心）</h4><div class="pmlist" id="pmList"></div>
+      <div class="pmmk"><input type="text" id="pmName" placeholder="子PM组名称，如：数据库子PM"><button class="btn" onclick="pmCreate()">创建子PM组</button></div>
+      <div class="hint" id="pmErr" style="display:none;color:var(--red);margin-top:6px">请填写组名并至少勾选一个中心</div>
+    </div>
+    <div class="pmcol"><h4>层级预览</h4><div class="tree" id="pmTree"></div></div>
+  </div>
+  <div class="row" style="justify-content:space-between;align-items:center;border-top:1px solid var(--b100);padding-top:14px"><span class="hint" id="pmCount" style="margin:0">0 组</span><span style="display:flex;gap:10px"><button class="btn gray" onclick="closePm()">取消</button><button class="btn" onclick="savePm()">保存</button></span></div>
+</div></div>
+
+<!-- 中心清单 modal -->
+<div class="mask" id="maskCenters"><div class="modal" style="width:660px;max-height:82vh;display:flex;flex-direction:column">
+  <h3 id="vcTitle">部门中心清单</h3>
+  <div class="meta">部门为一级层级，中心为二级层级；已建子PM组的中心在该 BP 下降为三级。清单正式版由 iOA 组织架构同步。</div>
+  <div class="ctrgrid" id="vcGrid"></div>
+  <div class="row" style="justify-content:space-between;align-items:center;border-top:1px solid var(--b100);padding-top:14px"><span class="hint" id="vcCount" style="margin:0"></span><button class="btn gray" onclick="closeCenters()">关闭</button></div>
+</div></div>
+
 <!-- 转移管理员 modal -->
 <div class="mask" id="maskTransfer"><div class="modal">
   <h3>转移管理员职位</h3>
@@ -289,9 +338,12 @@ function buildOrgTree(list){
   return root;
 }
 function acctToggle(key){ACCT_COLLAPSE[key]=!ACCT_COLLAPSE[key];renderAccts();}
+function pmCellHtml(a,i){var g=a.pm_groups||[];
+  var n=g.reduce(function(s,x){return s+(x.centers||[]).length;},0);
+  var label=g.length===0?'未创建':(g.length===1?esc(g[0].name)+'（'+(g[0].centers||[]).length+'）':g.length+' 组 · '+n+' 中心');
+  return '<span class="ctr'+(g.length?'':' none')+'" onclick="openPm('+i+')" title="从本部门中心分组建子PM看板（组=二级、组内中心=三级）">'+label+' <span class="gear">⚙</span></span>';}
 function acctRow(a,depth){
   var i=acctIdx(a.id);
-  var kb=KB.map(function(k,j){return '<label><input type="checkbox" '+(a.kb[j]?'checked':'')+' onchange="accKb('+i+','+j+',this.checked)">'+k+'</label>';}).join('');
   var me=(a.id==='bonniewbli'),meLock=me&&!a.is_sysadmin;  // 本人权限不可自改；系统管理员例外(可配自己)
   var roleSel=meLock?('<span style="font-size:13px;color:var(--ink2)" title="本人角色不可自改，须由系统管理员配置">'+esc(a.role)+'</span>')
     :'<select onchange="accRole('+i+',this.value)"><option'+(a.role==='管理员'?' selected':'')+'>管理员</option><option'+(a.role==='HRBP·可编辑'?' selected':'')+'>HRBP·可编辑</option><option'+(a.role==='领导·只读'?' selected':'')+'>领导·只读</option></select>';
@@ -299,7 +351,7 @@ function acctRow(a,depth){
     :('<button class="btn gray" style="padding:2px 10px;font-size:12px" onclick="openDeptCfg(\''+a.id.replace(/'/g,'')+'\')" title="配置该账号可见的看板1/看板0部门（可精确到中心）">看板1·'+((a.kb1_depts||[]).length)+' / 看板0·'+((a.kb0_depts||[]).length)+' ⚙</button>');
   return '<tr><td style="padding-left:'+(depth*20+24)+'px">'+esc(a.id)+(a.demo?' <span class="chip demo">示例</span>':'')+(a.is_head?' <span class="chip ok">总BP</span>':'')+'</td>'
     +'<td>'+esc(a.name)+(a.is_sysadmin?' <span class="chip" style="background:#DBEAFE;color:#1E40AF;font-weight:600" title="系统管理员：全部可编辑（含改自己）">系统管理员</span>':'')+'</td>'
-    +'<td>'+roleSel+'</td><td><span class="kbchk">'+kb+'</span></td>'
+    +'<td>'+roleSel+'</td><td>'+pmCellHtml(a,i)+'</td>'
     +'<td class="c">'+deptCell+'</td>'
     +'<td class="c">'+(a.id==='bonniewbli'?'<span style="font-size:12px;color:var(--ink3)">启用</span>':'<label class="sw"><input type="checkbox" '+(a.on?'checked':'')+' onchange="accOn('+i+',this.checked)"><span class="tk"></span></label>')+'</td>'
     +'<td class="c"><button class="btn gray" style="padding:2px 8px;font-size:12px" onclick="ioaSync(\''+a.id.replace(/'/g,'')+'\')" title="按 iOA 组织架构回填 org_path/职级/上级（正式版）">iOA同步</button> '
@@ -307,14 +359,15 @@ function acctRow(a,depth){
 }
 function renderAccts(){
   var root=buildOrgTree(accts);
-  var h='<thead><tr><th>账号 / 看板1 部门</th><th style="width:180px">姓名</th><th style="width:140px">角色</th><th>看板访问</th><th class="c" style="width:150px">部门权限</th><th class="c">启用</th><th class="c" style="width:120px">操作</th></tr></thead><tbody>';
+  var h='<thead><tr><th>部门/账号</th><th style="width:160px">姓名</th><th style="width:140px">角色</th><th style="width:200px">设置子PM看板</th><th class="c" style="width:150px">部门权限</th><th class="c">启用</th><th class="c" style="width:120px">操作</th></tr></thead><tbody>';
   root.accts.forEach(function(a){h+=acctRow(a,0);});  // 未分配部门
   (function walk(node,path,depth){
     node.order.forEach(function(seg){
       var child=node.children[seg],key=path+'/'+seg,collapsed=ACCT_COLLAPSE[key],deptKey=key.replace(/^\//,'');
       h+='<tr><td colspan="7" style="background:#F1F5F9;padding:6px 8px 6px '+(depth*20+8)+'px;cursor:pointer;font-weight:600" onclick="acctToggle(\''+key.replace(/'/g,'')+'\')">'
         +(collapsed?'▸':'▾')+' '+esc(seg)+' <span class="chip">'+countAccts(child)+' 人</span>'
-        +'<button class="btn gray" style="margin-left:10px;padding:1px 8px;font-size:11px;font-weight:400" onclick="event.stopPropagation();openAcctInDept(\''+deptKey.replace(/'/g,'')+'\')" title="在本部门添加人员">＋加人</button></td></tr>';
+        +'<button class="btn gray" style="margin-left:10px;padding:1px 8px;font-size:11px;font-weight:400" onclick="event.stopPropagation();openAcctInDept(\''+deptKey.replace(/'/g,'')+'\')" title="在本部门添加人员">＋加人</button>'
+        +'<span class="addp" onclick="event.stopPropagation();viewCenters(\''+seg.replace(/'/g,'')+'\')" title="查看本部门中心清单">中心清单</span></td></tr>';
       if(!collapsed){child.accts.forEach(function(a){h+=acctRow(a,depth+1);});walk(child,key,depth+1);}
     });
   })(root,'',0);
@@ -327,6 +380,45 @@ function ioaSync(id){
     alert('iOA 组织接口未接入（预留桩）：\n'+(d.msg||JSON.stringify(d))+'\n正式版接 iOA OpenAPI 后，按账号自动带出 org_path/职级/上级。');
   });
 }
+/* ===== 中心清单 / 设置子PM看板（组=二级、组内中心=三级；与看板 index.html DEPT_TREE 中心一致） ===== */
+function deptCenters(dept){for(var i=0;i<DEPT_TREE.length;i++)if(DEPT_TREE[i].name===dept)return (DEPT_TREE[i].children||[]).slice();return [];}
+function viewCenters(dept,e){if(e)e.stopPropagation();var list=deptCenters(dept);
+  document.getElementById('vcTitle').textContent=dept+' · 中心清单';
+  document.getElementById('vcGrid').innerHTML=list.length?list.map(function(c){return '<label style="cursor:default">· '+esc(c)+'</label>';}).join(''):'<div class="hint" style="grid-column:1/-1;padding:10px 4px;margin:0">该部门的中心清单待接入 iOA 组织架构后同步（当前 demo 仅云产品一~四部已录入中心）。</div>';
+  document.getElementById('vcCount').textContent=list.length?('共 '+list.length+' 个中心'):'待同步';
+  document.getElementById('maskCenters').classList.add('on');}
+function closeCenters(){document.getElementById('maskCenters').classList.remove('on');}
+var pmIdx=-1,pmDept='',pmCenters=[],pmGroups=[];
+function openPm(i){pmIdx=i;var a=accts[i];if(!a)return;pmDept=(a.dept==='集团'?'':a.dept)||'';pmCenters=deptCenters(pmDept);
+  pmGroups=JSON.parse(JSON.stringify(a.pm_groups||[]));
+  document.getElementById('pmMeta').textContent=(pmDept||'（本账号未归属含中心的部门）')+' · '+a.id+' —— 从该部门中心里选择若干中心并命名，创建子PM看板：组为二级层级，组内中心降为三级，未进组的中心仍为二级。';
+  document.getElementById('pmName').value='';document.getElementById('pmErr').style.display='none';
+  pmRender();document.getElementById('maskPm').classList.add('on');}
+function pmRender(){
+  var grouped={};pmGroups.forEach(function(g){(g.centers||[]).forEach(function(c){grouped[c]=g.name;});});
+  var list=document.getElementById('pmList');
+  list.innerHTML=pmCenters.length?pmCenters.map(function(c){return '<label'+(grouped[c]?' style="opacity:.5"':'')+'><input type="checkbox" value="'+esc(c)+'" '+(grouped[c]?'disabled':'')+'>'+esc(c)+(grouped[c]?' <span class="lvl">已在「'+esc(grouped[c])+'」</span>':'')+'</label>';}).join(''):'<div class="hint" style="padding:10px 6px;margin:0">该部门暂无中心清单（仅云产品一~四部已录入；其余待接 iOA）。</div>';
+  var t='<div class="l1">'+esc(pmDept||'总部')+' <span class="lvl">一级</span></div>';
+  pmGroups.forEach(function(g,i){
+    t+='<div class="l2"><span class="gname">'+esc(g.name)+'</span> <span class="lvl">二级 · 子PM组</span><span class="del" onclick="pmDel('+i+')">解散</span></div>';
+    (g.centers||[]).forEach(function(c){t+='<div class="l3">'+esc(c)+' <span class="lvl">三级</span></div>';});
+  });
+  pmCenters.filter(function(c){return !grouped[c];}).forEach(function(c){t+='<div class="l2">'+esc(c)+' <span class="lvl">二级</span></div>';});
+  document.getElementById('pmTree').innerHTML=t;
+  document.getElementById('pmCount').textContent=pmGroups.length+' 组 · 已归组 '+Object.keys(grouped).length+' / '+pmCenters.length+' 中心';}
+function pmCreate(){var name=document.getElementById('pmName').value.trim();
+  var sel=[].map.call(document.querySelectorAll('#pmList input:checked'),function(i){return i.value;});
+  if(!name||!sel.length){document.getElementById('pmErr').style.display='block';return;}
+  document.getElementById('pmErr').style.display='none';
+  pmGroups.push({name:name,centers:sel});document.getElementById('pmName').value='';pmRender();}
+function pmDel(i){pmGroups.splice(i,1);pmRender();}
+function savePm(){if(pmIdx<0){closePm();return;}accts[pmIdx].pm_groups=pmGroups;
+  if(typeof saveCfg==='function')saveCfg();
+  if(typeof log==='function')log('设置子PM看板',accts[pmIdx].id+'：'+pmGroups.length+' 组 / '+pmGroups.reduce(function(a,g){return a+(g.centers||[]).length;},0)+' 中心');
+  closePm();renderAccts();}
+function closePm(){document.getElementById('maskPm').classList.remove('on');pmIdx=-1;}
+document.getElementById('maskPm').addEventListener('click',function(e){if(e.target===this)closePm();});
+document.getElementById('maskCenters').addEventListener('click',function(e){if(e.target===this)closeCenters();});
 /* 部门权限配置：看板1可见部门 / 看板0(PM速览)可见部门，两套独立 */
 /* 部门树（部→中心，与看板 index.html DEPT_TREE 保持一致）。中心键用「部/中心」全路径 */
 var DEPT_TREE=[
