@@ -184,10 +184,7 @@ body.navfold .navtg{left:8px;}
     <thead><tr><th>线级 / 账号</th><th style="width:160px">姓名</th><th style="width:140px">角色</th><th style="width:200px">设置线级看板</th><th class="c" style="width:150px">线级权限</th><th class="c">启用</th><th class="c" style="width:120px">操作</th></tr></thead>
     <tbody id="lnBody"></tbody>
   </table></div>
-  <div style="background:#fff;border:1px solid var(--b100);border-radius:12px;padding:14px 16px">
-    <h4 style="font-size:12px;color:var(--ink3);font-weight:600;margin-bottom:8px">层级预览</h4>
-    <div class="tree" id="lnTree" style="border:none;padding:0;max-height:none"></div>
-  </div>
+  <div class="hint" style="margin:0">层级预览在「设置线级看板」弹窗里（点行/⚙ 打开）——线级=一级、线内部门=二级，父级可收起。</div>
 </div>
 
 <!-- ================= 项目配置 ================= -->
@@ -267,12 +264,16 @@ body.navfold .navtg{left:8px;}
 </div></div>
 
 <!-- 创建/编辑线级看板 modal -->
-<div class="mask" id="maskLn"><div class="modal" style="width:660px;max-height:82vh;display:flex;flex-direction:column">
+<div class="mask" id="maskLn"><div class="modal" style="width:760px;max-height:82vh;display:flex;flex-direction:column">
   <h3 id="lnTitle">创建线级看板</h3>
-  <div class="meta">勾选归入该线级的部门并命名。创建后：线级为一级层级，线内部门为二级；未归线的部门仍为一级、不进层级预览。改动即时同步到看板端顶层线导航。</div>
-  <div class="ctrgrid" id="lnGrid"></div>
-  <div class="pmmk" style="margin-top:12px"><input type="text" id="lnName" placeholder="线级看板名称，如：云产品线"><button class="btn" id="lnBtn" onclick="lnSubmit()">创建</button></div>
-  <div class="hint" id="lnErr" style="display:none;color:var(--red);margin-top:6px">请填写线级名称并至少勾选一个部门</div>
+  <div class="meta">勾选归入该线级的部门并命名。创建后：线级为一级层级，线内部门为二级；未归线的部门仍为一级、不进层级预览。右侧层级预览可点线级名收起/展开。改动即时同步到看板端顶层线导航。</div>
+  <div class="pmbox">
+    <div class="pmcol"><h4>部门清单（勾选归入本线级）</h4><div class="pmlist" id="lnGrid"></div>
+      <div class="pmmk"><input type="text" id="lnName" placeholder="线级看板名称，如：云产品线"><button class="btn" id="lnBtn" onclick="lnSubmit()">创建</button></div>
+      <div class="hint" id="lnErr" style="display:none;color:var(--red);margin-top:6px">请填写线级名称并至少勾选一个部门</div>
+    </div>
+    <div class="pmcol"><h4>层级预览</h4><div class="tree" id="lnTree"></div></div>
+  </div>
   <div class="row" style="justify-content:space-between;align-items:center;border-top:1px solid var(--b100);padding-top:14px"><span class="hint" id="lnCount" style="margin:0"></span><button class="btn gray" onclick="closeLn()">关闭</button></div>
 </div></div>
 
@@ -528,6 +529,8 @@ function openLn(idx){
   document.getElementById('lnBtn').textContent=cur?'保存修改':'创建';
   document.getElementById('lnName').value=cur?cur.name:'';document.getElementById('lnErr').style.display='none';
   document.getElementById('lnCount').textContent='已建 '+lines.length+' 条线级 · 已归线部门 '+Object.keys(as).length+' / '+all.length;
+  document.getElementById('lnGrid').oninput=lnPreview;document.getElementById('lnName').oninput=lnPreview;  // 勾选/命名变化→实时更新层级预览
+  lnPreview();
   document.getElementById('maskLn').classList.add('on');
 }
 function closeLn(){document.getElementById('maskLn').classList.remove('on');}
@@ -560,13 +563,28 @@ function lnRender(){
         +'<td class="c"><span class="rowdel" style="color:var(--blue)" onclick="alert(\'指定线级BP：正式版接 iOA 后从该线部门的 BP 中指派\')">指定线级BP</span></td></tr>';
     }).join('');
   }
-  var as=lnAssigned(),all=allDepts(),free=all.filter(function(d){return !as[d];});
-  var t=lines.length?lines.map(function(l){
-    return '<div class="l1">'+esc(l.name)+' <span class="lvl">一级 · 线级看板</span></div>'+(l.depts||[]).map(function(d){return '<div class="l2">'+esc(d)+' <span class="lvl">二级</span></div>';}).join('');
-  }).join(''):'<div class="hint" style="margin:0">尚无线级看板。创建后此处按线级展开：线级为一级，线内部门为二级。</div>';
-  t+='<div class="hint" style="margin-top:10px">未归线部门 '+free.length+' 个：仍为一级层级，不进入层级预览。</div>';
-  document.getElementById('lnTree').innerHTML=t;
 }
+/* 层级预览（在弹窗内·父级可收起）：反映当前 lines + 正在编辑/新建线的实时勾选 */
+var LINE_PVOPEN={};
+function lnPreview(){
+  var box=document.getElementById('lnTree');if(!box)return;
+  var sel=[].map.call(document.querySelectorAll('#lnGrid input:checked'),function(i){return i.value;});
+  var nm=(document.getElementById('lnName').value||'').trim();
+  var pv=lines.map(function(l){return {name:l.name,depts:(l.depts||[]).slice()};});
+  if(lnEdit>-1){pv[lnEdit]={name:nm||lines[lnEdit].name,depts:sel};}
+  else if(sel.length||nm){pv.push({name:nm||'（新线级·未命名）',depts:sel});}
+  var asAll={};pv.forEach(function(l){l.depts.forEach(function(d){asAll[d]=1;});});
+  var all=allDepts(),free=all.filter(function(d){return !asAll[d];});
+  var editIdx=(lnEdit>-1)?lnEdit:((sel.length||nm)?pv.length-1:-1);
+  var t=pv.length?pv.map(function(l,i){
+    var open=LINE_PVOPEN[l.name]!==false,nmq=String(l.name).replace(/'/g,''),hi=(i===editIdx);
+    var head='<div class="l1" style="cursor:pointer;user-select:none'+(hi?';background:var(--b50);border-radius:6px;padding:1px 4px':'')+'" onclick="toggleLnPv(\''+nmq+'\')"><span style="display:inline-block;color:var(--ink2);font-size:10px;margin-right:5px;transition:transform .15s'+(open?'':';transform:rotate(-90deg)')+'">▾</span>'+esc(l.name)+' <span class="lvl">一级 · 线级看板</span><span class="lvl">'+l.depts.length+' 部门</span></div>';
+    return head+(open?l.depts.map(function(d){return '<div class="l2">'+esc(d)+' <span class="lvl">二级</span></div>';}).join(''):'');
+  }).join(''):'<div class="hint" style="margin:0">尚无线级看板。勾选部门并命名即可创建：线级=一级、线内部门=二级。</div>';
+  t+='<div class="hint" style="margin-top:10px">未归线部门 '+free.length+' 个：仍为一级层级，不进入层级预览。</div>';
+  box.innerHTML=t;
+}
+function toggleLnPv(name){LINE_PVOPEN[name]=(LINE_PVOPEN[name]===false);lnPreview();}
 document.getElementById('maskLn').addEventListener('click',function(e){if(e.target===this)closeLn();});
 /* 部门权限配置：看板1可见部门 / 看板0(PM速览)可见部门，两套独立 */
 /* 部门树（部→中心，与看板 index.html DEPT_TREE 保持一致）。中心键用「部/中心」全路径 */
