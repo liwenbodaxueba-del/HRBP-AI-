@@ -453,14 +453,14 @@ body.navfold .navtg{left:8px;}
   </div>
   <div class="grp">看板</div>
   <a class="on" data-v="kb0" onclick="go(this)">看板0 · PM 速览</a>
-  <a data-v="kb1" id="kb1NavLink" onclick="pickDeptNav('kb1','集团')">看板1 · 集团人力预估表<span id="kb1NavArrow" onclick="event.stopPropagation();toggleKb1Nav()" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>
-  <div id="kb1DeptNav" style="display:none;margin:-2px 0 4px 0"></div>
-  <a data-v="kb2" id="kb2NavLink" onclick="pickDeptNav('kb2','集团')">看板2 · 预算看板<span id="kb2NavArrow" onclick="event.stopPropagation();toggleDeptNav('kb2')" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>
-  <div id="kb2DeptNav" style="display:none;margin:-2px 0 4px 0"></div>
-  <a data-v="kb3" id="kb3NavLink" onclick="pickDeptNav('kb3','集团')">看板3 · 社招滚动台账<span id="kb3NavArrow" onclick="event.stopPropagation();toggleDeptNav('kb3')" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>
-  <div id="kb3DeptNav" style="display:none;margin:-2px 0 4px 0"></div>
-  <a data-v="kb4" id="kb4NavLink" onclick="pickDeptNav('kb4','集团')">看板4 · 云智&外包<span id="kb4NavArrow" onclick="event.stopPropagation();toggleDeptNav('kb4')" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>
-  <div id="kb4DeptNav" style="display:none;margin:-2px 0 4px 0"></div>
+  <a id="lineLink_coby线" onclick="toggleLineNav('coby线')" style="font-weight:600">coby线<span id="lineArrow_coby线" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>
+  <div id="lineNav_coby线" style="display:none;margin:-2px 0 4px 0"></div>
+  <a id="lineLink_wang线" onclick="toggleLineNav('wang线')" style="font-weight:600">wang线<span id="lineArrow_wang线" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>
+  <div id="lineNav_wang线" style="display:none;margin:-2px 0 4px 0"></div>
+  <a data-v="kb1" onclick="go(this)">看板1 · 集团人力预估表</a>
+  <a data-v="kb2" onclick="go(this)">看板2 · 预算看板</a>
+  <a data-v="kb3" onclick="go(this)">看板3 · 社招滚动台账</a>
+  <a data-v="kb4" onclick="go(this)">看板4 · 云智&外包</a>
   <a href="admin.html" id="adminEntry" style="margin-top:auto;color:var(--navy);font-weight:600" title="进入管理后台（账号与权限·项目配置）"><t-icon name="setting" size="14" style="vertical-align:-2px;margin-right:6px"></t-icon>管理后台</a>
   <div class="user" data-comment-anchor="b9591073d3-div" style="margin-top:0">iOA：<b>bonniewbli</b><br>（HRBP·可编辑）</div>
 </nav>
@@ -961,53 +961,38 @@ var KB1_OPEN={};
 /* 当前部门是否为『含中心的部』——各中心汇总·只读(不可直接录入，与后端一致) */
 function isDeptAgg(dept){dept=dept||window.CUR_DEPT||'集团';for(var i=0;i<DEPT_TREE.length;i++)if(DEPT_TREE[i].name===dept&&DEPT_TREE[i].children&&DEPT_TREE[i].children.length)return true;return false;}
 /* 侧栏「看板1」下展开部门层级：部→中心，点任一节点即切看板1 该部门空间 */
-var DEPT_BOARDS=['kb1','kb2','kb3','kb4'];  // 这些看板侧栏都可展开部门树
-/* 业务线维度：线→部（部再挂中心）。线为分组层，本身不载数据(点线名仅展开/收起)。 */
+/* 业务线维度（顶层，与看板0同级）：线→部→中心。线=分组层，点线名仅展开/收起；点部门或中心=选中该部门空间并进看板1。 */
 var DEPT_LINES=[
   {name:'coby线',head:'邱跃鹏',depts:['云产品一部','云产品五部','战略客户部','智慧行业一部','智慧行业七部','智慧行业十部','云运营管理部','云采购供应管理部','星星海实验室','港澳台及国际业务部','CSIG产品管理支持中心']},
   {name:'wang线',head:'王慧星',depts:['云产品二部','云产品三部','云产品四部','云产品六部','安全产品一部','安全产品二部','安全产品三部','科恩实验室','玄武实验室','优图实验室','企业中台产品部','云产品技术支持部','云技术运营服务部','社交协作产品部','ima产品中心']}
 ];
-var LINE_OPEN={};  // 线展开态（默认展开）
 function _deptNode(name){for(var i=0;i<DEPT_TREE.length;i++)if(DEPT_TREE[i].name===name)return DEPT_TREE[i];return {name:name,children:[]};}
-function _lineHead(board,line,open,stickyTop){var sticky=(stickyTop!=null);
-  var st=sticky?'position:sticky;top:'+stickyTop+'px;z-index:5;box-shadow:0 1px 0 #EDF3FB;':'';
-  return '<a onclick="toggleLine(\''+board+'\',\''+line+'\')" style="'+st+'display:block;padding:7px 10px 7px 20px;font-size:12.5px;font-weight:600;border-radius:8px;margin-bottom:2px;cursor:pointer;background:#F0F5FD;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+line+'<span style="float:right;font-size:10px;padding:0 4px;color:var(--ink3)">'+(open?'▾':'▸')+'</span></a>';}
-function _navA(board,deptKey,label,padLeft,cur,arrow,stickyTop){var on=(cur===deptKey),sticky=(stickyTop!=null);
-  var bg=on?'var(--b50)':(sticky?'#fff':'transparent');
-  var st=sticky?'position:sticky;top:'+stickyTop+'px;z-index:5;box-shadow:0 1px 0 #EDF3FB;':'';
-  return '<a onclick="pickDeptNav(\''+board+'\',\''+deptKey.replace(/'/g,"")+'\')" title="'+label+'" style="'+st+'display:block;padding:6px 10px 6px '+padLeft+'px;font-size:12.5px;border-radius:8px;margin-bottom:2px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:'+bg+';'+(on?'color:var(--blue);font-weight:600':'color:var(--ink2)')+'">'+label+arrow+'</a>';}
-function renderDeptNav(board){var host=document.getElementById(board+'DeptNav');if(!host)return;var cur=window.CUR_DEPT||'集团',h='';
-  var kbH=(document.getElementById(board+'NavLink')||{}).offsetHeight||42;  // 部标题钉在该看板导航下方
+function _lineDeptA(deptKey,label,padLeft,cur,arrow){var on=(cur===deptKey);
+  return '<a onclick="pickLineDept(\''+deptKey.replace(/'/g,"")+'\')" title="'+label+'" style="display:block;padding:6px 10px 6px '+padLeft+'px;font-size:12.5px;border-radius:8px;margin-bottom:2px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:'+(on?'var(--b50)':'transparent')+';'+(on?'color:var(--blue);font-weight:600':'color:var(--ink2)')+'">'+label+(arrow||'')+'</a>';}
+function renderLineNav(lineName){var host=document.getElementById('lineNav_'+lineName);if(!host)return;
+  var line=null;for(var i=0;i<DEPT_LINES.length;i++)if(DEPT_LINES[i].name===lineName)line=DEPT_LINES[i];if(!line)return;
+  var cur=window.CUR_DEPT||'集团',h='';
   var MY=window.MY, adm=!MY, al=(MY&&MY.kb1_depts)||[];  // 按 kb1_depts 过滤（仅 MY 未加载时不过滤）
-  function wholeOK(n){return adm||al.indexOf(n)>=0;}
   function centerOK(n,ch){return adm||al.indexOf(n)>=0||al.indexOf(n+'/'+ch)>=0;}
   function partVisible(node){if(adm||al.indexOf(node.name)>=0)return true;
     return (node.children||[]).some(function(ch){return al.indexOf(node.name+'/'+ch)>=0;});}
-  DEPT_LINES.forEach(function(line){                          // 顶层=业务线
-    var nodes=line.depts.map(_deptNode).filter(partVisible);  // 该线下可见部门
-    if(!nodes.length)return;
-    var lopen=(LINE_OPEN[line.name]!==false);                 // 线默认展开
-    h+=_lineHead(board,line.name,lopen,lopen?kbH:null);        // 线标题(展开时钉在看板名下)
-    if(!lopen)return;
-    nodes.forEach(function(node){                             // 二层=部
-      var hasCh=node.children&&node.children.length,open=hasCh&&KB1_OPEN[node.name];
-      if(!hasCh){h+=_navA(board,node.name,node.name,38,cur,'');return;}
-      var arrow='<span onclick="event.stopPropagation();toggleDeptSub(\''+board+'\',\''+node.name+'\')" style="float:right;font-size:10px;padding:0 4px;color:var(--ink3)">'+(open?'▾':'▸')+'</span>';
-      h+=_navA(board,node.name,node.name,38,cur,arrow,open?(kbH+34):null);
-      if(open)node.children.forEach(function(ch){if(centerOK(node.name,ch))h+=_navA(board,node.name+'/'+ch,'· '+ch,56,cur,'');});  // 三层=中心
-    });
+  line.depts.map(_deptNode).filter(partVisible).forEach(function(node){  // 二层=部
+    var hasCh=node.children&&node.children.length,open=hasCh&&KB1_OPEN[node.name];
+    if(!hasCh){h+=_lineDeptA(node.name,node.name,20,cur,'');return;}
+    var arrow='<span onclick="event.stopPropagation();toggleLineDept(\''+lineName+'\',\''+node.name+'\')" style="float:right;font-size:10px;padding:0 4px;color:var(--ink3)">'+(open?'▾':'▸')+'</span>';
+    h+=_lineDeptA(node.name,node.name,20,cur,arrow);
+    if(open)node.children.forEach(function(ch){if(centerOK(node.name,ch))h+=_lineDeptA(node.name+'/'+ch,'· '+ch,36,cur,'');});  // 三层=中心
   });
-  host.innerHTML=h||'<div style="padding:8px 20px;font-size:12px;color:var(--ink3)">无可见部门</div>';}
-function renderAllDeptNav(){DEPT_BOARDS.forEach(function(b){var h=document.getElementById(b+'DeptNav');if(h&&h.style.display!=='none')renderDeptNav(b);});}
-function renderKb1Nav(){renderAllDeptNav();}  // 兼容旧调用（setDept/loadMe）
-function toggleDeptSub(board,name){KB1_OPEN[name]=!KB1_OPEN[name];renderDeptNav(board);}
-function toggleLine(board,name){LINE_OPEN[name]=(LINE_OPEN[name]===false);renderDeptNav(board);}  // 线展开/收起（默认展开）
-function _navSticky(board,on){var lnk=document.getElementById(board+'NavLink');if(!lnk)return;  // 仅展开的看板名固定顶部，收起的不固定
-  if(on){lnk.style.position='sticky';lnk.style.top='0';lnk.style.zIndex='6';lnk.style.background='var(--b50)';}
-  else{lnk.style.position='';lnk.style.top='';lnk.style.zIndex='';lnk.style.background='';}}
-function toggleDeptNav(board){var h=document.getElementById(board+'DeptNav'),a=document.getElementById(board+'NavArrow');if(!h)return;var open=(h.style.display==='none');h.style.display=open?'block':'none';if(a)a.style.transform=open?'rotate(90deg)':'';_navSticky(board,open);if(open)renderDeptNav(board);}
-function toggleKb1Nav(){toggleDeptNav('kb1');}  // 兼容旧调用
-function pickDeptNav(board,d){goView(board);if(window.setDept)window.setDept(d);renderDeptNav(board);}
+  host.innerHTML=h||'<div style="padding:6px 20px;font-size:12px;color:var(--ink3)">无可见部门</div>';}
+function renderAllLineNav(){DEPT_LINES.forEach(function(l){var h=document.getElementById('lineNav_'+l.name);if(h&&h.style.display!=='none')renderLineNav(l.name);});}
+function renderKb1Nav(){renderAllLineNav();}  // 兼容旧调用（setDept/loadMe 刷新部门选中高亮）
+function toggleLineDept(lineName,name){KB1_OPEN[name]=!KB1_OPEN[name];renderLineNav(lineName);}
+function pickLineDept(dept){if(window.setDept)window.setDept(dept);goView('kb1');}  // 选部门空间→进看板1
+function toggleLineNav(lineName){var h=document.getElementById('lineNav_'+lineName),a=document.getElementById('lineArrow_'+lineName),lnk=document.getElementById('lineLink_'+lineName);
+  if(!h)return;var open=(h.style.display==='none');h.style.display=open?'block':'none';
+  if(a)a.style.transform=open?'rotate(90deg)':'';
+  if(lnk)lnk.style.background=open?'var(--b50)':'';  // 展开的线名高亮
+  if(open)renderLineNav(lineName);}
 function renderYearTabs(){
   document.querySelectorAll('.yeartabs').forEach(function(box){
     box.innerHTML='<span class="ytscroll">'+YEARS.map(function(y){
