@@ -1266,7 +1266,7 @@ var srcMap={
   camp:['数仓总数·BP按月分配','待流入·校招：数仓下发「校招·已offer待入职」总数（接口已预留·待接入）；BP 在未发生月手填每月人数做分配，总数列显示「已分配 / 目标」对齐数仓总数；已发生月实际走「已流入·实际校招入职」行。','bp'],
   custom:['BP 自定义','命名行·纯计人头(负数=调减)·右键加备注','bp'], kb2hc:['运算','法定HC：期初(当月)=上月法定HC；当月法定HC=期初+当月子项(分支)求和；首月直接取数（期初锚定）','calc'], kb2quota:['运算','预算当量：当月 = 期初 + 当月「其中」调整求和','calc'], kb2base:['BP 手填','预算过程基线·HC父行=期初+累计调整；预算当量父行=同月其中求和','bp'],
   hc_init:['BP手填(1月)+上月结转','期初法定HC取数：1月=BP手动输入（期初锚定·直接取数）；2–12月=上月「法定HC」父行结转。悬停格看当月取数。','bp'],
-  quota_init:['BP 手填','期初预算当量：BP 每月独立手动录入（全行手填·各月可不同）。','bp']
+  quota_init:['系统取数·只读','期初预算当量（部门维度）：看板2 取系统（预算系统接口·待接入）·整行只读；中心维度预算当量在看板1 由 BP 手填、不在此录入。','src']
 };
 /* 分层取数口径：数仓最小取数粒度=中心；部门=其下各中心该项之和；中心并成子PM组后 组=组内中心之和、部门=各组+未进组中心之和；集团=各部门之和。按当前部门空间给出本级口径。 */
 function levelNote(key){
@@ -1333,7 +1333,8 @@ function tr(cls,label,arr,opt){
     var rowEdit=opt.key&&ROWEDIT===opt.key;
     var anchorMonth=opt.editMonths&&opt.editMonths.indexOf(m)>=0;  // editMonths=硬约束:只放开指定月(如法定HC锚定月),并豁免已发生月锁定；即便整行编辑态也不放开其他月
     var monthOK=opt.editMonths?anchorMonth:true;
-    var editable=opt.edit&&monthOK&&(anchorMonth||m>=lock||(rowEdit&&!opt.editMonths&&!opt.futureOnly))&&!RO&&!isDeptAgg();  // 行编辑态放宽全月可填；部级汇总(含中心)只读不可录入
+    var _deptAnchorOK=opt.deptAnchor&&anchorMonth&&(window.CUR_DEPT||'集团')!=='集团';  // 期初锚定(如看板2法定HC·1月)属部门级BP录入：含中心的部也放开，仅集团(各部门加总)保持只读
+    var editable=opt.edit&&monthOK&&(anchorMonth||m>=lock||(rowEdit&&!opt.editMonths&&!opt.futureOnly))&&!RO&&(!isDeptAgg()||_deptAnchorOK);  // 行编辑态放宽全月可填；部级汇总(含中心)只读，唯期初锚定豁免
     var mut=(opt.mute==='past'&&m<lock)||(opt.mute==='future'&&m>=lock);  // 估/实双轨标灰
     var cl=(m<lock&&opt.lockShade?'lock ':'')+(editable?'edit adj ':'')+(opt.neg&&v<0?'neg ':'')+(mut?'mut ':'');
     var disp=(v===''||(v===0&&opt.hideZero))?'':(opt.negRow&&v!==0?'−'+v:(opt.plus&&v>0?'+'+v:v));
@@ -1579,12 +1580,12 @@ function renderKb2(){
     var s=tr('key',name+tgl+' <span class="badge calc">'+(isHC?'期初+当月调整':'其中求和')+'</span>',tot,{src:isHC?'kb2hc':'kb2quota',avg:isHC?'—':f2(avg12(tot)),lock:0,noTot:true});
     if(open_[sec]){
       if(isHC){
-        // 期初法定HC：1月=BP手填期初锚定（可编辑·落 fa_hc）；2–12月=上月法定HC滚结（只读派生）
+        // 期初法定HC：1月=BP手填期初锚定（含中心的部也可编辑·deptAnchor 豁免加总只读·落 fa_hc）；2–12月=上月法定HC滚结（只读派生）；仅集团(各部门加总)只读
         var baseVals=[];for(var bm=0;bm<12;bm++)baseVals[bm]=(bm===0)?kb2base.hc.vals[0]:tot[bm-1];
-        s+=tr('sub',kb2base.hc.name,baseVals,{src:'hc_init',key:'fa_hc',edit:true,editMonths:[0],avg:'—',lock:0,noTot:true});
+        s+=tr('sub',kb2base.hc.name,baseVals,{src:'hc_init',key:'fa_hc',edit:true,editMonths:[0],deptAnchor:true,avg:'—',lock:0,noTot:true});
       }else{
-        // 期初预算当量：全行手填（每月独立·可不同），落 q_init（PLAN_METRICS·全月可编辑）
-        s+=tr('sub',kb2base.quota.name,kb2base.quota.vals,{src:'quota_init',key:'q_init',edit:true,avg:f2(avg12(kb2base.quota.vals)),lock:0,noTot:true});
+        // 期初预算当量：部门维度=系统取数·只读（看板2 取系统·等预算系统接口）；中心维度预算当量在看板1 由 BP 手填
+        s+=tr('sub',kb2base.quota.name,kb2base.quota.vals,{src:'quota_init',key:'q_init',edit:false,avg:f2(avg12(kb2base.quota.vals)),lock:0,noTot:true});
       }
       s+=customRows(sec,{lock:0,noTot:true,avgMode:isHC?'dash':'calc'});
       s+=addRowTr(sec,'新增分支（填缘由·直接录人数）',true);

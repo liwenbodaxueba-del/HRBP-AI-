@@ -531,7 +531,10 @@ def edit_cell(year: int, e: CellEdit, dept: str = "集团", x_user: str = Header
     with db() as c:
         require_writer(c, x_user)
         if is_agg_dept(dept):
-            raise HTTPException(403, f"「{dept}」为各中心汇总（只读），请在具体中心录入")
+            # 期初法定HC(fa_hc) 是部门级 BP 录入·期初锚定（落部门自身 cells，_grid 按部门维度直取、不上卷）：
+            # 含中心的部放开，仅集团（各部门加总）保持只读。其余项在含中心部仍只读（=各中心之和）。
+            if not (dept in DEPT_CENTERS and e.metric == "fa_hc"):
+                raise HTTPException(403, f"「{dept}」为各中心汇总（只读），请在具体中心录入")
         yr = c.execute("SELECT * FROM years WHERE year=?", (year,)).fetchone()
         if not yr:
             raise HTTPException(404, "年份不存在")
