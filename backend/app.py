@@ -369,49 +369,6 @@ def _user_depts(c, user_id, field="kb0_depts"):
     return DEPTS_ALL if a.get("role") == "管理员" else ["集团"]
 
 
-@app.get("/api/kb0/{year}")
-def get_kb0(year: int, x_user: str = Header("bonniewbli")):
-    """PM 速览：按当前账号权限（kb1_depts）聚合其可见的各部门 —— 每部门回预算当量 + 期末在岗预估（不含法定HC）。"""
-    with db() as c:
-        if not c.execute("SELECT 1 FROM years WHERE year=?", (year,)).fetchone():
-            raise HTTPException(404, "年份不存在")
-        depts = _user_depts(c, x_user)
-    # 看板0：逐个中心展示；某部所有中心都在 → 额外展示该部汇总（中心全选才现部门）
-    show, seen = [], set()
-    for d in depts:
-        if d not in seen:
-            show.append(d); seen.add(d)
-    for part, centers in DEPT_CENTERS.items():
-        if part not in seen and centers and all(ct in seen for ct in centers):
-            show.append(part); seen.add(part)
-    depts = show
-    rows = []
-    for dept in depts:
-        b = get_board(year, dept)  # 复用看板1 运算（各自开库连接）
-        with db() as c:
-            adj = _kb0_adjust(c, year, dept)  # 看板0 调节项（部级=各中心汇总）
-            anote = {}
-            if not is_agg_dept(dept):  # 部级只读无备注；中心/叶子读调节项备注
-                for r in c.execute("SELECT month,note FROM kb0_adjust WHERE year=? AND dept=? AND metric='chain' AND note IS NOT NULL AND note!=''", (year, dept)):
-                    anote[str(r["month"])] = r["note"]
-        chain = b["metrics"]["actual"]["vals"]
-        chain_adj = [((chain[m] if isinstance(chain[m], (int, float)) else 0) + adj[m])
-                     if isinstance(adj[m], (int, float)) else chain[m] for m in range(12)]  # 调整后=期末在岗+调节项
-        nums = [x for x in chain_adj if isinstance(x, (int, float))]
-        rows.append({
-            "dept": dept, "agg": is_agg_dept(dept),  # agg=部级(只读汇总)
-            "budget": b["metrics"]["budget"]["vals"],      # 预算当量
-            "chain": chain,                                 # 实际/预估期末在岗
-            "adjust": adj,                                  # 调节项（中心/叶子可填）
-            "adjustNote": anote,                            # 调节项备注 {month: note}
-            "chainAdj": chain_adj,                          # 调整后期末在岗
-            "budgetAvg": b["computed"]["budget_avg"],
-            "chainAvg": b["computed"]["chain_avg"],
-            "chainAdjAvg": round(sum(nums) / len(nums), 2) if nums else None,
-            "lock": b["lock"], "demo": b["demo"],
-        })
-    return {"year": year, "lock": rows[0]["lock"] if rows else 0, "depts": rows}
-
 
 class Kb0Adjust(BaseModel):
     dept: str
@@ -438,7 +395,7 @@ def kb0_adjust_write(year: int, e: Kb0Adjust, x_user: str = Header("bonniewbli")
             (year, e.dept, e.metric, e.month, e.value, (e.note or "").strip(), x_user, now()),
         )
         _audit(c, x_user, "看板0调节", f"[{e.dept}] {year} {e.month}月 调节项 → {e.value}（{(e.note or '').strip()}）")
-    return get_kb0(year, x_user)
+    return {"ok": True}  # 看板0已删；调节项写入端点保留给子PM组/线级复用
 
 
 class Kb0AdjustBatch(BaseModel):
@@ -467,7 +424,7 @@ def kb0_adjust_batch(year: int, b: Kb0AdjustBatch, x_user: str = Header("bonniew
                 (year, b.dept, b.metric, m, v, (cell.get("note") or "").strip(), x_user, now()),
             )
         _audit(c, x_user, "看板0调节", f"[{b.dept}] {year} 调节项整行保存（{len(b.cells)} 格）")
-    return get_kb0(year, x_user)
+    return {"ok": True}  # 看板0已删；调节项写入端点保留给子PM组/线级复用
 
 
 @app.get("/api/pmgroup/{year}")
