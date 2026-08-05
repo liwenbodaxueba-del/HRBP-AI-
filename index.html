@@ -1247,11 +1247,17 @@ var srcMap={
   quota_init:['BP 手填','期初预算当量：BP 每月独立手动录入（全行手填·各月可不同）。','bp']
 };
 /* 分层取数口径：数仓最小取数粒度=中心；部门=其下各中心该项之和；中心并成子PM组后 组=组内中心之和、部门=各组+未进组中心之和；集团=各部门之和。按当前部门空间给出本级口径。 */
-function levelNote(){
-  var d=window.CUR_DEPT||'集团';
-  if(d.indexOf('/')>=0)return '取数层级 · <b>中心</b>：数仓<b>直取</b>（中心＝取数最小粒度）';
-  if(d==='集团')return '取数层级 · <b>合计</b>：＝各部门该项之和（各部门＝其下中心之和）· 非独立部门';
-  if(typeof isDeptAgg==='function'&&isDeptAgg(d))return '取数层级 · <b>部门</b>：＝其下各中心该项之和；中心并成<b>子PM组</b>后：组＝组内中心之和，部门＝各组＋未进组中心（同层级）之和';
+function levelNote(key){
+  var d=window.CUR_DEPT||'集团',isC=d.indexOf('/')>=0,isJ=(d==='集团'),isAgg=(typeof isDeptAgg==='function'&&isDeptAgg(d));
+  if(key==='budget'||key==='q_init'){  // 预算当量：部门直读看板2(系统)、中心BP手填(纯看·不上卷)、合计=各部门看板2之和
+    if(isC)return '预算当量 · <b>中心</b>：BP <b>手填</b>（纯看·不影响部门/汇总，仅供与系统取数对比）';
+    if(isJ)return '预算当量 · <b>合计</b>：＝各部门看板2之和';
+    if(isAgg)return '预算当量 · <b>部门</b>：<b>直接读看板2</b>（系统/数仓取数）· 不从中心加总；下方给出各中心手填之和 vs 系统取数对比';
+    return '预算当量 · <b>部门</b>：直接读看板2（系统取数）';
+  }
+  if(isC)return '取数层级 · <b>中心</b>：数仓<b>直取</b>（中心＝取数最小粒度）';
+  if(isJ)return '取数层级 · <b>合计</b>：＝各部门该项之和（各部门＝其下中心之和）· 非独立部门';
+  if(isAgg)return '取数层级 · <b>部门</b>：＝其下各中心该项之和；中心并成<b>子PM组</b>后：组＝组内中心之和，部门＝各组＋未进组中心（同层级）之和';
   return '取数层级 · <b>部门</b>（暂无中心拆分）：数仓直取，接入中心后自动改为各中心求和';
 }
 /* ===== 运算（识空：无源数据留空，绝不当0编造） ===== */
@@ -1354,6 +1360,11 @@ function render(){
   for(var m=0;m<12;m++)h+='<th class="'+(m<LOCK?'':'fut')+'">'+M[m]+(m<LOCK?'<span class="lockic"></span>':'')+'</th>';
   h+='<th>'+String(YEAR).slice(2)+'年均</th><th>总数</th></tr>';
   if(cfgOn('budget'))h+=tr('key',cfgName('budget','预算当量')+'<span class="drill"><t-icon name="arrow-down" size="10"></t-icon></span>',BUD,{src:'budget',avg:f2(qa),drill:'kb2',lockShade:true,noTot:false});
+  // 含中心的部：各中心手填预算当量之和 vs 系统取数(上行)对比行——纯看·不上卷·不影响
+  if(cfgOn('budget')&&D.budgetCentersSum){
+    var bcs=D.budgetCentersSum.map(function(v){return isN(v)?v:'';}),cAvg=avg(bcs),dz=(isN(cAvg)&&isN(qa))?(Math.round((cAvg-qa)*100)/100):null;
+    h+=tr('sub','└ 各中心手填之和 <span class="badge bp">对比·纯看</span><span style="color:var(--ink3);font-size:11px;font-weight:400">（不上卷·不影响系统取数'+(dz===null?'':('，年均差 '+(dz>0?'+':'')+dz))+'）</span>',bcs,{avg:f2(cAvg),lockShade:true,noTot:true});
+  }
   // 260723 口径：链行并入——已发生月=月末快照实际，未发生月=预估链（上月−流出+流入）
   if(cfgOn('actual')){
     var mgA=[];for(var mA=0;mA<12;mA++)mgA[mA]=(mA<LOCK)?D.actual[mA]:c[mA];
@@ -1744,7 +1755,7 @@ function bindCells(){
     td.addEventListener('mousemove',function(e){
       var s=srcMap[key];
       var fxh=fxFor(key,td.cellIndex-1);
-      tip.innerHTML='<div class="s1">'+s[0]+'</div><div class="s2">'+s[1]+'</div>'+(fxh?'<div class="s3">'+fxh+'</div>':'')+'<div class="s3" style="margin-top:5px;border-top:1px dashed rgba(255,255,255,.25);padding-top:5px">'+levelNote()+'</div>';
+      tip.innerHTML='<div class="s1">'+s[0]+'</div><div class="s2">'+s[1]+'</div>'+(fxh?'<div class="s3">'+fxh+'</div>':'')+'<div class="s3" style="margin-top:5px;border-top:1px dashed rgba(255,255,255,.25);padding-top:5px">'+levelNote(key)+'</div>';
       tip.style.display='block';tip.style.left=Math.min(e.clientX+14,window.innerWidth-320)+'px';tip.style.top=(e.clientY+14)+'px';
     });
     td.addEventListener('mouseleave',function(){tip.style.display='none';});
@@ -1754,7 +1765,7 @@ function bindCells(){
     var key=td.getAttribute('data-labsrc');if(!key||!srcMap[key])return;
     td.addEventListener('mousemove',function(e){
       var s=srcMap[key];
-      tip.innerHTML='<div class="s1">'+s[0]+'</div><div class="s2">'+s[1]+'</div><div class="s3" style="margin-top:5px;border-top:1px dashed rgba(255,255,255,.25);padding-top:5px">'+levelNote()+'</div>';
+      tip.innerHTML='<div class="s1">'+s[0]+'</div><div class="s2">'+s[1]+'</div><div class="s3" style="margin-top:5px;border-top:1px dashed rgba(255,255,255,.25);padding-top:5px">'+levelNote(key)+'</div>';
       tip.style.display='block';tip.style.left=Math.min(e.clientX+14,window.innerWidth-320)+'px';tip.style.top=(e.clientY+14)+'px';
     });
     td.addEventListener('mouseleave',function(){tip.style.display='none';});
@@ -2447,6 +2458,7 @@ function applyBoard(b){
   var coArr=((b.metrics.camp_off_tot||{}).vals||[]);d.camp_off_tot='';
   for(var ci=0;ci<coArr.length;ci++)if(coArr[ci]!=null){d.camp_off_tot=coArr[ci];break;}
   d.q_init=((b.metrics.q_init||{}).vals||[]).map(nn);while(d.q_init.length<12)d.q_init.push('');
+  d.budgetCentersSum=b.budget_centers_sum||null;  // 含中心的部：各中心预算当量之和（对比用·纯看）
   MEMOS[y]={};
   Object.keys(b.metrics).forEach(function(k){var ns=b.metrics[k].notes||{};Object.keys(ns).forEach(function(m){MEMOS[y][k+'_'+(m-1)]=ns[m];});});
   var cu=emptyCustom();

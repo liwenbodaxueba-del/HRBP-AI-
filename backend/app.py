@@ -383,9 +383,18 @@ def get_board(year: int, dept: str = "集团"):
         demo = bool(c.execute("SELECT 1 FROM cells WHERE year=? AND dept=? AND source='demo' LIMIT 1", (year, dept)).fetchone()
                     or c.execute("SELECT 1 FROM branches WHERE year=? AND dept=? AND created_by='demo' LIMIT 1", (year, dept)).fetchone()
                     or (dept == "集团" and c.execute("SELECT 1 FROM ledger_rows WHERE batch=-999 LIMIT 1").fetchone()))
-        return {"year": year, "dept": dept, "status": yr["status"], "lock": yr["lock_month"], "seed": seed,
-                "metrics": metrics, "branches": brs, "computed": comp, "nat": comp["nat"],
-                "demo": demo, "ts": int(time.time() * 1000)}
+    # 含中心的部：各中心预算当量之和（供与系统取数=看板2部门维度对比·纯参考·不上卷不影响）
+    budget_centers_sum = None
+    if dept in DEPT_CENTERS:
+        budget_centers_sum = [None] * 12
+        for center in DEPT_CENTERS[dept]:
+            cb = get_board(year, center)["metrics"]["budget"]["vals"]
+            for m in range(12):
+                if isinstance(cb[m], (int, float)):
+                    budget_centers_sum[m] = (budget_centers_sum[m] if isinstance(budget_centers_sum[m], (int, float)) else 0) + cb[m]
+    return {"year": year, "dept": dept, "status": yr["status"], "lock": yr["lock_month"], "seed": seed,
+            "metrics": metrics, "branches": brs, "computed": comp, "nat": comp["nat"],
+            "budget_centers_sum": budget_centers_sum, "demo": demo, "ts": int(time.time() * 1000)}
 
 
 DEPTS_ALL = ["集团", "云产品一部", "云产品二部", "云产品三部", "云产品四部", "云产品五部"]
