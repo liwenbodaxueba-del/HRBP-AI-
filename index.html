@@ -453,9 +453,9 @@ body.navfold .navtg{left:8px;}
   </div>
   <div class="grp">看板</div>
   <a class="on" data-v="kb0" onclick="go(this)">看板0 · PM 速览</a>
-  <a id="lineLink_coby线" onclick="toggleLineNav('coby线')" style="font-weight:600">coby线<span id="lineArrow_coby线" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>
+  <a id="lineLink_coby线" onclick="goLineView('coby线')" style="font-weight:600">coby线<span id="lineArrow_coby线" onclick="event.stopPropagation();toggleLineNav('coby线')" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>
   <div id="lineNav_coby线" style="display:none;margin:-2px 0 4px 0"></div>
-  <a id="lineLink_wang线" onclick="toggleLineNav('wang线')" style="font-weight:600">wang线<span id="lineArrow_wang线" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>
+  <a id="lineLink_wang线" onclick="goLineView('wang线')" style="font-weight:600">wang线<span id="lineArrow_wang线" onclick="event.stopPropagation();toggleLineNav('wang线')" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>
   <div id="lineNav_wang线" style="display:none;margin:-2px 0 4px 0"></div>
   <a data-v="kb1" onclick="go(this)">看板1 · 集团人力预估表</a>
   <a data-v="kb2" onclick="go(this)">看板2 · 预算看板</a>
@@ -499,6 +499,10 @@ body.navfold .navtg{left:8px;}
   <div style="margin:2px 0 12px;display:flex;align-items:center;flex-wrap:wrap;gap:6px"><b style="font-size:16px;color:var(--navy)">看板0 · PM 速览</b><span style="color:var(--ink3);font-size:12.5px;margin-left:8px">责任部门</span><span id="kb0DeptTag" style="display:inline-flex;flex-wrap:wrap;gap:6px"></span></div>
   <div class="yeartabs"></div>
   <div id="kb0Host"></div>
+</div>
+<!-- 业务线页（点线名进）：负责人(CVP) + 该线部门列表 -->
+<div class="view" id="v-line">
+  <div id="lineHost"></div>
 </div>
 <!-- 看板4 · 云智&外包（两张表·结构同看板1；总流入/总流出仅手填「新增分支」；预算当量/期末在岗待接入留空） -->
 <div class="view" id="v-kb4">
@@ -988,6 +992,23 @@ function renderAllLineNav(){DEPT_LINES.forEach(function(l){var h=document.getEle
 function renderKb1Nav(){renderAllLineNav();}  // 兼容旧调用（setDept/loadMe 刷新部门选中高亮）
 function toggleLineDept(lineName,name){KB1_OPEN[name]=!KB1_OPEN[name];renderLineNav(lineName);}
 function pickLineDept(dept){if(window.setDept)window.setDept(dept);goView('kb1');}  // 选部门空间→进看板1
+var SEL_LINE=null;
+function renderLineView(lineName){var host=document.getElementById('lineHost');if(!host)return;
+  var line=null;for(var i=0;i<DEPT_LINES.length;i++)if(DEPT_LINES[i].name===lineName)line=DEPT_LINES[i];if(!line){host.innerHTML='';return;}
+  var MY=window.MY, adm=!MY, al=(MY&&MY.kb1_depts)||[];
+  function deptVisible(name){var node=_deptNode(name);if(adm||al.indexOf(name)>=0)return true;return (node.children||[]).some(function(ch){return al.indexOf(name+'/'+ch)>=0;});}
+  var depts=line.depts.filter(deptVisible);
+  var rows=depts.map(function(d){return '<a onclick="pickLineDept(\''+d.replace(/'/g,"")+'\')" title="进看板1 · '+d+'" style="display:block;padding:11px 14px;margin-bottom:8px;border:1px solid var(--b100);border-radius:10px;font-size:13.5px;color:var(--ink2);background:#fff;cursor:pointer;text-decoration:none">'+d+'</a>';}).join('');
+  host.innerHTML=
+    '<div style="margin:2px 0 14px"><b style="font-size:19px;color:var(--navy)">'+line.name+'</b>'
+    +'<span style="font-size:12.5px;color:var(--ink3);margin-left:10px">业务线 · 负责人 '+line.head+' · 共 '+depts.length+' 个部门（点部门进看板1）</span></div>'
+    +'<div style="max-width:420px;background:#fff;border:1px solid var(--b100);border-top:3px solid var(--blue);border-radius:14px;padding:20px 22px;box-shadow:0 2px 10px rgba(10,46,110,.05)">'
+    +'<div style="text-align:center;margin-bottom:14px"><span style="display:inline-block;background:var(--b100);color:var(--blue);font-size:11px;font-weight:700;letter-spacing:.5px;padding:2px 12px;border-radius:12px">CVP</span>'
+    +'<div style="font-size:17px;font-weight:700;color:var(--navy);margin-top:8px">'+line.head+'</div></div>'
+    +(rows||'<div style="text-align:center;color:var(--ink3);font-size:12.5px;padding:8px">无可见部门</div>')+'</div>';}
+function goLineView(lineName){SEL_LINE=lineName;goView('line');renderLineView(lineName);
+  document.querySelectorAll('nav.side a[id^="lineLink_"]').forEach(function(a){a.classList.remove('on');});
+  var lnk=document.getElementById('lineLink_'+lineName);if(lnk)lnk.classList.add('on');}
 function toggleLineNav(lineName){var h=document.getElementById('lineNav_'+lineName),a=document.getElementById('lineArrow_'+lineName),lnk=document.getElementById('lineLink_'+lineName);
   if(!h)return;var open=(h.style.display==='none');h.style.display=open?'block':'none';
   if(a)a.style.transform=open?'rotate(90deg)':'';
