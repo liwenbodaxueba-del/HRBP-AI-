@@ -1250,7 +1250,7 @@ var srcMap={
 function levelNote(key){
   var d=window.CUR_DEPT||'集团',isC=d.indexOf('/')>=0,isJ=(d==='集团'),isAgg=(typeof isDeptAgg==='function'&&isDeptAgg(d));
   if(key==='budget'||key==='q_init'){  // 预算当量：部门直读看板2(系统)、中心BP手填(纯看·不上卷)、合计=各部门看板2之和
-    if(isC)return '预算当量 · <b>中心</b>：BP <b>手填</b>（纯看·不影响部门/汇总，仅供与系统取数对比）';
+    if(isC)return '预算当量 · <b>中心</b>：<b>直接在看板1 手填</b>（中心无独立看板2）· 不上卷、不影响部门系统取数，仅供对比';
     if(isJ)return '预算当量 · <b>合计</b>：＝各部门看板2之和';
     if(isAgg)return '预算当量 · <b>部门</b>：<b>直接读看板2</b>（系统/数仓取数）· 不从中心加总；下方给出各中心手填之和 vs 系统取数对比';
     return '预算当量 · <b>部门</b>：直接读看板2（系统取数）';
@@ -1359,7 +1359,15 @@ function render(){
   var h='<tr><th>项目</th>';
   for(var m=0;m<12;m++)h+='<th class="'+(m<LOCK?'':'fut')+'">'+M[m]+(m<LOCK?'<span class="lockic"></span>':'')+'</th>';
   h+='<th>'+String(YEAR).slice(2)+'年均</th><th>总数</th></tr>';
-  if(cfgOn('budget'))h+=tr('key',cfgName('budget','预算当量')+'<span class="drill"><t-icon name="arrow-down" size="10"></t-icon></span>',BUD,{src:'budget',avg:f2(qa),drill:'kb2',lockShade:true,noTot:false});
+  if(cfgOn('budget')){
+    var isCtr=(window.CUR_DEPT||'').indexOf('/')>=0;
+    if(isCtr){  // 中心：预算当量直接在看板1 手填（中心无独立看板2），全年可填，存 q_init
+      var QI=D.q_init.map(function(v){return isN(v)?v:'';});
+      h+=tr('key',cfgName('budget','预算当量')+' <span class="badge bp">BP·手填</span>',QI,{src:'budget',key:'q_init',edit:true,editMonths:[0,1,2,3,4,5,6,7,8,9,10,11],avg:f2(avg(QI)),lockShade:true,noTot:false});
+    }else{  // 部门/合计：直接读看板2（系统取数），双击下钻看板2
+      h+=tr('key',cfgName('budget','预算当量')+'<span class="drill"><t-icon name="arrow-down" size="10"></t-icon></span>',BUD,{src:'budget',avg:f2(qa),drill:'kb2',lockShade:true,noTot:false});
+    }
+  }
   // 含中心的部：各中心手填预算当量之和 vs 系统取数(上行)对比行——纯看·不上卷·不影响
   if(cfgOn('budget')&&D.budgetCentersSum){
     var bcs=D.budgetCentersSum.map(function(v){return isN(v)?v:'';}),cAvg=avg(bcs),dz=(isN(cAvg)&&isN(qa))?(Math.round((cAvg-qa)*100)/100):null;
