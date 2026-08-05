@@ -412,12 +412,7 @@ def _kb0_adjust(c, year, dept, metric="chain"):
     return out
 
 
-def _branches(c, year, dept="集团"):
-    if dept == "集团":  # 合计=各部门分支并集
-        out = []
-        for d in ALL_DEPTS:
-            out.extend(_branches(c, year, d))
-        return out
+def _read_branches(c, year, dept):
     out = []
     for b in c.execute("SELECT * FROM branches WHERE year=? AND dept=? AND on_ok=1 ORDER BY id", (year, dept)):
         vals = [None] * 12
@@ -429,3 +424,23 @@ def _branches(c, year, dept="集团"):
                     bnotes[r["month"]] = r["note"]
         out.append({"id": b["id"], "sec": b["sec"], "name": b["name"], "sign": b["sign"], "vals": vals, "notes": bnotes})
     return out
+
+
+def _branches(c, year, dept="集团"):
+    if dept == "集团":  # 合计=各部门分支并集
+        out = []
+        for d in ALL_DEPTS:
+            out.extend(_branches(c, year, d))
+        return out
+    if dept in DEPT_CENTERS:  # 含中心的部：把各中心手动分支汇总上来(标注中心·只读)，计入部门运算(表多出这几项)
+        out = []
+        for center in DEPT_CENTERS[dept]:
+            cn = center.split("/")[-1]
+            for b in _read_branches(c, year, center):
+                b = dict(b)
+                b["name"] = b["name"] + "（" + cn + "）"
+                b["center"] = cn
+                b["agg"] = True
+                out.append(b)
+        return out
+    return _read_branches(c, year, dept)

@@ -1331,6 +1331,12 @@ function customRows(sec,extra){
     var key='C'+r.id; cmap[key]={sec:sec,row:r};
     var tot=sum(r.vals)*(r.sign==='-'?-1:1);  // 260723 起新分支一律 '+'（纯计人头，负数=调减）；兼容历史 '−'
     var label;
+    if(r.agg){  // 汇总来的中心手动分支：只读·名字已含中心标注（点部门时表多出这几项，计入运算）
+      label=(extra.prefix||'')+esc(r.name)+' <span class="badge calc" title="来自中心的手动分支·已计入部门运算·请在该中心录入">中心汇总</span>';
+      var avgA=extra.avgMode==='dash'?'—':(extra.avgMode==='calc'?f2(avg12(r.vals)):undefined);
+      out+=tr('sub'+(extra.deep?'2':''),label,r.vals,{src:'custom',hideZero:true,lock:extra.lock,avg:avgA,tot:(extra.noTot?undefined:tot),noTot:extra.noTot});
+      return;
+    }
     if(r._new){  // 260724 待命名新行：行名直接内联编辑（不弹窗），回车/失焦校验必填
       label=(extra.prefix||'')+'<input class="rowname-inp" id="ninp_'+key+'" type="text" placeholder="填缘由后回车（必填）" value="'+esc(r.name||'')+'" '
         +'onkeydown="if(event.key===\'Enter\'){commitNewRow(\''+key+'\',this.value);rowEditSave(\''+key+'\');}else if(event.key===\'Escape\'){cancelNewRow(\''+key+'\');}" '
@@ -1393,7 +1399,7 @@ function render(){
     if(cfgOn('o_act')){var eOact=cfgEdit('o_act','all');h+=tr('sub',cfgName('o_act','待流出 · 主动动作（BP）（调节项）')+(eOact!=='no'?pen('o_act'):''),D.o_act,{src:'o_act',key:'o_act',edit:eOact!=='no',futureOnly:eOact==='future',hideZero:true,tot:sum(D.o_act),lockShade:true,mute:'past'});}
     h+=customRows('out');
     h+=extraRows('总流出（−）');
-    if(!RO&&secAllow('总流出（−）'))h+=addRowTr('out');
+    if(!RO&&!isDeptAgg()&&secAllow('总流出（−）'))h+=addRowTr('out');  // 汇总部门只读·不可加分支(请在中心录入)
   }
   // 总流入（＋）
   var inT=[];for(var m3=0;m3<12;m3++)inT[m3]=inflow(m3);
@@ -1431,7 +1437,7 @@ function render(){
     if(cfgOn('i_incr')){var eIincr=cfgEdit('i_incr','all');h+=tr('sub',cfgName('i_incr','待流入 · 增量需求（BP）（调节项）')+(eIincr!=='no'?pen('i_incr'):''),D.i_incr,{src:'i_incr',key:'i_incr',edit:eIincr!=='no',futureOnly:eIincr==='future',hideZero:true,tot:sum(D.i_incr),lockShade:true,mute:'past'});}
     h+=customRows('inn');
     h+=extraRows('总流入（＋）');
-    if(!RO&&secAllow('总流入（＋）'))h+=addRowTr('inn');
+    if(!RO&&!isDeptAgg()&&secAllow('总流入（＋）'))h+=addRowTr('inn');  // 汇总部门只读·不可加分支(请在中心录入)
   }
   var ca=avg(c), qa2=avg(BUD);
   // 链行已删（260723）：预估并入上方「月末实际在岗/期末在岗预估」行
@@ -2472,7 +2478,7 @@ function applyBoard(b){
   var cu=emptyCustom();
   (b.branches||[]).forEach(function(br){
     var fk=SEC2FRONT[br.sec];if(!fk)return;
-    cu[fk].push({id:br.id,name:br.name,sign:br.sign,vals:br.vals.map(nn),api:true});
+    cu[fk].push({id:br.id,name:br.name,sign:br.sign,vals:br.vals.map(nn),api:true,agg:!!br.agg,center:br.center||''});
     Object.keys(br.notes||{}).forEach(function(m){MEMOS[y]['C'+br.id+'_'+(m-1)]=br.notes[m];});
   });
   CUSTOM[y]=cu;
