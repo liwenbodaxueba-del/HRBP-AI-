@@ -1078,20 +1078,68 @@ function renderKb1Nav(){renderAllLineNav();renderAllDeptNav();}  // 刷新线导
 function toggleLineDept(lineName,name){KB1_OPEN[name]=!KB1_OPEN[name];renderLineNav(lineName);}
 function pickLineDept(dept){PMG_ON=false;if(window.setDept)window.setDept(dept);goView('kb1');}  // 选部门空间→进看板1（退出子PM组空间）
 var SEL_LINE=null;
-function renderLineView(lineName){var host=document.getElementById('lineHost');if(!host)return;
-  var line=null;for(var i=0;i<DEPT_LINES.length;i++)if(DEPT_LINES[i].name===lineName)line=DEPT_LINES[i];if(!line){host.innerHTML='';return;}
+var LINEBRD=null;
+function loadLineBoard(lineName){
+  var line=null;for(var i=0;i<DEPT_LINES.length;i++)if(DEPT_LINES[i].name===lineName)line=DEPT_LINES[i];
+  var host=document.getElementById('lineHost');if(!host)return;if(!line){host.innerHTML='';return;}
   var MY=window.MY, adm=!MY, al=(MY&&MY.kb1_depts)||[];
-  function deptVisible(name){var node=_deptNode(name);if(adm||al.indexOf(name)>=0)return true;return (node.children||[]).some(function(ch){return al.indexOf(name+'/'+ch)>=0;});}
+  function deptVisible(nm){var node=_deptNode(nm);if(adm||al.indexOf(nm)>=0)return true;return (node.children||[]).some(function(ch){return al.indexOf(nm+'/'+ch)>=0;});}
   var depts=line.depts.filter(deptVisible);
-  var rows=depts.map(function(d){return '<a onclick="pickLineDept(\''+d.replace(/'/g,"")+'\')" title="进看板1 · '+d+'" style="display:block;padding:11px 14px;margin-bottom:8px;border:1px solid var(--b100);border-radius:10px;font-size:13.5px;color:var(--ink2);background:#fff;cursor:pointer;text-decoration:none">'+d+'</a>';}).join('');
-  host.innerHTML=
-    '<div style="margin:2px 0 14px"><b style="font-size:19px;color:var(--navy)">'+line.name+'</b>'
-    +'<span style="font-size:12.5px;color:var(--ink3);margin-left:10px">业务线 · 负责人 '+line.head+' · 共 '+depts.length+' 个部门（点部门进看板1）</span></div>'
-    +'<div style="max-width:420px;background:#fff;border:1px solid var(--b100);border-top:3px solid var(--blue);border-radius:14px;padding:20px 22px;box-shadow:0 2px 10px rgba(10,46,110,.05)">'
-    +'<div style="text-align:center;margin-bottom:14px"><span style="display:inline-block;background:var(--b100);color:var(--blue);font-size:11px;font-weight:700;letter-spacing:.5px;padding:2px 12px;border-radius:12px">CVP</span>'
-    +'<div style="font-size:17px;font-weight:700;color:var(--navy);margin-top:8px">'+line.head+'</div></div>'
-    +(rows||'<div style="text-align:center;color:var(--ink3);font-size:12.5px;padding:8px">无可见部门</div>')+'</div>';}
-function goLineView(lineName){PMG_ON=false;SEL_LINE=lineName;goView('line');renderLineView(lineName);
+  var keepDetail=(LINEBRD&&LINEBRD.name===lineName)?LINEBRD.openDetail:false;
+  LINEBRD={name:lineName,head:line.head,depts:depts,key:'LINE:'+lineName,data:null,openDetail:keepDetail};
+  host.innerHTML='<div class="hint" style="padding:16px;color:var(--ink3)">加载中…</div>';
+  if(!window.USE_API){renderLineBoard();return;}
+  var url='/api/pmgroup/'+YEAR+'?centers='+encodeURIComponent(depts.join(','))+'&key='+encodeURIComponent(LINEBRD.key);
+  fetch(url,{headers:{'X-User':'bonniewbli'}}).then(function(r){return r.json();}).then(function(j){LINEBRD.data=j;renderLineBoard();}).catch(function(){renderLineBoard();});
+}
+function renderLineBoard(){
+  var host=document.getElementById('lineHost'),L=LINEBRD;if(!host||!L)return;
+  var d=L.data,yy=String(YEAR).slice(2);
+  function nv(v){return (v===null||v===undefined||v==='')?'':v;}
+  var h='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:2px 0 12px">'
+    +'<b style="font-size:19px;color:var(--navy)">'+esc(L.name)+'</b>'
+    +'<span style="font-size:12px;font-weight:700;color:var(--blue);background:var(--b100);padding:2px 10px;border-radius:12px">CVP · '+esc(L.head||'—')+'</span>'
+    +'<span style="font-size:12.5px;color:var(--ink3)">业务线汇总 · 共 '+L.depts.length+' 个部门 · 预算当量/期末在岗=各部门求和（只读）· 调节项本线可手调</span></div>';
+  if(!d){host.innerHTML=h+'<div class="hint" style="padding:12px">无数据</div>';return;}
+  h+='<div class="tblwrap"><table class="bsc kb0tbl"><tr><th>项目</th>';
+  for(var m=0;m<12;m++)h+='<th class="'+(m<LOCK?'':'fut')+'">'+M[m]+(m<LOCK?'<span class="lockic"></span>':'')+'</th>';
+  h+='<th>'+yy+'年均</th></tr>';
+  h+=tr('key','预算当量 <span class="badge calc">看板2</span>',(d.budget||[]).map(nv),{avg:(typeof f2==='function'?f2(d.budgetAvg):d.budgetAvg),lockShade:true,noTot:true});
+  h+=tr('key','实际/预估期末在岗 <span class="badge calc">链·各部门求和</span>',(d.chain||[]).map(nv),{avg:(typeof f2==='function'?f2(d.chainAvg):d.chainAvg),lockShade:true,noTot:true});
+  var adj=d.adjust||[];
+  h+='<tr class="sub"><td style="color:var(--navy);font-weight:600">➕ 调节项 <span style="color:var(--ink3);font-weight:400;font-size:11px">（本线·可手调）</span></td>';
+  for(var mj=0;mj<12;mj++){var av=nv(adj[mj]);
+    if(mj<LOCK){h+='<td class="mut" style="text-align:right">'+av+'</td>';}
+    else{h+='<td style="padding:0"><input type="number" step="1" value="'+av+'" onchange="lineAdjSave('+(mj+1)+',this.value)" style="width:100%;min-width:42px;border:1px solid transparent;padding:3px 4px;font:inherit;text-align:right;background:transparent;border-radius:4px" onfocus="this.style.borderColor=\'var(--blue-l)\';this.style.background=\'#fff\'" onblur="this.style.borderColor=\'transparent\';this.style.background=\'transparent\'"></td>';}}
+  h+='<td></td></tr>';
+  h+=tr('key','调整后期末在岗 <span class="badge calc">＝链＋调节</span>',(d.chainAdj||[]).map(nv),{avg:(typeof f2==='function'?f2(d.chainAdjAvg):d.chainAdjAvg),lockShade:true,noTot:true});
+  h+='</table></div>';
+  // 明细（各部门·可展开）：每个部门期末在岗一行，点部门名进看板1
+  var mem=d.members||[];
+  h+='<div style="margin-top:14px"><a onclick="toggleLineDetail()" style="cursor:pointer;font-size:13px;font-weight:600;color:var(--navy)">'+(L.openDetail?'▾':'▸')+' 明细（各部门 '+mem.length+'）</a>';
+  if(L.openDetail){
+    h+='<div class="tblwrap" style="margin-top:8px"><table class="bsc kb0tbl"><tr><th>部门 · 期末在岗</th>';
+    for(var m2=0;m2<12;m2++)h+='<th class="'+(m2<LOCK?'':'fut')+'">'+M[m2]+'</th>';
+    h+='<th>'+yy+'年均</th></tr>';
+    mem.forEach(function(mb){
+      h+='<tr><td><a onclick="pickLineDept(\''+String(mb.name).replace(/'/g,"")+'\')" style="color:var(--blue);cursor:pointer" title="进看板1 · '+esc(mb.name)+'">'+esc(mb.name)+'</a></td>';
+      for(var k=0;k<12;k++){var v=(mb.chain&&mb.chain[k]!=null)?mb.chain[k]:'';h+='<td class="'+(k<LOCK?'mut':'')+'" style="text-align:right">'+v+'</td>';}
+      h+='<td style="text-align:right;font-weight:600">'+(mb.chainAvg!=null?(typeof f2==='function'?f2(mb.chainAvg):mb.chainAvg):'')+'</td></tr>';
+    });
+    h+='</table></div>';
+  }
+  h+='</div>';
+  host.innerHTML=h;
+}
+function toggleLineDetail(){if(LINEBRD){LINEBRD.openDetail=!LINEBRD.openDetail;renderLineBoard();}}
+function lineAdjSave(month,value){var L=LINEBRD;if(!L)return;
+  var v=(value===''||value==null)?null:parseFloat(value);if(v!==null&&isNaN(v))return;
+  fetch('/api/kb0/'+YEAR+'/adjust',{method:'POST',headers:{'Content-Type':'application/json','X-User':'bonniewbli'},body:JSON.stringify({dept:L.key,month:month,value:v,note:''})})
+    .then(function(r){return r.json();}).then(function(){return loadLineBoard(L.name);})
+    .then(function(){if(typeof toast==='function')toast('调节项已保存（本线·不影响源）');}).catch(function(){});
+}
+function renderLineView(lineName){loadLineBoard(lineName);}  // 兼容旧调用
+function goLineView(lineName){PMG_ON=false;SEL_LINE=lineName;goView('line');loadLineBoard(lineName);
   document.querySelectorAll('nav.side a[id^="lineLink_"]').forEach(function(a){a.classList.remove('on');});
   var lnk=document.getElementById('lineLink_'+lineName);if(lnk)lnk.classList.add('on');}
 function toggleLineNav(lineName){var h=document.getElementById('lineNav_'+lineName),a=document.getElementById('lineArrow_'+lineName),lnk=document.getElementById('lineLink_'+lineName);
@@ -1504,7 +1552,7 @@ function renderKb0(){
 }
 function renderKb0Tables(){
   var host=document.getElementById('kb0Host');if(!host||!KB0DATA)return;
-  var depts=KB0DATA.depts||[];
+  var depts=(KB0DATA.depts||[]).filter(function(d){return d.dept!=='集团';});  // 集团=全公司汇总，不作为"责任部门"列出
   var tag=document.getElementById('kb0DeptTag');  // 责任部门标签（与后台组织分工同源）
   if(tag)tag.innerHTML=depts.length?depts.map(function(d){return '<span style="background:var(--b50);color:var(--blue);font-size:12px;font-weight:600;padding:2px 10px;border-radius:12px">'+esc(d.dept)+'</span>';}).join(''):'<span style="color:var(--ink3);font-size:12.5px">未配置（后台设置）</span>';
   host.innerHTML=depts.map(function(d){return kb0Table(d);}).join('')||'<div class="hint" style="padding:16px">当前账号未配置 PM 速览可见部门 —— 请在管理后台「账号与权限」配置看板0部门。</div>';
