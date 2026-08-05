@@ -1063,14 +1063,8 @@ function renderLineNav(lineName){var host=document.getElementById('lineNav_'+lin
   function centerOK(n,ch){return adm||al.indexOf(n)>=0||al.indexOf(n+'/'+ch)>=0;}
   function partVisible(node){if(adm||al.indexOf(node.name)>=0)return true;
     return (node.children||[]).some(function(ch){return al.indexOf(node.name+'/'+ch)>=0;});}
-  line.depts.map(_deptNode).filter(partVisible).forEach(function(node){  // 二层=部
-    var hasCh=node.children&&node.children.length,open=hasCh&&KB1_OPEN[node.name];
-    if(!hasCh){h+=_lineDeptA(node.name,node.name,20,cur,'');return;}
-    var arrow='<span onclick="event.stopPropagation();toggleLineDept(\''+lineName+'\',\''+node.name+'\')" style="float:right;font-size:10px;padding:0 4px;color:var(--ink3)">'+(open?'▾':'▸')+'</span>';
-    h+=_lineDeptA(node.name,node.name,20,cur,arrow);
-    if(open)_emitCenters(node.name,node.children,centerOK,36,52,
-      function(c,pad){h+=_lineDeptA(node.name+'/'+c,'· '+c,pad,cur,'');},
-      function(g,pad){h+=_pmGroupHead(g,pad,node.name);});  // 三层=中心（有子PM组则 部→组→中心）
+  line.depts.map(_deptNode).filter(partVisible).forEach(function(node){  // 线级只到部门级（不再拆中心）
+    h+=_lineDeptA(node.name,node.name,20,cur,'');
   });
   host.innerHTML=h||'<div style="padding:6px 20px;font-size:12px;color:var(--ink3)">无可见部门</div>';}
 function renderAllLineNav(){DEPT_LINES.forEach(function(l){var h=document.getElementById('lineNav_'+l.name);if(h&&h.style.display!=='none')renderLineNav(l.name);});}
@@ -1245,6 +1239,14 @@ var srcMap={
   hc_init:['BP手填(1月)+上月结转','期初法定HC取数：1月=BP手动输入（期初锚定·直接取数）；2–12月=上月「法定HC」父行结转。悬停格看当月取数。','bp'],
   quota_init:['BP 手填','期初预算当量：BP 每月独立手动录入（全行手填·各月可不同）。','bp']
 };
+/* 分层取数口径：数仓最小取数粒度=中心；部门=其下各中心该项之和；中心并成子PM组后 组=组内中心之和、部门=各组+未进组中心之和；集团=各部门之和。按当前部门空间给出本级口径。 */
+function levelNote(){
+  var d=window.CUR_DEPT||'集团';
+  if(d.indexOf('/')>=0)return '取数层级 · <b>中心</b>：数仓<b>直取</b>（中心＝取数最小粒度）';
+  if(d==='集团')return '取数层级 · <b>集团</b>：＝各部门该项之和（＝全部中心之和）';
+  if(typeof isDeptAgg==='function'&&isDeptAgg(d))return '取数层级 · <b>部门</b>：＝其下各中心该项之和；中心并成<b>子PM组</b>后：组＝组内中心之和，部门＝各组＋未进组中心（同层级）之和';
+  return '取数层级 · <b>部门</b>（暂无中心拆分）：数仓直取，接入中心后自动改为各中心求和';
+}
 /* ===== 运算（识空：无源数据留空，绝不当0编造） ===== */
 function isN(x){return typeof x==='number';}
 function sum(a){var n=a.filter(isN);return n.length?n.reduce(function(x,y){return x+y;},0):'';}   // 全空→''
@@ -1817,7 +1819,7 @@ function bindCells(){
     td.addEventListener('mousemove',function(e){
       var s=srcMap[key];
       var fxh=fxFor(key,td.cellIndex-1);
-      tip.innerHTML='<div class="s1">'+s[0]+'</div><div class="s2">'+s[1]+'</div>'+(fxh?'<div class="s3">'+fxh+'</div>':'');
+      tip.innerHTML='<div class="s1">'+s[0]+'</div><div class="s2">'+s[1]+'</div>'+(fxh?'<div class="s3">'+fxh+'</div>':'')+'<div class="s3" style="margin-top:5px;border-top:1px dashed rgba(255,255,255,.25);padding-top:5px">'+levelNote()+'</div>';
       tip.style.display='block';tip.style.left=Math.min(e.clientX+14,window.innerWidth-320)+'px';tip.style.top=(e.clientY+14)+'px';
     });
     td.addEventListener('mouseleave',function(){tip.style.display='none';});
@@ -1827,7 +1829,7 @@ function bindCells(){
     var key=td.getAttribute('data-labsrc');if(!key||!srcMap[key])return;
     td.addEventListener('mousemove',function(e){
       var s=srcMap[key];
-      tip.innerHTML='<div class="s1">'+s[0]+'</div><div class="s2">'+s[1]+'</div>';
+      tip.innerHTML='<div class="s1">'+s[0]+'</div><div class="s2">'+s[1]+'</div><div class="s3" style="margin-top:5px;border-top:1px dashed rgba(255,255,255,.25);padding-top:5px">'+levelNote()+'</div>';
       tip.style.display='block';tip.style.left=Math.min(e.clientX+14,window.innerWidth-320)+'px';tip.style.top=(e.clientY+14)+'px';
     });
     td.addEventListener('mouseleave',function(){tip.style.display='none';});
