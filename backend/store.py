@@ -332,15 +332,34 @@ _DEPT_CHILDREN = {
 }
 DEPT_CENTERS = {p: [p + "/" + ch for ch in kids] for p, kids in _DEPT_CHILDREN.items()}
 
+# 全部顶层部门（与 DEPT_TREE 一致，去「集团」）。「集团」不是独立部门，而是各部门加总口径（合计）。
+ALL_DEPTS = ["云产品一部", "云产品二部", "云产品三部", "云产品四部", "云产品五部", "云产品六部",
+             "安全产品一部", "安全产品二部", "安全产品三部", "战略客户部",
+             "智慧行业一部", "智慧行业七部", "智慧行业十部",
+             "科恩实验室", "玄武实验室", "优图实验室", "星星海实验室",
+             "企业中台产品部", "社交协作产品部", "ima产品中心",
+             "云产品技术支持部", "云技术运营服务部", "云运营管理部", "云采购供应管理部",
+             "港澳台及国际业务部", "CSIG产品管理支持中心"]
+
 
 def is_agg_dept(dept):
-    """该 dept 是否为『含中心的部』——看板取数=各中心加总（只读汇总，不可直接录入）"""
-    return dept in DEPT_CENTERS
+    """该 dept 是否为只读汇总：『含中心的部』(各中心加总) 或『集团』(各部门加总·合计)——不可直接录入"""
+    return dept in DEPT_CENTERS or dept == "集团"
 
 
 def _grid(c, year, dept="集团"):
     """cells → {metric: [v or None]*12}, notes → {metric: {m: note}}（按部门空间 dept）。
-    部级(含中心)→ 各中心加总(只读汇总)；其余→本 dept 直取。"""
+    集团→各部门加总(合计·只读)；部级(含中心)→各中心加总(只读汇总)；其余→本 dept 直取。"""
+    if dept == "集团":
+        agg = {}
+        for d in ALL_DEPTS:
+            cv, _ = _grid(c, year, d)
+            for k, arr in cv.items():
+                a = agg.setdefault(k, [None] * 12)
+                for m in range(12):
+                    if isinstance(arr[m], (int, float)):
+                        a[m] = (a[m] if isinstance(a[m], (int, float)) else 0) + arr[m]
+        return agg, {}  # 合计不带备注
     if dept in DEPT_CENTERS:
         agg = {}
         for center in DEPT_CENTERS[dept]:
@@ -362,7 +381,15 @@ def _grid(c, year, dept="集团"):
 
 
 def _kb0_adjust(c, year, dept, metric="chain"):
-    """看板0 调节项 [v or None]*12：部级(含中心)=各中心调节加总；其余=本 dept 直取（识空不补0）"""
+    """调节项 [v or None]*12：集团=各部门加总；部级(含中心)=各中心调节加总；其余=本 dept 直取（识空不补0）"""
+    if dept == "集团":
+        agg = [None] * 12
+        for d in ALL_DEPTS:
+            cv = _kb0_adjust(c, year, d, metric)
+            for m in range(12):
+                if isinstance(cv[m], (int, float)):
+                    agg[m] = (agg[m] if isinstance(agg[m], (int, float)) else 0) + cv[m]
+        return agg
     if dept in DEPT_CENTERS:
         agg = [None] * 12
         for center in DEPT_CENTERS[dept]:
@@ -379,6 +406,11 @@ def _kb0_adjust(c, year, dept, metric="chain"):
 
 
 def _branches(c, year, dept="集团"):
+    if dept == "集团":  # 合计=各部门分支并集
+        out = []
+        for d in ALL_DEPTS:
+            out.extend(_branches(c, year, d))
+        return out
     out = []
     for b in c.execute("SELECT * FROM branches WHERE year=? AND dept=? AND on_ok=1 ORDER BY id", (year, dept)):
         vals = [None] * 12
