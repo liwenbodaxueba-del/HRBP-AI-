@@ -274,6 +274,43 @@ def fetch_ioa_profile(acct_id):
     return prof if prof.get("org_path") else None
 
 
+def fetch_ioa_bp_roster():
+    """iOA 读取 BP 关系链（BP名单→所属部门→上级/权限链）。配置驱动·接口即插即用：
+      · 无配置 → None（前端提示待接入，不建号不编造）
+      · 配 mock（ioa_config.json 里 {"bp_roster":[{id,name,dept,org_path,manager_id,role},...]}）→ 直接返回，供联调
+      · 配 bp_url/headers → 调 iOA OpenAPI 拉全量 BP 关系（urllib·无第三方依赖）"""
+    cfg = load_ioa_cfg()
+    if not cfg:
+        return None
+    if cfg.get("bp_roster") is not None:
+        return cfg["bp_roster"]
+    url = cfg.get("bp_url")
+    if not url:
+        return None
+    import urllib.request
+    try:
+        req = urllib.request.Request(url, headers=cfg.get("headers", {}))
+        with urllib.request.urlopen(req, timeout=cfg.get("timeout", 8)) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        return data if isinstance(data, list) else data.get("roster")
+    except Exception:
+        return None  # 接口异常→判空，绝不编造
+
+
+@app.get("/api/bp-relations")
+def bp_relations(x_user: str = Header("bonniewbli")):
+    """读取 BP 关系链（BP名单 · 所属部门 · 部门权限BP关系）——iOA 配置驱动的预留窗口。
+    未接入 → 428（不编造）；接入后返回 [{id,name,dept,org_path,manager_id,role}]，供后台按链回填/识别部门权限。"""
+    with db() as c:
+        require_admin(c, x_user)
+    roster = fetch_ioa_bp_roster()
+    if roster is None:
+        raise HTTPException(428, {"msg": "iOA BP 关系链未接入（预留窗口·等待接入）",
+                                  "expect": ["id", "name", "dept", "org_path", "manager_id", "role"],
+                                  "hint": "在 backend/ioa_config.json 配 bp_roster(mock) 或 bp_url 即打通；接入后由后台读取识别 BP→所属部门→部门权限关系链"})
+    return {"ok": True, "count": len(roster), "roster": roster}
+
+
 # ---------------- 年份 ----------------
 @app.get("/api/years")
 def list_years():

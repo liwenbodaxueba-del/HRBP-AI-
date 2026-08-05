@@ -166,7 +166,8 @@ body.navfold .navtg{left:8px;}
   权限按<b>部门空间</b>隔离；看板0-3 可按账号单独勾选。带 <span class="chip demo">示例</span> 的为演示行，正式版从 iOA 组织架构同步。</div>
   <div class="bar">
     <button class="btn" onclick="openAcct()">＋ 添加账号</button>
-    <span class="hint" style="margin:0">正式版：输入 iOA 账号自动带出姓名/部门；此处为 demo 手输。</span>
+    <button class="btn gray" onclick="readBpRelations()" title="从 iOA 读取 BP 名单→所属部门→部门权限关系链（预留窗口·待接入）">🔗 读取BP关系链（iOA）<span id="bpRelState" class="chip" style="background:var(--gold);color:#92400E;margin-left:6px">待接入</span></button>
+    <span class="hint" style="margin:0">正式版：输入 iOA 账号自动带出姓名/部门；BP 名单与部门权限由 iOA 关系链读取识别。</span>
   </div>
   <div class="tblwrap"><table class="adm" id="acctTbl"></table></div>
 </div>
@@ -442,9 +443,24 @@ function renderAccts(){
 }
 function ioaSync(id){
   if(!window.USE_API){alert('iOA 同步需连后端（当前为本地 demo）');return;}
-  api('POST','/api/accounts/'+id+'/ioa-sync').then(function(){if(window.cfgReloadAccts)cfgReloadAccts();}).catch(function(e){
+  fetch('/api/accounts/'+id+'/ioa-sync',{method:'POST',headers:{'Content-Type':'application/json','X-User':'bonniewbli'}}).then(function(r){return r.json().then(function(j){if(!r.ok)throw j;return j;});}).then(function(){if(window.cfgReloadAccts)cfgReloadAccts();}).catch(function(e){
     var d=(e&&e.detail)||e||{};
     alert('iOA 组织接口未接入（预留桩）：\n'+(d.msg||JSON.stringify(d))+'\n正式版接 iOA OpenAPI 后，按账号自动带出 org_path/职级/上级。');
+  });
+}
+/* BP 关系链读取窗口：BP名单→所属部门→部门权限关系链，iOA 配置驱动·未接入=待接入（预留窗口，不编造） */
+function readBpRelations(){
+  var st=document.getElementById('bpRelState');
+  if(!window.USE_API){alert('读取 BP 关系链需连后端');return;}
+  if(st){st.textContent='读取中…';st.style.background='#EEF2F8';st.style.color='var(--ink2)';}
+  fetch('/api/bp-relations',{headers:{'X-User':'bonniewbli'}}).then(function(r){return r.json().then(function(j){if(!r.ok)throw j;return j;});}).then(function(r){
+    if(st){st.textContent='已接入 · '+r.count+' 条';st.style.background='#E7F6EF';st.style.color='var(--green)';}
+    if(typeof log==='function')log('读取BP关系链','iOA 已接入 · 读取 '+r.count+' 条 BP 关系（BP→所属部门→部门权限）');
+    alert('已从 iOA 读取 BP 关系链：'+r.count+' 条。\n（正式版将按此关系链自动识别/回填 BP 的所属部门与部门权限。）');
+  }).catch(function(e){
+    var d=(e&&e.detail)||e||{};
+    if(st){st.textContent='待接入';st.style.background='var(--gold)';st.style.color='#92400E';}
+    alert('BP 关系链读取窗口 · 待接入 iOA\n\n'+(d.msg||JSON.stringify(d))+'\n\n接入后由后台读取识别：BP 名单 → 所属部门 → 部门权限关系链（上级管下级）。\n配置：backend/ioa_config.json 配 bp_roster(mock) 或 bp_url 即打通，不改代码。');
   });
 }
 /* ===== 中心清单 / 设置子PM看板（组=二级、组内中心=三级；与看板 index.html DEPT_TREE 中心一致） ===== */
