@@ -111,6 +111,14 @@ body.navfold .navtg{left:8px;}
 .pmlist label{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink2);cursor:pointer;padding:5px 8px;border-radius:7px;}
 .pmlist label:hover{background:var(--b50);}
 .pmlist input{accent-color:var(--blue);width:14px;height:14px;}
+.pmtools{display:flex;gap:8px;align-items:center;margin-bottom:8px;}
+.pmtools .pmsearch{flex:1;border:1px solid var(--b100);border-radius:8px;padding:6px 10px 6px 28px;font-size:12px;font-family:inherit;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.4'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M21 21l-4.3-4.3'/%3E%3C/svg%3E") no-repeat 9px center;}
+.pmtools .pmsearch:focus{outline:none;border-color:var(--blue-l);}
+.pmtools .pmall{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--ink2);cursor:pointer;white-space:nowrap;padding:6px 9px;border:1px solid var(--b100);border-radius:8px;user-select:none;}
+.pmtools .pmall:hover{border-color:var(--blue-l);color:var(--navy);}
+.pmtools .pmall input{accent-color:var(--blue);width:14px;height:14px;}
+.pmsum{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink2);margin-top:8px;cursor:pointer;}
+.pmsum input{accent-color:var(--blue);width:14px;height:14px;}
 .pmmk{display:flex;gap:8px;margin-top:10px;}
 .pmmk input[type=text]{flex:1;border:1px solid var(--b100);border-radius:8px;padding:7px 10px;font-size:12.5px;font-family:inherit;width:auto;}
 .tree{overflow-y:auto;border:1px solid var(--b100);border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.9;color:var(--ink2);flex:1;}
@@ -245,9 +253,11 @@ body.navfold .navtg{left:8px;}
   <h3>设置子PM看板（分组与层级）</h3>
   <div class="meta" id="pmMeta">从该部门下的中心里选择若干中心，命名后创建子PM看板组。建组后：组为二级层级，组内中心降为三级；未进组的中心仍为二级。</div>
   <div class="pmbox">
-    <div class="pmcol"><h4>可选中心（该部门下全部中心）</h4><div class="pmlist" id="pmList"></div>
+    <div class="pmcol"><h4>可选中心（该部门下全部中心）</h4>
+      <div class="pmtools"><input type="text" class="pmsearch" id="pmSearch" placeholder="搜索中心…" oninput="boxFilter('pmList',this.value,'pmAll')"><label class="pmall"><input type="checkbox" id="pmAll" onchange="boxToggleAll('pmList',this.checked)">全选</label></div>
+      <div class="pmlist" id="pmList"></div>
       <div class="pmmk"><input type="text" id="pmName" placeholder="子PM组名称，如：数据库子PM"><button class="btn" onclick="pmCreate()">创建子PM组</button></div>
-      <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink2);margin-top:8px;cursor:pointer"><input type="checkbox" id="pmSum" style="accent-color:var(--blue);width:14px;height:14px"> 展示求和（看板目录可点击 · 汇总所选中心 · 可手调）</label>
+      <label class="pmsum"><input type="checkbox" id="pmSum"> 展示求和（看板目录可点击 · 汇总所选中心 · 可手调）</label>
       <div class="hint" id="pmErr" style="display:none;color:var(--red);margin-top:6px">请填写组名并至少勾选一个中心</div>
     </div>
     <div class="pmcol"><h4>层级预览</h4><div class="tree" id="pmTree"></div></div>
@@ -268,8 +278,11 @@ body.navfold .navtg{left:8px;}
   <h3 id="lnTitle">创建线级看板</h3>
   <div class="meta">勾选归入该线级的部门并命名。创建后：线级为一级层级，线内部门为二级；未归线的部门仍为一级、不进层级预览。右侧层级预览可点线级名收起/展开。改动即时同步到看板端顶层线导航。</div>
   <div class="pmbox">
-    <div class="pmcol"><h4>部门清单（勾选归入本线级）</h4><div class="pmlist" id="lnGrid"></div>
+    <div class="pmcol"><h4>部门清单（勾选归入本线级）</h4>
+      <div class="pmtools"><input type="text" class="pmsearch" id="lnSearch" placeholder="搜索部门…" oninput="boxFilter('lnGrid',this.value,'lnAll')"><label class="pmall"><input type="checkbox" id="lnAll" onchange="boxToggleAll('lnGrid',this.checked);lnPreview()">全选</label></div>
+      <div class="pmlist" id="lnGrid"></div>
       <div class="pmmk"><input type="text" id="lnName" placeholder="线级看板名称，如：云产品线"><button class="btn" id="lnBtn" onclick="lnSubmit()">创建</button></div>
+      <label class="pmsum"><input type="checkbox" id="lnSum" onchange="lnPreview()"> 展示求和（看板顶层线名可点击 · 汇总线内各部门 · 只读）</label>
       <div class="hint" id="lnErr" style="display:none;color:var(--red);margin-top:6px">请填写线级名称并至少勾选一个部门</div>
     </div>
     <div class="pmcol"><h4>层级预览</h4><div class="tree" id="lnTree"></div></div>
@@ -467,6 +480,16 @@ function readBpRelations(){
 /* ===== 中心清单 / 设置子PM看板（组=二级、组内中心=三级；与看板 index.html DEPT_TREE 中心一致） ===== */
 var PM_GROUPS={};try{PM_GROUPS=JSON.parse(localStorage.getItem('hcfb_pm_groups')||'{}')||{};}catch(e){PM_GROUPS={};}  // 部门→子PM组，与看板端(index.html)共用同一份(同源 localStorage)
 function savePmGroups(){try{localStorage.setItem('hcfb_pm_groups',JSON.stringify(PM_GROUPS));}catch(e){}}
+/* ===== 清单选择框通用交互（子PM/线级两个架构框统一）：搜索过滤 + 全选/全不选 ===== */
+function boxLabels(listId){var b=document.getElementById(listId);return b?[].slice.call(b.querySelectorAll('label')):[];}
+function boxFilter(listId,q,allId){q=(q||'').trim().toLowerCase();
+  boxLabels(listId).forEach(function(l){l.style.display=(!q||l.textContent.toLowerCase().indexOf(q)>=0)?'':'none';});
+  if(allId)boxSyncAll(listId,allId);}
+function boxToggleAll(listId,checked){
+  boxLabels(listId).forEach(function(l){if(l.style.display==='none')return;var c=l.querySelector('input[type=checkbox]');if(c&&!c.disabled)c.checked=checked;});}
+function boxSyncAll(listId,allId){var all=document.getElementById(allId);if(!all)return;var on=0,tot=0;
+  boxLabels(listId).forEach(function(l){if(l.style.display==='none')return;var c=l.querySelector('input[type=checkbox]');if(c&&!c.disabled){tot++;if(c.checked)on++;}});
+  all.checked=(tot>0&&on===tot);}
 function deptCenters(dept){for(var i=0;i<DEPT_TREE.length;i++)if(DEPT_TREE[i].name===dept)return (DEPT_TREE[i].children||[]).slice();return [];}
 function viewCenters(dept,e){if(e)e.stopPropagation();var list=deptCenters(dept);
   document.getElementById('vcTitle').textContent=dept+' · 中心清单';
@@ -479,6 +502,9 @@ function openPm(dept){pmDept=(dept==='集团'?'':dept)||'';pmCenters=deptCenters
   pmGroups=JSON.parse(JSON.stringify(PM_GROUPS[pmDept]||[]));
   document.getElementById('pmMeta').textContent=(pmDept||'（集团/未归属含中心的部门）')+' —— 从该部门中心里选择若干中心并命名，创建子PM看板：组为二级层级，组内中心降为三级，未进组的中心仍为二级。改动同步到看板1-4 侧栏层级。';
   document.getElementById('pmName').value='';document.getElementById('pmErr').style.display='none';
+  document.getElementById('pmSum').checked=false;
+  document.getElementById('pmSearch').value='';document.getElementById('pmAll').checked=false;
+  document.getElementById('pmList').onchange=function(){boxSyncAll('pmList','pmAll');};
   pmRender();document.getElementById('maskPm').classList.add('on');}
 function pmRender(){
   var grouped={};pmGroups.forEach(function(g){(g.centers||[]).forEach(function(c){grouped[c]=g.name;});});
@@ -491,7 +517,8 @@ function pmRender(){
   });
   pmCenters.filter(function(c){return !grouped[c];}).forEach(function(c){t+='<div class="l2">'+esc(c)+' <span class="lvl">二级</span></div>';});
   document.getElementById('pmTree').innerHTML=t;
-  document.getElementById('pmCount').textContent=pmGroups.length+' 组 · 已归组 '+Object.keys(grouped).length+' / '+pmCenters.length+' 中心';}
+  document.getElementById('pmCount').textContent=pmGroups.length+' 组 · 已归组 '+Object.keys(grouped).length+' / '+pmCenters.length+' 中心';
+  var q=document.getElementById('pmSearch');boxFilter('pmList',q?q.value:'','pmAll');}
 function pmCreate(){var name=document.getElementById('pmName').value.trim();
   var sel=[].map.call(document.querySelectorAll('#pmList input:checked'),function(i){return i.value;});
   if(!name||!sel.length){document.getElementById('pmErr').style.display='block';return;}
@@ -528,8 +555,11 @@ function openLn(idx){
   document.getElementById('lnTitle').textContent=cur?('编辑线级看板 · '+cur.name):'创建线级看板';
   document.getElementById('lnBtn').textContent=cur?'保存修改':'创建';
   document.getElementById('lnName').value=cur?cur.name:'';document.getElementById('lnErr').style.display='none';
+  document.getElementById('lnSum').checked=cur?(cur.sum!==false):true;  // 兼容旧数据：未设过 sum 的线视为开
+  document.getElementById('lnSearch').value='';document.getElementById('lnAll').checked=false;
   document.getElementById('lnCount').textContent='已建 '+lines.length+' 条线级 · 已归线部门 '+Object.keys(as).length+' / '+all.length;
   document.getElementById('lnGrid').oninput=lnPreview;document.getElementById('lnName').oninput=lnPreview;  // 勾选/命名变化→实时更新层级预览
+  boxFilter('lnGrid','','lnAll');
   lnPreview();
   document.getElementById('maskLn').classList.add('on');
 }
@@ -538,8 +568,9 @@ function lnSubmit(){
   var name=document.getElementById('lnName').value.trim();
   var sel=[].map.call(document.querySelectorAll('#lnGrid input:checked'),function(i){return i.value;});
   if(!name||!sel.length){document.getElementById('lnErr').style.display='block';return;}
-  if(lnEdit>-1){lines[lnEdit]={name:name,head:lines[lnEdit].head||'',depts:sel};}
-  else{lines.push({name:name,head:'',depts:sel});}
+  var sum=document.getElementById('lnSum').checked;
+  if(lnEdit>-1){lines[lnEdit]={name:name,head:lines[lnEdit].head||'',depts:sel,sum:sum};}
+  else{lines.push({name:name,head:'',depts:sel,sum:sum});}
   saveLines();if(typeof log==='function')log('线级看板',(lnEdit>-1?'编辑':'创建')+' '+name+'（'+sel.length+' 部门）· 已同步看板线导航');
   lnRender();
   if(lnEdit>-1)closeLn();else openLn();  // 新建后停留继续建；编辑后关闭
@@ -551,7 +582,7 @@ function lnRender(){
   if(!lines.length){body.innerHTML='<tr><td colspan="7"><span class="hint" style="margin:0">尚未创建线级看板——当前所有部门均为一级层级，不出现在层级预览。</span></td></tr>';}
   else{
     body.innerHTML=lines.map(function(l,i){var nd=(l.depts||[]).length,nm=String(l.name).replace(/'/g,'');
-      return '<tr class="grp"><td colspan="7" style="padding:7px 12px;cursor:pointer" onclick="lnEditOpen('+i+',event)">'+esc(l.name)+'<span class="chip">'+nd+' 个部门</span>'
+      return '<tr class="grp"><td colspan="7" style="padding:7px 12px;cursor:pointer" onclick="lnEditOpen('+i+',event)">'+esc(l.name)+'<span class="chip">'+nd+' 个部门</span>'+(l.sum!==false?'<span class="chip" style="background:#E7F6EF;color:var(--green);margin-left:6px">求和</span>':'<span class="chip" style="background:#F1F5F9;color:var(--ink3);margin-left:6px">无求和</span>')
         +'<span class="addp" onclick="event.stopPropagation();lnEditOpen('+i+',event)">部门清单 · 编辑</span>'
         +'<span class="rowdel" style="margin-left:12px" onclick="event.stopPropagation();lnDel('+i+')">解散线级</span></td></tr>'
         +'<tr><td class="sub" style="padding-left:30px;color:var(--ink3)">未指定 <span class="chip bp">线级BP</span></td>'
@@ -568,17 +599,19 @@ function lnRender(){
 var LINE_PVOPEN={};
 function lnPreview(){
   var box=document.getElementById('lnTree');if(!box)return;
+  boxSyncAll('lnGrid','lnAll');
   var sel=[].map.call(document.querySelectorAll('#lnGrid input:checked'),function(i){return i.value;});
   var nm=(document.getElementById('lnName').value||'').trim();
-  var pv=lines.map(function(l){return {name:l.name,depts:(l.depts||[]).slice()};});
-  if(lnEdit>-1){pv[lnEdit]={name:nm||lines[lnEdit].name,depts:sel};}
-  else if(sel.length||nm){pv.push({name:nm||'（新线级·未命名）',depts:sel});}
+  var curSum=document.getElementById('lnSum').checked;
+  var pv=lines.map(function(l){return {name:l.name,depts:(l.depts||[]).slice(),sum:l.sum!==false};});
+  if(lnEdit>-1){pv[lnEdit]={name:nm||lines[lnEdit].name,depts:sel,sum:curSum};}
+  else if(sel.length||nm){pv.push({name:nm||'（新线级·未命名）',depts:sel,sum:curSum});}
   var asAll={};pv.forEach(function(l){l.depts.forEach(function(d){asAll[d]=1;});});
   var all=allDepts(),free=all.filter(function(d){return !asAll[d];});
   var editIdx=(lnEdit>-1)?lnEdit:((sel.length||nm)?pv.length-1:-1);
   var t=pv.length?pv.map(function(l,i){
     var open=LINE_PVOPEN[l.name]!==false,nmq=String(l.name).replace(/'/g,''),hi=(i===editIdx);
-    var head='<div class="l1" style="cursor:pointer;user-select:none'+(hi?';background:var(--b50);border-radius:6px;padding:1px 4px':'')+'" onclick="toggleLnPv(\''+nmq+'\')"><span style="display:inline-block;color:var(--ink2);font-size:10px;margin-right:5px;transition:transform .15s'+(open?'':';transform:rotate(-90deg)')+'">▾</span>'+esc(l.name)+' <span class="lvl">一级 · 线级看板</span><span class="lvl">'+l.depts.length+' 部门</span></div>';
+    var head='<div class="l1" style="cursor:pointer;user-select:none'+(hi?';background:var(--b50);border-radius:6px;padding:1px 4px':'')+'" onclick="toggleLnPv(\''+nmq+'\')"><span style="display:inline-block;color:var(--ink2);font-size:10px;margin-right:5px;transition:transform .15s'+(open?'':';transform:rotate(-90deg)')+'">▾</span>'+esc(l.name)+' <span class="lvl">一级 · 线级看板</span><span class="lvl">'+l.depts.length+' 部门</span>'+(l.sum?' <span class="lvl" style="background:#E7F6EF;color:var(--green)">求和·可点击</span>':'')+'</div>';
     return head+(open?l.depts.map(function(d){return '<div class="l2">'+esc(d)+' <span class="lvl">二级</span></div>';}).join(''):'');
   }).join(''):'<div class="hint" style="margin:0">尚无线级看板。勾选部门并命名即可创建：线级=一级、线内部门=二级。</div>';
   t+='<div class="hint" style="margin-top:10px">未归线部门 '+free.length+' 个：仍为一级层级，不进入层级预览。</div>';

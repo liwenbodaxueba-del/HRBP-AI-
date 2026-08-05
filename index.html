@@ -1067,8 +1067,10 @@ function loadLines(){try{var v=JSON.parse(localStorage.getItem('hcfb_lines')||'n
 loadLines();
 /* 顶层线导航项动态生成（跟随线级看板增删改） */
 function renderLineEntries(){var box=document.getElementById('lineNavBox');if(!box)return;
-  box.innerHTML=DEPT_LINES.map(function(l){var nm=String(l.name).replace(/'/g,'').replace(/"/g,'');
-    return '<a id="lineLink_'+nm+'" onclick="goLineView(\''+nm+'\')" style="font-weight:600">'+nm+'<span id="lineArrow_'+nm+'" onclick="event.stopPropagation();toggleLineNav(\''+nm+'\')" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>'
+  box.innerHTML=DEPT_LINES.map(function(l){var nm=String(l.name).replace(/'/g,'').replace(/"/g,'');var sum=(l.sum!==false);  // 未设过 sum 的线视为开（兼容旧数据）
+    var badge=sum?' <span style="font-size:9px;font-weight:400;color:var(--green);background:#E7F6EF;border-radius:7px;padding:0 5px;margin-left:4px">求和</span>':'';
+    var onclick=sum?('goLineView(\''+nm+'\')'):('toggleLineNav(\''+nm+'\')');  // 求和开→点线名进汇总看板；关→仅展开线内部门
+    return '<a id="lineLink_'+nm+'" onclick="'+onclick+'" style="font-weight:600">'+nm+badge+'<span id="lineArrow_'+nm+'" onclick="event.stopPropagation();toggleLineNav(\''+nm+'\')" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>'
       +'<div id="lineNav_'+nm+'" style="display:none;margin:-2px 0 4px 0"></div>';}).join('');}
 window.addEventListener('storage',function(e){if(e.key==='hcfb_lines'){loadLines();renderLineEntries();if(window.renderKb1Nav)renderKb1Nav();}});
 renderLineEntries();  // 首次生成顶层线导航项
@@ -1152,7 +1154,10 @@ function lineAdjSave(month,value){var L=LINEBRD;if(!L)return;
     .then(function(){if(typeof toast==='function')toast('调节项已保存（本线·不影响源）');}).catch(function(){});
 }
 function renderLineView(lineName){loadLineBoard(lineName);}  // 兼容旧调用
-function goLineView(lineName){PMG_ON=false;SEL_LINE=lineName;goView('line');loadLineBoard(lineName);
+function goLineView(lineName){
+  var _l=null;for(var _i=0;_i<DEPT_LINES.length;_i++)if(DEPT_LINES[_i].name===lineName)_l=DEPT_LINES[_i];
+  if(_l&&_l.sum===false){toggleLineNav(lineName);return;}  // 该线未开求和→不进汇总看板，仅展开线内部门
+  PMG_ON=false;SEL_LINE=lineName;goView('line');loadLineBoard(lineName);
   document.querySelectorAll('nav.side a[id^="lineLink_"]').forEach(function(a){a.classList.remove('on');});
   var lnk=document.getElementById('lineLink_'+lineName);if(lnk)lnk.classList.add('on');}
 function toggleLineNav(lineName){var h=document.getElementById('lineNav_'+lineName),a=document.getElementById('lineArrow_'+lineName),lnk=document.getElementById('lineLink_'+lineName);
