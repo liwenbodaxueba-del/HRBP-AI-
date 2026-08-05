@@ -249,6 +249,7 @@ body.navfold .navtg{left:8px;}
   <div class="pmbox">
     <div class="pmcol"><h4>可选中心（该部门下全部中心）</h4><div class="pmlist" id="pmList"></div>
       <div class="pmmk"><input type="text" id="pmName" placeholder="子PM组名称，如：数据库子PM"><button class="btn" onclick="pmCreate()">创建子PM组</button></div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink2);margin-top:8px;cursor:pointer"><input type="checkbox" id="pmSum" style="accent-color:var(--blue);width:14px;height:14px"> 展示求和（看板目录可点击 · 汇总所选中心 · 可手调）</label>
       <div class="hint" id="pmErr" style="display:none;color:var(--red);margin-top:6px">请填写组名并至少勾选一个中心</div>
     </div>
     <div class="pmcol"><h4>层级预览</h4><div class="tree" id="pmTree"></div></div>
@@ -430,7 +431,7 @@ function pmRender(){
   list.innerHTML=pmCenters.length?pmCenters.map(function(c){return '<label'+(grouped[c]?' style="opacity:.5"':'')+'><input type="checkbox" value="'+esc(c)+'" '+(grouped[c]?'disabled':'')+'>'+esc(c)+(grouped[c]?' <span class="lvl">已在「'+esc(grouped[c])+'」</span>':'')+'</label>';}).join(''):'<div class="hint" style="padding:10px 6px;margin:0">该部门暂无中心清单（仅云产品一~四部已录入；其余待接 iOA）。</div>';
   var t='<div class="l1">'+esc(pmDept||'总部')+' <span class="lvl">一级</span></div>';
   pmGroups.forEach(function(g,i){
-    t+='<div class="l2"><span class="gname">'+esc(g.name)+'</span> <span class="lvl">二级 · 子PM组</span><span class="del" onclick="pmDel('+i+')">解散</span></div>';
+    t+='<div class="l2"><span class="gname">'+esc(g.name)+'</span> <span class="lvl">二级 · 子PM组</span>'+(g.sum?' <span class="lvl" style="background:#E7F6EF;color:var(--green)">求和·可点击</span>':'')+'<span class="del" onclick="pmDel('+i+')">解散</span></div>';
     (g.centers||[]).forEach(function(c){t+='<div class="l3">'+esc(c)+' <span class="lvl">三级</span></div>';});
   });
   pmCenters.filter(function(c){return !grouped[c];}).forEach(function(c){t+='<div class="l2">'+esc(c)+' <span class="lvl">二级</span></div>';});
@@ -440,7 +441,8 @@ function pmCreate(){var name=document.getElementById('pmName').value.trim();
   var sel=[].map.call(document.querySelectorAll('#pmList input:checked'),function(i){return i.value;});
   if(!name||!sel.length){document.getElementById('pmErr').style.display='block';return;}
   document.getElementById('pmErr').style.display='none';
-  pmGroups.push({name:name,centers:sel});document.getElementById('pmName').value='';pmRender();}
+  var sum=document.getElementById('pmSum').checked;
+  pmGroups.push({name:name,centers:sel,sum:sum});document.getElementById('pmName').value='';document.getElementById('pmSum').checked=false;pmRender();}
 function pmDel(i){pmGroups.splice(i,1);pmRender();}
 function savePm(){var dept=pmDept;
   if(pmGroups.length)PM_GROUPS[dept]=pmGroups;else delete PM_GROUPS[dept];

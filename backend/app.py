@@ -465,6 +465,46 @@ def kb0_adjust_batch(year: int, b: Kb0AdjustBatch, x_user: str = Header("bonniew
     return get_kb0(year, x_user)
 
 
+@app.get("/api/pmgroup/{year}")
+def get_pmgroup(year: int, centers: str = "", key: str = "", x_user: str = Header("bonniewbli")):
+    """子PM组求和看板：对所选中心求和(预算当量/期末在岗)，叠加该组独立调节项(存 kb0_adjust，dept=key)。
+    调节项写入复用 POST /api/kb0/{year}/adjust（dept 传 key；key 不在 DEPT_CENTERS→非汇总→可写）。"""
+    cl = [x.strip() for x in centers.split(",") if x.strip()]
+    with db() as c:
+        if not c.execute("SELECT 1 FROM years WHERE year=?", (year,)).fetchone():
+            raise HTTPException(404, "年份不存在")
+    budget = [None] * 12
+    chain = [None] * 12
+    lock = 0
+    demo = False
+    for ct in cl:
+        b = get_board(year, ct)  # 复用看板1 运算求各中心 预算当量/期末在岗
+        lock = b["lock"]
+        demo = demo or b["demo"]
+        bv = b["metrics"]["budget"]["vals"]
+        cv = b["metrics"]["actual"]["vals"]
+        for m in range(12):
+            if isinstance(bv[m], (int, float)):
+                budget[m] = (budget[m] if isinstance(budget[m], (int, float)) else 0) + bv[m]
+            if isinstance(cv[m], (int, float)):
+                chain[m] = (chain[m] if isinstance(chain[m], (int, float)) else 0) + cv[m]
+    with db() as c:
+        adj = _kb0_adjust(c, year, key) if key else [None] * 12
+        anote = {}
+        if key:
+            for r in c.execute("SELECT month,note FROM kb0_adjust WHERE year=? AND dept=? AND metric='chain' AND note IS NOT NULL AND note!=''", (year, key)):
+                anote[str(r["month"])] = r["note"]
+    chain_adj = [((chain[m] if isinstance(chain[m], (int, float)) else 0) + adj[m])
+                 if isinstance(adj[m], (int, float)) else chain[m] for m in range(12)]
+
+    def _avg(a):
+        nums = [x for x in a if isinstance(x, (int, float))]
+        return round(sum(nums) / len(nums), 2) if nums else None
+    return {"year": year, "key": key, "centers": cl, "lock": lock, "demo": demo,
+            "budget": budget, "chain": chain, "adjust": adj, "adjustNote": anote, "chainAdj": chain_adj,
+            "budgetAvg": _avg(budget), "chainAvg": _avg(chain), "chainAdjAvg": _avg(chain_adj)}
+
+
 class CellEdit(BaseModel):
     metric: str
     month: int  # 1-12
