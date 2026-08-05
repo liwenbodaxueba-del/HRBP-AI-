@@ -453,10 +453,7 @@ body.navfold .navtg{left:8px;}
   </div>
   <div class="grp">看板</div>
   <a class="on" data-v="kb0" onclick="go(this)">看板0 · PM 速览</a>
-  <a id="lineLink_coby线" onclick="goLineView('coby线')" style="font-weight:600">coby线<span id="lineArrow_coby线" onclick="event.stopPropagation();toggleLineNav('coby线')" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>
-  <div id="lineNav_coby线" style="display:none;margin:-2px 0 4px 0"></div>
-  <a id="lineLink_wang线" onclick="goLineView('wang线')" style="font-weight:600">wang线<span id="lineArrow_wang线" onclick="event.stopPropagation();toggleLineNav('wang线')" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>
-  <div id="lineNav_wang线" style="display:none;margin:-2px 0 4px 0"></div>
+  <div id="lineNavBox"></div>
   <a data-v="kb1" id="kb1NavLink" onclick="go(this)">看板1 · 集团人力预估表<span id="kb1NavArrow" onclick="event.stopPropagation();toggleKb1Nav()" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>
   <div id="kb1DeptNav" style="display:none;margin:-2px 0 4px 0"></div>
   <a data-v="kb2" id="kb2NavLink" onclick="go(this)">看板2 · 预算看板<span id="kb2NavArrow" onclick="event.stopPropagation();toggleDeptNav('kb2')" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>
@@ -981,10 +978,20 @@ function _emitCenters(dept,centers,centerOK,headPad,deepPad,emit,emitHead){
 function isDeptAgg(dept){dept=dept||window.CUR_DEPT||'集团';for(var i=0;i<DEPT_TREE.length;i++)if(DEPT_TREE[i].name===dept&&DEPT_TREE[i].children&&DEPT_TREE[i].children.length)return true;return false;}
 /* 侧栏「看板1」下展开部门层级：部→中心，点任一节点即切看板1 该部门空间 */
 /* 业务线维度（顶层，与看板0同级）：线→部→中心。线=分组层，点线名仅展开/收起；点部门或中心=选中该部门空间并进看板1。 */
-var DEPT_LINES=[
+var DEPT_LINES_DEFAULT=[
   {name:'coby线',head:'邱跃鹏',depts:['云产品一部','云产品五部','战略客户部','智慧行业一部','智慧行业七部','智慧行业十部','云运营管理部','云采购供应管理部','星星海实验室','港澳台及国际业务部','CSIG产品管理支持中心']},
   {name:'wang线',head:'王慧星',depts:['云产品二部','云产品三部','云产品四部','云产品六部','安全产品一部','安全产品二部','安全产品三部','科恩实验室','玄武实验室','优图实验室','企业中台产品部','云产品技术支持部','云技术运营服务部','社交协作产品部','ima产品中心']}
 ];
+var DEPT_LINES=DEPT_LINES_DEFAULT;  // 由管理后台「线维权限设置」配置，同源 localStorage 共享
+function loadLines(){try{var v=JSON.parse(localStorage.getItem('hcfb_lines')||'null');DEPT_LINES=(v&&v.length)?v:DEPT_LINES_DEFAULT;}catch(e){DEPT_LINES=DEPT_LINES_DEFAULT;}}
+loadLines();
+/* 顶层线导航项动态生成（跟随线级看板增删改） */
+function renderLineEntries(){var box=document.getElementById('lineNavBox');if(!box)return;
+  box.innerHTML=DEPT_LINES.map(function(l){var nm=String(l.name).replace(/'/g,'').replace(/"/g,'');
+    return '<a id="lineLink_'+nm+'" onclick="goLineView(\''+nm+'\')" style="font-weight:600">'+nm+'<span id="lineArrow_'+nm+'" onclick="event.stopPropagation();toggleLineNav(\''+nm+'\')" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>'
+      +'<div id="lineNav_'+nm+'" style="display:none;margin:-2px 0 4px 0"></div>';}).join('');}
+window.addEventListener('storage',function(e){if(e.key==='hcfb_lines'){loadLines();renderLineEntries();if(window.renderKb1Nav)renderKb1Nav();}});
+renderLineEntries();  // 首次生成顶层线导航项
 function _deptNode(name){for(var i=0;i<DEPT_TREE.length;i++)if(DEPT_TREE[i].name===name)return DEPT_TREE[i];return {name:name,children:[]};}
 function _lineDeptA(deptKey,label,padLeft,cur,arrow){var on=(cur===deptKey);
   return '<a onclick="pickLineDept(\''+deptKey.replace(/'/g,"")+'\')" title="'+label+'" style="display:block;padding:6px 10px 6px '+padLeft+'px;font-size:12.5px;border-radius:8px;margin-bottom:2px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:'+(on?'var(--b50)':'transparent')+';'+(on?'color:var(--blue);font-weight:600':'color:var(--ink2)')+'">'+label+(arrow||'')+'</a>';}

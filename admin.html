@@ -174,15 +174,19 @@ body.navfold .navtg{left:8px;}
 <!-- ================= 线维权限设置 ================= -->
 <div class="view" id="v-line">
   <h2 class="sec">线维权限设置（iOA 统一登录）</h2>
-  <div class="note"><b>线维权限</b>：按<b>业务线 / 产品线</b>（如 MPaaS / CPaaS / EdgeOne / 工线）授权，与部门维度<b>独立</b>——同一账号可按线授予跨部门的看板可见 / 可编辑范围。正式版从 iOA 组织架构带出业务线归属。</div>
+  <div class="note"><b>层级规则</b>：线级是<b>一级层级</b>，部门是<b>二级层级</b>——但线与部门的父子关系并非既定，只有<b>创建线级看板</b>后才产生。未被创建进任何线级看板的部门仍为一级层级，且<b>不出现在层级预览</b>里。建立几个线级板块，层级预览就出现几个线级。改动即时同步到看板端顶层的线导航（coby线/wang线…）。</div>
   <div class="bar">
-    <button class="btn" onclick="alert('demo：线维授权待接 iOA 业务线，先搭建骨架')">＋ 添加线维授权</button>
-    <span class="hint" style="margin:0">正式版：按 iOA 业务线带出线-账号映射；此处为骨架。</span>
+    <button class="btn" onclick="openLn()">＋ 创建线级看板</button>
+    <span class="hint" style="margin:0">从部门清单里勾选若干部门并命名，即生成一条线级看板；线内部门降为二级。</span>
   </div>
-  <div class="tblwrap"><table class="adm" id="lineTbl">
-    <thead><tr><th>业务线</th><th style="width:180px">账号</th><th>看板访问</th><th class="c" style="width:120px">可编辑</th><th class="c">启用</th></tr></thead>
-    <tbody><tr><td colspan="5" style="text-align:center;color:var(--ink3);padding:22px">暂无线维授权 · 正式版接 iOA 业务线后配置（<b>不编造</b>）</td></tr></tbody>
+  <div class="tblwrap" style="margin-bottom:14px"><table class="adm">
+    <thead><tr><th>线级 / 账号</th><th style="width:160px">姓名</th><th style="width:140px">角色</th><th style="width:200px">设置线级看板</th><th class="c" style="width:150px">线级权限</th><th class="c">启用</th><th class="c" style="width:120px">操作</th></tr></thead>
+    <tbody id="lnBody"></tbody>
   </table></div>
+  <div style="background:#fff;border:1px solid var(--b100);border-radius:12px;padding:14px 16px">
+    <h4 style="font-size:12px;color:var(--ink3);font-weight:600;margin-bottom:8px">层级预览</h4>
+    <div class="tree" id="lnTree" style="border:none;padding:0;max-height:none"></div>
+  </div>
 </div>
 
 <!-- ================= 项目配置 ================= -->
@@ -258,6 +262,16 @@ body.navfold .navtg{left:8px;}
   <div class="meta">部门为一级层级，中心为二级层级；已建子PM组的中心在该 BP 下降为三级。清单正式版由 iOA 组织架构同步。</div>
   <div class="ctrgrid" id="vcGrid"></div>
   <div class="row" style="justify-content:space-between;align-items:center;border-top:1px solid var(--b100);padding-top:14px"><span class="hint" id="vcCount" style="margin:0"></span><button class="btn gray" onclick="closeCenters()">关闭</button></div>
+</div></div>
+
+<!-- 创建/编辑线级看板 modal -->
+<div class="mask" id="maskLn"><div class="modal" style="width:660px;max-height:82vh;display:flex;flex-direction:column">
+  <h3 id="lnTitle">创建线级看板</h3>
+  <div class="meta">勾选归入该线级的部门并命名。创建后：线级为一级层级，线内部门为二级；未归线的部门仍为一级、不进层级预览。改动即时同步到看板端顶层线导航。</div>
+  <div class="ctrgrid" id="lnGrid"></div>
+  <div class="pmmk" style="margin-top:12px"><input type="text" id="lnName" placeholder="线级看板名称，如：云产品线"><button class="btn" id="lnBtn" onclick="lnSubmit()">创建</button></div>
+  <div class="hint" id="lnErr" style="display:none;color:var(--red);margin-top:6px">请填写线级名称并至少勾选一个部门</div>
+  <div class="row" style="justify-content:space-between;align-items:center;border-top:1px solid var(--b100);padding-top:14px"><span class="hint" id="lnCount" style="margin:0"></span><button class="btn gray" onclick="closeLn()">关闭</button></div>
 </div></div>
 
 <!-- 转移管理员 modal -->
@@ -436,6 +450,67 @@ function savePm(){var dept=pmDept;
 function closePm(){document.getElementById('maskPm').classList.remove('on');pmIdx=-1;}
 document.getElementById('maskPm').addEventListener('click',function(e){if(e.target===this)closePm();});
 document.getElementById('maskCenters').addEventListener('click',function(e){if(e.target===this)closeCenters();});
+/* ===== 线维权限设置：线级看板（线=一级、线内部门=二级）。lines 存 localStorage 'hcfb_lines'，看板端顶层线导航共用同一份 ===== */
+var LINES_DEFAULT=[
+  {name:'coby线',head:'邱跃鹏',depts:['云产品一部','云产品五部','战略客户部','智慧行业一部','智慧行业七部','智慧行业十部','云运营管理部','云采购供应管理部','星星海实验室','港澳台及国际业务部','CSIG产品管理支持中心']},
+  {name:'wang线',head:'王慧星',depts:['云产品二部','云产品三部','云产品四部','云产品六部','安全产品一部','安全产品二部','安全产品三部','科恩实验室','玄武实验室','优图实验室','企业中台产品部','云产品技术支持部','云技术运营服务部','社交协作产品部','ima产品中心']}
+];
+var lines;try{lines=JSON.parse(localStorage.getItem('hcfb_lines')||'null');}catch(e){lines=null;}
+if(!lines||!lines.length){lines=JSON.parse(JSON.stringify(LINES_DEFAULT));try{localStorage.setItem('hcfb_lines',JSON.stringify(lines));}catch(e){}}
+function saveLines(){try{localStorage.setItem('hcfb_lines',JSON.stringify(lines));}catch(e){}}
+function allDepts(){return DEPT_TREE.filter(function(n){return n.name!=='集团';}).map(function(n){return n.name;});}
+function lnAssigned(){var m={};lines.forEach(function(l){(l.depts||[]).forEach(function(d){m[d]=l.name;});});return m;}
+var lnEdit=-1;
+function openLn(idx){
+  lnEdit=(typeof idx==='number')?idx:-1;
+  var cur=lnEdit>-1?lines[lnEdit]:null,as=lnAssigned(),all=allDepts();
+  document.getElementById('lnGrid').innerHTML=all.map(function(d){
+    var mine=cur&&cur.depts.indexOf(d)>-1,other=as[d]&&!mine;
+    return '<label'+(other?' style="opacity:.5"':'')+'><input type="checkbox" value="'+esc(d)+'" '+(mine?'checked ':'')+(other?'disabled':'')+'>'+esc(d)+(other?' <span style="font-size:10.5px;color:var(--ink3);background:#EEF2F8;border-radius:8px;padding:1px 7px;margin-left:6px">已在「'+esc(as[d])+'」</span>':'')+'</label>';}).join('');
+  document.getElementById('lnTitle').textContent=cur?('编辑线级看板 · '+cur.name):'创建线级看板';
+  document.getElementById('lnBtn').textContent=cur?'保存修改':'创建';
+  document.getElementById('lnName').value=cur?cur.name:'';document.getElementById('lnErr').style.display='none';
+  document.getElementById('lnCount').textContent='已建 '+lines.length+' 条线级 · 已归线部门 '+Object.keys(as).length+' / '+all.length;
+  document.getElementById('maskLn').classList.add('on');
+}
+function closeLn(){document.getElementById('maskLn').classList.remove('on');}
+function lnSubmit(){
+  var name=document.getElementById('lnName').value.trim();
+  var sel=[].map.call(document.querySelectorAll('#lnGrid input:checked'),function(i){return i.value;});
+  if(!name||!sel.length){document.getElementById('lnErr').style.display='block';return;}
+  if(lnEdit>-1){lines[lnEdit]={name:name,head:lines[lnEdit].head||'',depts:sel};}
+  else{lines.push({name:name,head:'',depts:sel});}
+  saveLines();if(typeof log==='function')log('线级看板',(lnEdit>-1?'编辑':'创建')+' '+name+'（'+sel.length+' 部门）· 已同步看板线导航');
+  lnRender();
+  if(lnEdit>-1)closeLn();else openLn();  // 新建后停留继续建；编辑后关闭
+}
+function lnDel(i){if(!window.confirm('解散线级「'+lines[i].name+'」？线内部门恢复为一级。'))return;var nm=lines[i].name;lines.splice(i,1);saveLines();if(typeof log==='function')log('线级看板','解散 '+nm+'· 已同步看板线导航');lnRender();}
+function lnEditOpen(i,e){if(e)e.stopPropagation();openLn(i);}
+function lnRender(){
+  var body=document.getElementById('lnBody');if(!body)return;
+  if(!lines.length){body.innerHTML='<tr><td colspan="7"><span class="hint" style="margin:0">尚未创建线级看板——当前所有部门均为一级层级，不出现在层级预览。</span></td></tr>';}
+  else{
+    body.innerHTML=lines.map(function(l,i){var nd=(l.depts||[]).length,nm=String(l.name).replace(/'/g,'');
+      return '<tr class="grp"><td colspan="7" style="padding:7px 12px;cursor:pointer" onclick="lnEditOpen('+i+',event)">'+esc(l.name)+'<span class="chip">'+nd+' 个部门</span>'
+        +'<span class="addp" onclick="event.stopPropagation();lnEditOpen('+i+',event)">部门清单 · 编辑</span>'
+        +'<span class="rowdel" style="margin-left:12px" onclick="event.stopPropagation();lnDel('+i+')">解散线级</span></td></tr>'
+        +'<tr><td class="sub" style="padding-left:30px;color:var(--ink3)">未指定 <span class="chip bp">线级BP</span></td>'
+        +'<td><span style="color:var(--ink3)">—</span></td>'
+        +'<td><span style="color:var(--ink3)">—</span></td>'
+        +'<td><span class="ctr" onclick="lnEditOpen('+i+',event)">'+esc(l.name)+'（'+nd+'） <span class="gear">⚙</span></span></td>'
+        +'<td class="c"><span style="font-size:12px;color:var(--ink3)">线级·'+nd+' / 看板0·'+nd+'</span></td>'
+        +'<td class="c"><span style="color:var(--ink3)">—</span></td>'
+        +'<td class="c"><span class="rowdel" style="color:var(--blue)" onclick="alert(\'指定线级BP：正式版接 iOA 后从该线部门的 BP 中指派\')">指定线级BP</span></td></tr>';
+    }).join('');
+  }
+  var as=lnAssigned(),all=allDepts(),free=all.filter(function(d){return !as[d];});
+  var t=lines.length?lines.map(function(l){
+    return '<div class="l1">'+esc(l.name)+' <span class="lvl">一级 · 线级看板</span></div>'+(l.depts||[]).map(function(d){return '<div class="l2">'+esc(d)+' <span class="lvl">二级</span></div>';}).join('');
+  }).join(''):'<div class="hint" style="margin:0">尚无线级看板。创建后此处按线级展开：线级为一级，线内部门为二级。</div>';
+  t+='<div class="hint" style="margin-top:10px">未归线部门 '+free.length+' 个：仍为一级层级，不进入层级预览。</div>';
+  document.getElementById('lnTree').innerHTML=t;
+}
+document.getElementById('maskLn').addEventListener('click',function(e){if(e.target===this)closeLn();});
 /* 部门权限配置：看板1可见部门 / 看板0(PM速览)可见部门，两套独立 */
 /* 部门树（部→中心，与看板 index.html DEPT_TREE 保持一致）。中心键用「部/中心」全路径 */
 var DEPT_TREE=[
@@ -580,7 +655,7 @@ function go(a){
 function goV(v){var a=document.querySelector('nav.side a[data-v="'+v+'"]');if(a)go(a);}
 function tbToggle(id){document.querySelectorAll('.tbdrop').forEach(function(d){d.classList.toggle('on',!!(id&&d.id===id&&!d.classList.contains('on')));});}
 document.addEventListener('click',function(e){if(!e.target.closest('.tbmenu'))tbToggle();});
-renderAccts();renderProjs();renderAudit();
+renderAccts();renderProjs();renderAudit();lnRender();
 </script>
 <script>
 /* ===== API 适配层（配置落库·审计走服务端；无后端回退本机暂存） ===== */
