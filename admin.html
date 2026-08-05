@@ -338,10 +338,10 @@ function buildOrgTree(list){
   return root;
 }
 function acctToggle(key){ACCT_COLLAPSE[key]=!ACCT_COLLAPSE[key];renderAccts();}
-function pmCellHtml(a,i){var g=a.pm_groups||[];
+function pmCellByDept(dept){var g=(PM_GROUPS[dept]||[]);  // 子PM分组按部门存（看板1-4 层级同步用同一份）
   var n=g.reduce(function(s,x){return s+(x.centers||[]).length;},0);
   var label=g.length===0?'未创建':(g.length===1?esc(g[0].name)+'（'+(g[0].centers||[]).length+'）':g.length+' 组 · '+n+' 中心');
-  return '<span class="ctr'+(g.length?'':' none')+'" onclick="openPm('+i+')" title="从本部门中心分组建子PM看板（组=二级、组内中心=三级）">'+label+' <span class="gear">⚙</span></span>';}
+  return '<span class="ctr'+(g.length?'':' none')+'" onclick="openPm(\''+String(dept).replace(/'/g,'')+'\')" title="从本部门中心分组建子PM看板（组=二级、组内中心=三级）；改动同步到看板1-4 侧栏层级">'+label+' <span class="gear">⚙</span></span>';}
 function acctRow(a,depth){
   var i=acctIdx(a.id);
   var me=(a.id==='bonniewbli'),meLock=me&&!a.is_sysadmin;  // 本人权限不可自改；系统管理员例外(可配自己)
@@ -351,26 +351,40 @@ function acctRow(a,depth){
     :('<button class="btn gray" style="padding:2px 10px;font-size:12px" onclick="openDeptCfg(\''+a.id.replace(/'/g,'')+'\')" title="配置该账号可见的看板1/看板0部门（可精确到中心）">看板1·'+((a.kb1_depts||[]).length)+' / 看板0·'+((a.kb0_depts||[]).length)+' ⚙</button>');
   return '<tr><td style="padding-left:'+(depth*20+24)+'px">'+esc(a.id)+(a.demo?' <span class="chip demo">示例</span>':'')+(a.is_head?' <span class="chip ok">总BP</span>':'')+'</td>'
     +'<td>'+esc(a.name)+(a.is_sysadmin?' <span class="chip" style="background:#DBEAFE;color:#1E40AF;font-weight:600" title="系统管理员：全部可编辑（含改自己）">系统管理员</span>':'')+'</td>'
-    +'<td>'+roleSel+'</td><td>'+pmCellHtml(a,i)+'</td>'
+    +'<td>'+roleSel+'</td><td>'+pmCellByDept(a.dept)+'</td>'
     +'<td class="c">'+deptCell+'</td>'
     +'<td class="c">'+(a.id==='bonniewbli'?'<span style="font-size:12px;color:var(--ink3)">启用</span>':'<label class="sw"><input type="checkbox" '+(a.on?'checked':'')+' onchange="accOn('+i+',this.checked)"><span class="tk"></span></label>')+'</td>'
     +'<td class="c"><button class="btn gray" style="padding:2px 8px;font-size:12px" onclick="ioaSync(\''+a.id.replace(/'/g,'')+'\')" title="按 iOA 组织架构回填 org_path/职级/上级（正式版）">iOA同步</button> '
     +(a.id==='bonniewbli'?'<span class="chip ok">当前</span>'+(a.role==='管理员'?' <span class="rowdel" style="color:var(--blue)" onclick="openTransfer()" title="把管理员职位移交给他人，自己降为可编辑">转移管理员</span>':''):'<span class="rowdel" onclick="accDel('+i+')">移除</span>')+'</td></tr>';
 }
 function renderAccts(){
-  var root=buildOrgTree(accts);
+  var byDept={},ungrouped=[];
+  accts.forEach(function(a){var d=a.dept;if(!d||d==='集团')ungrouped.push(a);else (byDept[d]=byDept[d]||[]).push(a);});
   var h='<thead><tr><th>部门/账号</th><th style="width:160px">姓名</th><th style="width:140px">角色</th><th style="width:200px">设置子PM看板</th><th class="c" style="width:150px">部门权限</th><th class="c">启用</th><th class="c" style="width:120px">操作</th></tr></thead><tbody>';
-  root.accts.forEach(function(a){h+=acctRow(a,0);});  // 未分配部门
-  (function walk(node,path,depth){
-    node.order.forEach(function(seg){
-      var child=node.children[seg],key=path+'/'+seg,collapsed=ACCT_COLLAPSE[key],deptKey=key.replace(/^\//,'');
-      h+='<tr><td colspan="7" style="background:#F1F5F9;padding:6px 8px 6px '+(depth*20+8)+'px;cursor:pointer;font-weight:600" onclick="acctToggle(\''+key.replace(/'/g,'')+'\')">'
-        +(collapsed?'▸':'▾')+' '+esc(seg)+' <span class="chip">'+countAccts(child)+' 人</span>'
-        +'<button class="btn gray" style="margin-left:10px;padding:1px 8px;font-size:11px;font-weight:400" onclick="event.stopPropagation();openAcctInDept(\''+deptKey.replace(/'/g,'')+'\')" title="在本部门添加人员">＋加人</button>'
-        +'<span class="addp" onclick="event.stopPropagation();viewCenters(\''+seg.replace(/'/g,'')+'\')" title="查看本部门中心清单">中心清单</span></td></tr>';
-      if(!collapsed){child.accts.forEach(function(a){h+=acctRow(a,depth+1);});walk(child,key,depth+1);}
-    });
-  })(root,'',0);
+  ungrouped.forEach(function(a){h+=acctRow(a,0);});  // 系统管理员/全局(集团) 置顶
+  var seen={};
+  function deptBlock(dept){
+    if(seen[dept])return;seen[dept]=1;
+    var list=byDept[dept]||[],collapsed=ACCT_COLLAPSE[dept],dq=dept.replace(/'/g,'');
+    h+='<tr><td colspan="7" style="background:#F1F5F9;padding:6px 8px;cursor:pointer;font-weight:600" onclick="acctToggle(\''+dq+'\')">'
+      +(collapsed?'▸':'▾')+' '+esc(dept)+' <span class="chip'+(list.length?'':' off')+'">'+(list.length?list.length+' 人':'待指定部门BP')+'</span>'
+      +'<button class="btn gray" style="margin-left:10px;padding:1px 8px;font-size:11px;font-weight:400" onclick="event.stopPropagation();openAcctInDept(\''+dq+'\')" title="在本部门添加人员">＋加人</button>'
+      +'<span class="addp" onclick="event.stopPropagation();viewCenters(\''+dq+'\')" title="查看本部门中心清单">中心清单</span></td></tr>';
+    if(!collapsed){
+      if(list.length){list.forEach(function(a){h+=acctRow(a,1);});}
+      else{h+='<tr>'
+        +'<td class="sub" style="padding-left:44px;color:var(--ink3)">未指定 <span class="chip bp">部门BP</span></td>'
+        +'<td><span style="color:var(--ink3)">—</span></td>'
+        +'<td><span style="color:var(--ink3)">—</span></td>'
+        +'<td>'+pmCellByDept(dept)+'</td>'
+        +'<td class="c"><span style="font-size:12px;color:var(--ink3)">看板1·0 / 看板0·0</span></td>'
+        +'<td class="c"><span style="color:var(--ink3)">—</span></td>'
+        +'<td class="c"><span class="rowdel" style="color:var(--blue)" onclick="openAcctInDept(\''+dq+'\')">指定部门BP</span></td>'
+        +'</tr>';}
+    }
+  }
+  DEPT_TREE.forEach(function(n){if(n.name!=='集团')deptBlock(n.name);});  // 全部门都出行
+  Object.keys(byDept).forEach(function(d){if(!seen[d])deptBlock(d);});    // DEPT_TREE 之外的残留部门
   document.getElementById('acctTbl').innerHTML=h+'</tbody>';
 }
 function ioaSync(id){
@@ -381,6 +395,8 @@ function ioaSync(id){
   });
 }
 /* ===== 中心清单 / 设置子PM看板（组=二级、组内中心=三级；与看板 index.html DEPT_TREE 中心一致） ===== */
+var PM_GROUPS={};try{PM_GROUPS=JSON.parse(localStorage.getItem('hcfb_pm_groups')||'{}')||{};}catch(e){PM_GROUPS={};}  // 部门→子PM组，与看板端(index.html)共用同一份(同源 localStorage)
+function savePmGroups(){try{localStorage.setItem('hcfb_pm_groups',JSON.stringify(PM_GROUPS));}catch(e){}}
 function deptCenters(dept){for(var i=0;i<DEPT_TREE.length;i++)if(DEPT_TREE[i].name===dept)return (DEPT_TREE[i].children||[]).slice();return [];}
 function viewCenters(dept,e){if(e)e.stopPropagation();var list=deptCenters(dept);
   document.getElementById('vcTitle').textContent=dept+' · 中心清单';
@@ -389,9 +405,9 @@ function viewCenters(dept,e){if(e)e.stopPropagation();var list=deptCenters(dept)
   document.getElementById('maskCenters').classList.add('on');}
 function closeCenters(){document.getElementById('maskCenters').classList.remove('on');}
 var pmIdx=-1,pmDept='',pmCenters=[],pmGroups=[];
-function openPm(i){pmIdx=i;var a=accts[i];if(!a)return;pmDept=(a.dept==='集团'?'':a.dept)||'';pmCenters=deptCenters(pmDept);
-  pmGroups=JSON.parse(JSON.stringify(a.pm_groups||[]));
-  document.getElementById('pmMeta').textContent=(pmDept||'（本账号未归属含中心的部门）')+' · '+a.id+' —— 从该部门中心里选择若干中心并命名，创建子PM看板：组为二级层级，组内中心降为三级，未进组的中心仍为二级。';
+function openPm(dept){pmDept=(dept==='集团'?'':dept)||'';pmCenters=deptCenters(pmDept);
+  pmGroups=JSON.parse(JSON.stringify(PM_GROUPS[pmDept]||[]));
+  document.getElementById('pmMeta').textContent=(pmDept||'（集团/未归属含中心的部门）')+' —— 从该部门中心里选择若干中心并命名，创建子PM看板：组为二级层级，组内中心降为三级，未进组的中心仍为二级。改动同步到看板1-4 侧栏层级。';
   document.getElementById('pmName').value='';document.getElementById('pmErr').style.display='none';
   pmRender();document.getElementById('maskPm').classList.add('on');}
 function pmRender(){
@@ -412,9 +428,10 @@ function pmCreate(){var name=document.getElementById('pmName').value.trim();
   document.getElementById('pmErr').style.display='none';
   pmGroups.push({name:name,centers:sel});document.getElementById('pmName').value='';pmRender();}
 function pmDel(i){pmGroups.splice(i,1);pmRender();}
-function savePm(){if(pmIdx<0){closePm();return;}accts[pmIdx].pm_groups=pmGroups;
-  if(typeof saveCfg==='function')saveCfg();
-  if(typeof log==='function')log('设置子PM看板',accts[pmIdx].id+'：'+pmGroups.length+' 组 / '+pmGroups.reduce(function(a,g){return a+(g.centers||[]).length;},0)+' 中心');
+function savePm(){var dept=pmDept;
+  if(pmGroups.length)PM_GROUPS[dept]=pmGroups;else delete PM_GROUPS[dept];
+  savePmGroups();  // 落 localStorage → 看板1-4 下次打开即按此层级渲染
+  if(typeof log==='function')log('设置子PM看板',dept+'：'+pmGroups.length+' 组 / '+pmGroups.reduce(function(a,g){return a+(g.centers||[]).length;},0)+' 中心（已同步看板层级）');
   closePm();renderAccts();}
 function closePm(){document.getElementById('maskPm').classList.remove('on');pmIdx=-1;}
 document.getElementById('maskPm').addEventListener('click',function(e){if(e.target===this)closePm();});

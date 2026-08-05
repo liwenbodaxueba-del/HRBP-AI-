@@ -966,6 +966,17 @@ var DEPT_TREE=[
   {name:'港澳台及国际业务部',children:[]},{name:'CSIG产品管理支持中心',children:[]}
 ];
 var KB1_OPEN={};
+/* 子PM分组（部门→[{name,centers}]）：管理后台「设置子PM看板」配置，同源 localStorage 共享。部门展开时按 部→子PM组→中心 渲染 */
+var PM_GROUPS={};try{PM_GROUPS=JSON.parse(localStorage.getItem('hcfb_pm_groups')||'{}')||{};}catch(e){PM_GROUPS={};}
+window.addEventListener('storage',function(e){if(e.key==='hcfb_pm_groups'){try{PM_GROUPS=JSON.parse(e.newValue||'{}')||{};}catch(_){PM_GROUPS={};}if(window.renderKb1Nav)renderKb1Nav();}});
+function _pmGroupHead(label,padLeft){return '<div style="padding:5px 10px 5px '+padLeft+'px;font-size:12px;font-weight:600;color:var(--navy)">'+label+' <span style="font-size:10px;font-weight:400;color:var(--ink3);background:#EEF2F8;border-radius:8px;padding:0 6px">子PM组</span></div>';}
+/* 按子PM组展开一个部门的中心：先各组(组头+组内中心 deepPad)，再未分组中心(headPad) */
+function _emitCenters(dept,centers,centerOK,headPad,deepPad,emit,emitHead){
+  var groups=(PM_GROUPS[dept]||[]),grouped={};
+  groups.forEach(function(g){(g.centers||[]).forEach(function(c){grouped[c]=1;});});
+  groups.forEach(function(g){emitHead(g.name,headPad);(g.centers||[]).forEach(function(c){if(centers.indexOf(c)>=0&&centerOK(dept,c))emit(c,deepPad);});});
+  centers.forEach(function(c){if(!grouped[c]&&centerOK(dept,c))emit(c,headPad);});
+}
 /* 当前部门是否为『含中心的部』——各中心汇总·只读(不可直接录入，与后端一致) */
 function isDeptAgg(dept){dept=dept||window.CUR_DEPT||'集团';for(var i=0;i<DEPT_TREE.length;i++)if(DEPT_TREE[i].name===dept&&DEPT_TREE[i].children&&DEPT_TREE[i].children.length)return true;return false;}
 /* 侧栏「看板1」下展开部门层级：部→中心，点任一节点即切看板1 该部门空间 */
@@ -989,7 +1000,9 @@ function renderLineNav(lineName){var host=document.getElementById('lineNav_'+lin
     if(!hasCh){h+=_lineDeptA(node.name,node.name,20,cur,'');return;}
     var arrow='<span onclick="event.stopPropagation();toggleLineDept(\''+lineName+'\',\''+node.name+'\')" style="float:right;font-size:10px;padding:0 4px;color:var(--ink3)">'+(open?'▾':'▸')+'</span>';
     h+=_lineDeptA(node.name,node.name,20,cur,arrow);
-    if(open)node.children.forEach(function(ch){if(centerOK(node.name,ch))h+=_lineDeptA(node.name+'/'+ch,'· '+ch,36,cur,'');});  // 三层=中心
+    if(open)_emitCenters(node.name,node.children,centerOK,36,52,
+      function(c,pad){h+=_lineDeptA(node.name+'/'+c,'· '+c,pad,cur,'');},
+      function(name,pad){h+=_pmGroupHead(name,pad);});  // 三层=中心（有子PM组则 部→组→中心）
   });
   host.innerHTML=h||'<div style="padding:6px 20px;font-size:12px;color:var(--ink3)">无可见部门</div>';}
 function renderAllLineNav(){DEPT_LINES.forEach(function(l){var h=document.getElementById('lineNav_'+l.name);if(h&&h.style.display!=='none')renderLineNav(l.name);});}
@@ -1037,7 +1050,9 @@ function renderDeptNav(board){var host=document.getElementById(board+'DeptNav');
     if(!partVisible(node))return;
     var arrow='<span onclick="event.stopPropagation();toggleDeptSub(\''+board+'\',\''+node.name+'\')" style="float:right;font-size:10px;padding:0 4px;color:var(--ink3)">'+(open?'▾':'▸')+'</span>';
     h+=_navA(board,node.name,node.name,20,cur,arrow,open?kbH:null);
-    if(open)node.children.forEach(function(ch){if(centerOK(node.name,ch))h+=_navA(board,node.name+'/'+ch,'· '+ch,38,cur,'');});
+    if(open)_emitCenters(node.name,node.children,centerOK,38,54,
+      function(c,pad){h+=_navA(board,node.name+'/'+c,'· '+c,pad,cur,'');},
+      function(name,pad){h+=_pmGroupHead(name,pad);});
   });
   host.innerHTML=h||'<div style="padding:8px 20px;font-size:12px;color:var(--ink3)">无可见部门</div>';}
 function renderAllDeptNav(){DEPT_BOARDS.forEach(function(b){var h=document.getElementById(b+'DeptNav');if(h&&h.style.display!=='none')renderDeptNav(b);});}
