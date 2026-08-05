@@ -32,7 +32,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 # meta=指标口径 · store=存储/权限/审计 · calc_kb1=看板1/2运算引擎 · sources=外部源直连 · kb3_ledger=看板3台账解析
 from meta import (CANON_PROJECTS, OUT_KEYS, CAMP_KEYS, IN_DIRECT_KEYS, BP_EDITABLE,
                   IMPORTABLE, VALUE_ABS_MAX, PLAN_METRICS, PLAN_BRANCH_SECS, EXTRA_METRICS, NAT_N_DEFAULT)
-from store import (DB_PATH, db, init_db, now, _audit, _write_cell, get_account,
+from store import (DB_PATH, IS_DEMO_DB, db, init_db, now, _audit, _write_cell, get_account,
                    require_writer, require_admin, can_manage, manageable_ids, is_agg_dept, DEPT_CENTERS, _kb0_adjust, _grid, _branches)
 from calc_kb1 import compute
 from sources import SOURCE_METRICS, load_sources_cfg, fetch_source, _month_completed
@@ -380,7 +380,9 @@ def get_board(year: int, dept: str = "集团"):
             if av[m] is None and comp["chain"][m] is not None:
                 av[m] = comp["chain"][m]
         metrics["actual"]["vals"] = av
-        demo = bool(c.execute("SELECT 1 FROM cells WHERE year=? AND dept=? AND source='demo' LIMIT 1", (year, dept)).fetchone()
+        # 假数库(hcfb_demo.db)：整库皆示例 → 直接置 demo 横幅；真库则按 source='demo' 兜底判断
+        demo = bool(IS_DEMO_DB
+                    or c.execute("SELECT 1 FROM cells WHERE year=? AND dept=? AND source='demo' LIMIT 1", (year, dept)).fetchone()
                     or c.execute("SELECT 1 FROM branches WHERE year=? AND dept=? AND created_by='demo' LIMIT 1", (year, dept)).fetchone()
                     or (dept == "集团" and c.execute("SELECT 1 FROM ledger_rows WHERE batch=-999 LIMIT 1").fetchone()))
     # 含中心的部：各中心预算当量之和（供与系统取数=看板2部门维度对比·纯参考·不上卷不影响）
@@ -794,7 +796,12 @@ DEMO_LEDGER_BATCH = -999
 
 @app.post("/api/demo/load")
 def demo_load(y: YearNew, x_user: str = Header("bonniewbli")):
-    """一次填所有年份页签（含历史归档年）：按各年 lock 填历史实际月，只填空格不覆盖真数"""
+    """【已下线】旧式一键导入假数（含 BP 手填项）。假数改由独立假数库 hcfb_demo.db 提供
+    （backend/seed_demo.py 生成·仅系统取数）。此端点保留但拒绝执行，防止把带 BP 手填的旧假数灌回。"""
+    raise HTTPException(410, "旧式示例导入已下线：假数改由独立假数库 hcfb_demo.db 提供（运行 backend/seed_demo.py 生成，仅系统取数）。切真库请设 HCFB_DB=hcfb.db 或删除 hcfb_demo.db。")
+
+
+def _demo_load_disabled(y, x_user):
     with db() as c:
         require_writer(c, x_user)
         if not c.execute("SELECT 1 FROM years WHERE year=?", (y.year,)).fetchone():

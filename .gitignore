@@ -1,4 +1,5 @@
 backend/hcfb.db
+backend/hcfb_demo.db
 backend/uvicorn.log
 __pycache__/
 *.pyc

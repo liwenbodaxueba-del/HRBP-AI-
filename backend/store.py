@@ -9,7 +9,17 @@ from fastapi import HTTPException
 
 from meta import CANON_PROJECTS, NAT_N_DEFAULT
 
-DB_PATH = os.environ.get("HCFB_DB") or os.path.join(os.path.dirname(__file__), "hcfb.db")
+# DB 选择：HCFB_DB 环境变量优先（绝对路径直用，相对则相对 backend 目录）；
+# 否则若存在假数库 hcfb_demo.db 则默认用它（开发/演示）；否则用真库 hcfb.db（真库靠真实 API 写入·空态）。
+# IS_DEMO_DB 供前端显示「示例数据」横幅（[[feedback_no_fabricated_data]]：假数必须标示例）。
+_ENV_DB = os.environ.get("HCFB_DB")
+_DB_DIR = os.path.dirname(__file__)
+if _ENV_DB:
+    DB_PATH = _ENV_DB if os.path.isabs(_ENV_DB) else os.path.join(_DB_DIR, _ENV_DB)
+else:
+    _demo_db = os.path.join(_DB_DIR, "hcfb_demo.db")
+    DB_PATH = _demo_db if os.path.exists(_demo_db) else os.path.join(_DB_DIR, "hcfb.db")
+IS_DEMO_DB = os.path.basename(DB_PATH) == "hcfb_demo.db"
 
 
 # ---------------- DB ----------------

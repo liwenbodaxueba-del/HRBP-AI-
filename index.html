@@ -522,8 +522,7 @@ body.navfold .navtg{left:8px;}
     <span style="font-size:12.5px;color:var(--ink3)">（左侧「看板1」展开可切换部门）</span>
   </div>
   <div class="banner" id="demoBanner" style="background:#FDECEC;border-color:#F3B4B4;color:#8C2B2B">
-    <span><b>【示例】演示数据已加载</b>——当前含功能演示用假数（demo 标签全程可溯），非真实口径，勿用于汇报</span>
-    <button class="btn danger" onclick="demoClear()">删除假数（一键全清）</button>
+    <span><b>【示例】演示数据（独立假数库 hcfb_demo.db）</b>——仅含<b>系统取数</b>假数，BP 手填项一律留空待你自己填；非真实口径，勿用于汇报。切真库：设 <code>HCFB_DB=hcfb.db</code> 或删除 hcfb_demo.db</span>
   </div>
   <div class="banner" id="diffBanner">
     <span id="diffText"></span>
@@ -2620,23 +2619,10 @@ setYear=function(y){
   YEAR=y;loadYear(y).catch(apiErr);
 };
 renderAudit=function(){if(!USE_API)return ORIG.renderAudit();renderAuditApi();};
-demoLoad=function(){
-  if(!USE_API)return alert('连接后端后可导入示例数据');
-  if(RO)return alert('当前账号为只读权限');
-  api('POST','/api/demo/load',{year:YEAR})
-    .then(function(b){applyBoard(b);return loadLedger();})
-    .then(function(){renderAuditApi();if(typeof toast==='function')toast('示例数据已加载（demo 标签·只填空格不覆盖真数）');})
-    .catch(apiErr);
-};
-demoClear=function(){
-  if(!USE_API)return alert('连接后端后可清除示例数据');
-  if(RO)return alert('当前账号为只读权限');
-  if(!window.confirm('删除全部示例假数？（按 demo 标签彻底清除，真实数据不动）'))return;
-  api('POST','/api/demo/clear',{})
-    .then(function(r){return loadYear(YEAR).then(function(){return loadLedger();}).then(function(){
-      renderAuditApi();if(typeof toast==='function')toast('假数已全清：'+r.cells+' 格 + 分支 '+r.branches+' 条 + 台账 '+r.ledger+' 行');});})
-    .catch(apiErr);
-};
+// 旧「一键导入/清除假数」已下线：假数改由独立假数库 hcfb_demo.db 提供（结构=真库副本，只灌系统取数、不含 BP 手填）。
+// 生成/重建：backend/seed_demo.py；切真库：设 HCFB_DB=hcfb.db 或删除 hcfb_demo.db。保留空函数防旧调用/语音口令误触。
+demoLoad=function(){alert('示例数据现由独立假数库 hcfb_demo.db 提供（运行 backend/seed_demo.py 生成，仅系统取数）。已不再用「一键导入」——那会灌回带 BP 手填的旧式假数。');};
+demoClear=function(){alert('假数现在独立库 hcfb_demo.db 里。要切回真实空库：设环境变量 HCFB_DB=hcfb.db，或删除 backend/hcfb_demo.db 后重启。');};
 srcSync=function(metric){
   if(!USE_API)return alert('连接后端后可取数（当前为本地模式）');
   if(RO)return alert('当前账号为只读权限');
@@ -2876,9 +2862,7 @@ function apiTag(){var el=document.getElementById('freshTag');if(el)el.textConten
 exportCSV=function(){if(!USE_API)return ORIG.exportCSV();window.open('/api/export/'+YEAR+'.csv');};
 function addImportBtn(){
   var bar=document.querySelector('.topbar');if(!bar||document.getElementById('impSnapBtn'))return;
-  var db=document.createElement('button');db.id='demoBtn';db.className='tbi';db.innerHTML='<t-icon name="browse" size="14" style="vertical-align:-2px;margin-right:4px"></t-icon>导入示例数据';
-  db.title='功能演示用假数：demo 标签全程可溯、只填空格不覆盖真数、页面挂【示例】横幅；再点或说「删除假数」一键全清';
-  db.onclick=function(){var on=document.getElementById('demoBanner').classList.contains('on');on?demoClear():demoLoad();};
+  // 旧「导入示例数据/删除假数」按钮已下线：假数改由独立假数库 hcfb_demo.db 提供（后端选库·横幅自动标示例）
   var b=document.createElement('button');b.id='impSnapBtn';b.className='tbi';b.innerHTML='<t-icon name="upload" size="14" style="vertical-align:-2px;margin-right:4px"></t-icon>导入快照CSV';b.title='上传兜底：metric,month,value；校验闸不合格整批拒绝';
   var inp=document.createElement('input');inp.type='file';inp.accept='.csv';inp.style.display='none';
   inp.onchange=function(){var f=inp.files[0];if(!f)return;var fd=new FormData();fd.append('file',f);
@@ -2890,7 +2874,7 @@ function addImportBtn(){
     inp.value='';};
   b.onclick=function(){inp.click();};
   var firstBtn=bar.querySelector('.btn');
-  if(firstBtn){bar.insertBefore(b,firstBtn);bar.insertBefore(db,b);}else{bar.appendChild(db);bar.appendChild(b);}
+  if(firstBtn){bar.insertBefore(b,firstBtn);}else{bar.appendChild(b);}
   bar.appendChild(inp);
 }
 /* ===== 多端实时同步：每 ~3s 轮询 /api/version（=审计表 MAX(id)，任何改动即变），
