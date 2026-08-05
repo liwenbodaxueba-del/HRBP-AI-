@@ -2436,7 +2436,10 @@ function restoreNavState(){
   }catch(e){}
   _restoring=false;saveNavState();
 }
-function goView(v){document.querySelectorAll('nav.side a').forEach(function(x){x.classList.toggle('on',x.getAttribute('data-v')===v);});document.querySelectorAll('.view').forEach(function(w){w.classList.remove('on');});var el=document.getElementById('v-'+v);if(el){el.classList.add('on');window.scrollTo(0,0);}saveNavState();}
+function goView(v){
+  // 看板2/3/4 只有部门维度（中心仅存在于看板1）：若当前部门空间是中心，切过来时回落到其所属部门
+  if((v==='kb2'||v==='kb3'||v==='kb4')&&window.CUR_DEPT&&window.CUR_DEPT.indexOf('/')>=0&&window.setDept){window.setDept(window.CUR_DEPT.split('/')[0]);}
+  document.querySelectorAll('nav.side a').forEach(function(x){x.classList.toggle('on',x.getAttribute('data-v')===v);});document.querySelectorAll('.view').forEach(function(w){w.classList.remove('on');});var el=document.getElementById('v-'+v);if(el){el.classList.add('on');window.scrollTo(0,0);}saveNavState();}
 function go(a){goView(a.getAttribute('data-v'));}
 function tbToggle(id){document.querySelectorAll('.tbdrop').forEach(function(d){d.classList.toggle('on',!!(id&&d.id===id&&!d.classList.contains('on')));});}
 document.addEventListener('click',function(e){if(!e.target.closest('.tbmenu'))tbToggle();});
