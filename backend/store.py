@@ -196,6 +196,10 @@ def init_db():
                 pass  # 列已存在
         c.execute("UPDATE accounts SET is_sysadmin=1 WHERE id='bonniewbli'")  # 内置系统管理员（幂等）
         try:
+            c.execute("ALTER TABLE accounts ADD COLUMN kbperm TEXT DEFAULT ''")  # 4个看板(看板1/2/3/4)编辑查阅权限 [0无/1查阅/2编辑]*4；空=按角色默认
+        except sqlite3.OperationalError:
+            pass
+        try:
             c.execute("ALTER TABLE kb0_adjust ADD COLUMN note TEXT")  # 看板0 调节项备注（现有库补列）
         except sqlite3.OperationalError:
             pass

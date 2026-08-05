@@ -275,6 +275,14 @@ body.navfold .navtg{left:8px;}
   <div class="row" style="justify-content:space-between;align-items:center;border-top:1px solid var(--b100);padding-top:14px"><span class="hint" id="lnCount" style="margin:0"></span><button class="btn gray" onclick="closeLn()">关闭</button></div>
 </div></div>
 
+<!-- 看板权限配置 modal（4个看板·编辑/查阅·仅系统管理员） -->
+<div class="mask" id="maskKbPerm"><div class="modal" style="width:420px">
+  <h3>看板权限配置 · <span id="kpWho" style="color:var(--navy)"></span></h3>
+  <div class="meta">为该账号设置 <b>看板1 / 看板2 / 看板3 / 看板4</b> 的权限：<b>无</b>（不可见）/ <b>查阅</b>（只读）/ <b>编辑</b>。仅<b>系统管理员</b>可改；账号本人及非系统管理员只能查看自己的权限。</div>
+  <div id="kpGrid" style="margin:6px 0"></div>
+  <div class="row"><button class="btn gray" onclick="closeKbPerm()">取消</button><button class="btn" onclick="saveKbPerm()">保存并生效</button></div>
+</div></div>
+
 <!-- 转移管理员 modal -->
 <div class="mask" id="maskTransfer"><div class="modal">
   <h3>转移管理员职位</h3>
@@ -357,17 +365,47 @@ function pmCellByDept(dept){var g=(PM_GROUPS[dept]||[]);  // 子PM分组按部�
   var n=g.reduce(function(s,x){return s+(x.centers||[]).length;},0);
   var label=g.length===0?'未创建':(g.length===1?esc(g[0].name)+'（'+(g[0].centers||[]).length+'）':g.length+' 组 · '+n+' 中心');
   return '<span class="ctr'+(g.length?'':' none')+'" onclick="openPm(\''+String(dept).replace(/'/g,'')+'\')" title="从本部门中心分组建子PM看板（组=二级、组内中心=三级）；改动同步到看板1-4 侧栏层级">'+label+' <span class="gear">⚙</span></span>';}
+/* ===== 看板权限（看板1/2/3/4 · 0无/1查阅/2编辑）：仅系统管理员可改他人；本人/非系统管理员只读 ===== */
+var BOARDS4=['看板1','看板2','看板3','看板4'],PERM_LABEL=['无','查阅','编辑'],_kpId=null;
+function ME_SYS(){return window.ACCT_ME?!!window.ACCT_ME.is_sysadmin:true;}  // 本地 demo 默认 bonnie=系统管理员
+function kbPermOf(a){
+  if(a.role==='管理员')return [2,2,2,2];  // 管理员=全看板编辑
+  var p=a.kbperm;if(p&&p.length===4)return p.map(function(x){return (x===0||x===1||x===2)?x:1;});
+  return a.role==='领导·只读'?[1,1,1,1]:[2,2,2,2];  // 默认：只读→查阅，可编辑→编辑
+}
+function kbPermCell(a,i){
+  var p=kbPermOf(a),PC=['#EEF2F8','#DBEAFE','#E7F6EF'],FC=['var(--ink3)','#1E40AF','var(--green)'];
+  var badges=BOARDS4.map(function(b,j){return '<span style="font-size:10.5px;border-radius:6px;padding:1px 5px;margin-right:3px;background:'+PC[p[j]]+';color:'+FC[p[j]]+'">'+b.replace('看板','')+PERM_LABEL[p[j]].charAt(0)+'</span>';}).join('');
+  var editable=ME_SYS()&&a.role!=='管理员';
+  var tail=editable?' <span class="gear" style="cursor:pointer;font-size:14px" onclick="openKbPerm('+i+')" title="配置 4 个看板的编辑/查阅权限（仅系统管理员）">⚙</span>'
+    :(a.role==='管理员'?' <span style="font-size:11px;color:var(--ink3)">全编辑</span>':' <span style="font-size:11px;color:var(--ink3)" title="仅系统管理员可改；本处只读">🔒</span>');
+  return '<span title="看板1/2/3/4：编=编辑·查=查阅·无=不可见">'+badges+tail+'</span>';
+}
+function openKbPerm(i){if(!ME_SYS()){alert('仅系统管理员可配置看板权限');return;}
+  var a=accts[i];_kpId=a.id;var p=kbPermOf(a);
+  document.getElementById('kpWho').textContent=a.id+'（'+(a.name||'')+'）';
+  document.getElementById('kpGrid').innerHTML=BOARDS4.map(function(b,j){
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 4px;border-bottom:1px solid #EDF3FB"><span style="font-size:13px;color:var(--ink);font-weight:600">'+b+'</span>'
+      +'<select data-b="'+j+'" style="min-width:120px"><option value="0"'+(p[j]===0?' selected':'')+'>无（不可见）</option><option value="1"'+(p[j]===1?' selected':'')+'>查阅（只读）</option><option value="2"'+(p[j]===2?' selected':'')+'>编辑</option></select></div>';
+  }).join('');
+  document.getElementById('maskKbPerm').classList.add('on');
+}
+function saveKbPerm(){var i=acctIdx(_kpId);if(i<0){closeKbPerm();return;}
+  var p=[].map.call(document.querySelectorAll('#kpGrid select'),function(s){return parseInt(s.value,10);});
+  accts[i].kbperm=p;
+  if(typeof log==='function')log('改看板权限',accts[i].id+'：'+BOARDS4.map(function(b,j){return b+PERM_LABEL[p[j]];}).join('/'));
+  closeKbPerm();renderAccts();  // log()→saveCfg()→PUT /api/config 落库
+}
+function closeKbPerm(){document.getElementById('maskKbPerm').classList.remove('on');_kpId=null;}
 function acctRow(a,depth){
   var i=acctIdx(a.id);
   var me=(a.id==='bonniewbli'),meLock=me&&!a.is_sysadmin;  // 本人权限不可自改；系统管理员例外(可配自己)
   var roleSel=meLock?('<span style="font-size:13px;color:var(--ink2)" title="本人角色不可自改，须由系统管理员配置">'+esc(a.role)+'</span>')
     :'<select onchange="accRole('+i+',this.value)"><option'+(a.role==='管理员'?' selected':'')+'>管理员</option><option'+(a.role==='HRBP·可编辑'?' selected':'')+'>HRBP·可编辑</option><option'+(a.role==='领导·只读'?' selected':'')+'>领导·只读</option></select>';
-  var deptCell=meLock?('<span style="font-size:12px;color:var(--ink3)" title="本人权限不可自改">看板1·'+((a.kb1_depts||[]).length)+' / 看板0·'+((a.kb0_depts||[]).length)+'</span>')
-    :('<button class="btn gray" style="padding:2px 10px;font-size:12px" onclick="openDeptCfg(\''+a.id.replace(/'/g,'')+'\')" title="配置该账号可见的看板1/看板0部门（可精确到中心）">看板1·'+((a.kb1_depts||[]).length)+' / 看板0·'+((a.kb0_depts||[]).length)+' ⚙</button>');
   return '<tr><td style="padding-left:'+(depth*20+24)+'px">'+esc(a.id)+(a.demo?' <span class="chip demo">示例</span>':'')+(a.is_head?' <span class="chip ok">总BP</span>':'')+'</td>'
     +'<td>'+esc(a.name)+(a.is_sysadmin?' <span class="chip" style="background:#DBEAFE;color:#1E40AF;font-weight:600" title="系统管理员：全部可编辑（含改自己）">系统管理员</span>':'')+'</td>'
     +'<td>'+roleSel+'</td><td>'+pmCellByDept(a.dept)+'</td>'
-    +'<td class="c">'+deptCell+'</td>'
+    +'<td class="c">'+kbPermCell(a,i)+'</td>'
     +'<td class="c">'+(a.id==='bonniewbli'?'<span style="font-size:12px;color:var(--ink3)">启用</span>':'<label class="sw"><input type="checkbox" '+(a.on?'checked':'')+' onchange="accOn('+i+',this.checked)"><span class="tk"></span></label>')+'</td>'
     +'<td class="c"><button class="btn gray" style="padding:2px 8px;font-size:12px" onclick="ioaSync(\''+a.id.replace(/'/g,'')+'\')" title="按 iOA 组织架构回填 org_path/职级/上级（正式版）">iOA同步</button> '
     +(a.id==='bonniewbli'?'<span class="chip ok">当前</span>'+(a.role==='管理员'?' <span class="rowdel" style="color:var(--blue)" onclick="openTransfer()" title="把管理员职位移交给他人，自己降为可编辑">转移管理员</span>':''):'<span class="rowdel" onclick="accDel('+i+')">移除</span>')+'</td></tr>';
@@ -375,7 +413,7 @@ function acctRow(a,depth){
 function renderAccts(){
   var byDept={},ungrouped=[];
   accts.forEach(function(a){var d=a.dept;if(!d||d==='集团')ungrouped.push(a);else (byDept[d]=byDept[d]||[]).push(a);});
-  var h='<thead><tr><th>部门/账号</th><th style="width:160px">姓名</th><th style="width:140px">角色</th><th style="width:200px">设置子PM看板</th><th class="c" style="width:150px">部门权限</th><th class="c">启用</th><th class="c" style="width:120px">操作</th></tr></thead><tbody>';
+  var h='<thead><tr><th>部门/账号</th><th style="width:160px">姓名</th><th style="width:140px">角色</th><th style="width:200px">设置子PM看板</th><th class="c" style="width:190px">看板权限（编辑/查阅）</th><th class="c">启用</th><th class="c" style="width:120px">操作</th></tr></thead><tbody>';
   ungrouped.forEach(function(a){h+=acctRow(a,0);});  // 系统管理员/全局(集团) 置顶
   var seen={};
   function deptBlock(dept){
@@ -392,7 +430,7 @@ function renderAccts(){
         +'<td><span style="color:var(--ink3)">—</span></td>'
         +'<td><span style="color:var(--ink3)">—</span></td>'
         +'<td>'+pmCellByDept(dept)+'</td>'
-        +'<td class="c"><span style="font-size:12px;color:var(--ink3)">看板1·0 / 看板0·0</span></td>'
+        +'<td class="c"><span style="font-size:12px;color:var(--ink3)">—（未指定BP）</span></td>'
         +'<td class="c"><span style="color:var(--ink3)">—</span></td>'
         +'<td class="c"><span class="rowdel" style="color:var(--blue)" onclick="openAcctInDept(\''+dq+'\')">指定部门BP</span></td>'
         +'</tr>';}

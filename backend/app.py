@@ -76,7 +76,8 @@ def get_config():
              "manager_id": (r["manager_id"] if "manager_id" in r.keys() else "") or "",
              "org_path": (r["org_path"] if "org_path" in r.keys() else "") or "",
              "kb1_depts": json.loads((r["kb1_depts"] if "kb1_depts" in r.keys() else "") or '["集团"]'),
-             "kb0_depts": json.loads((r["kb0_depts"] if "kb0_depts" in r.keys() else "") or '["集团"]')}
+             "kb0_depts": json.loads((r["kb0_depts"] if "kb0_depts" in r.keys() else "") or '["集团"]'),
+             "kbperm": json.loads((r["kbperm"] if "kbperm" in r.keys() else "") or "[]")}
             for r in c.execute("SELECT * FROM accounts")
         ]
         return {"projs": projs, "accts": accts, "ts": int(time.time() * 1000)}
@@ -111,23 +112,24 @@ def put_config(doc: ConfigDoc, x_user: str = Header("bonniewbli")):
             if a["id"] == x_user and me_old and not me_sys:
                 # 非系统管理员的本人：权限字段一律用旧值（不能自己配自己），仅姓名可改
                 c.execute(
-                    "INSERT INTO accounts(id,name,role,dept,kb,on_ok,demo,level,manager_id,org_path,kb1_depts,kb0_depts,is_head,is_sysadmin) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "INSERT INTO accounts(id,name,role,dept,kb,on_ok,demo,level,manager_id,org_path,kb1_depts,kb0_depts,is_head,is_sysadmin,kbperm) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (x_user, a.get("name", me_old["name"]), me_old["role"], me_old["dept"],
                      me_old["kb"], 1, me_old["demo"],
                      me_old["level"] or "", me_old["manager_id"] or "", me_old["org_path"] or "",
                      me_old["kb1_depts"] or '["集团"]', me_old["kb0_depts"] or '["集团"]',
-                     int(me_old["is_head"] or 0), keep_sys),
+                     int(me_old["is_head"] or 0), keep_sys, (me_old.get("kbperm") or "")),
                 )
                 continue
             # 其他账号 / 系统管理员本人：用下发值（本人 on 强制启用防自锁；is_sysadmin 保原值）
             c.execute(
-                "INSERT INTO accounts(id,name,role,dept,kb,on_ok,demo,level,manager_id,org_path,kb1_depts,kb0_depts,is_head,is_sysadmin) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO accounts(id,name,role,dept,kb,on_ok,demo,level,manager_id,org_path,kb1_depts,kb0_depts,is_head,is_sysadmin,kbperm) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (a["id"], a.get("name", ""), a.get("role", "HRBP·可编辑"), a.get("dept", ""),
                  json.dumps(a.get("kb", [1, 1, 1, 1])), (1 if a["id"] == x_user else int(a.get("on", True))), int(bool(a.get("demo"))),
                  a.get("level", ""), a.get("manager_id", ""), a.get("org_path", ""),
                  json.dumps(a.get("kb1_depts", ["集团"]), ensure_ascii=False),
                  json.dumps(a.get("kb0_depts", ["集团"]), ensure_ascii=False),
-                 int(bool(a.get("is_head"))), keep_sys),
+                 int(bool(a.get("is_head"))), keep_sys,
+                 json.dumps(a.get("kbperm") or [], ensure_ascii=False)),
             )
         _audit(c, x_user, "配置更新", f"项目 {len(doc.projs)} 项 / 账号 {len(doc.accts)} 个（管理后台下发）")
         return {"ok": True}
@@ -165,7 +167,8 @@ def get_me(x_user: str = Header("bonniewbli")):
         return {"id": a["id"], "name": a["name"], "role": a["role"], "dept": a.get("dept", "") or "",
                 "is_head": bool(a.get("is_head", 0)), "is_sysadmin": bool(a.get("is_sysadmin", 0)),
                 "kb1_depts": json.loads((a.get("kb1_depts") or "") or '["集团"]'),
-                "kb0_depts": json.loads((a.get("kb0_depts") or "") or '["集团"]')}
+                "kb0_depts": json.loads((a.get("kb0_depts") or "") or '["集团"]'),
+                "kbperm": json.loads((a.get("kbperm") or "") or "[]")}
 
 
 # ---------------- 账号层级树（上级只看到自己管辖子树；管理员看全员） ----------------
@@ -193,9 +196,11 @@ def accounts_tree(x_user: str = Header("bonniewbli")):
                 "kb": json.loads(r["kb"] or "[1,1,1,1]"),
                 "kb1_depts": json.loads((r["kb1_depts"] if "kb1_depts" in r.keys() else "") or '["集团"]'),
                 "kb0_depts": json.loads((r["kb0_depts"] if "kb0_depts" in r.keys() else "") or '["集团"]'),
+                "kbperm": json.loads((r["kbperm"] if "kbperm" in r.keys() else "") or "[]"),
                 "can_manage": bool(can_manage(c, x_user, r["id"])),  # 我能否管这个人（自己=False）
             })
         return {"me": {"id": me["id"], "role": me["role"],
+                       "is_sysadmin": bool(me.get("is_sysadmin", 0)),  # 仅系统管理员可改他人看板权限
                        "org_path": (me["org_path"] if "org_path" in me.keys() else "") or ""},
                 "accounts": rows}
 
