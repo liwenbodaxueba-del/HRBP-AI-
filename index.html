@@ -1288,8 +1288,10 @@ function cSum(sec,m){var s=0,any=false;custom[sec].forEach(function(r){if(isN(r.
 function agg(parts){var got=false,s=0;parts.forEach(function(p){if(isN(p)){s+=p;got=true;}});return got?s:'';}   // 有一个数才算，否则''
 /* 社招·简历面试中：单一取数口径=看板3.2（台账 st=简历&面试中 按归月计数/一句话备注），不再走 soc_bp 手填 */
 /* 社招三子行统一取自看板3.2（3.1台账按 kb3cat 归月计数/一句话备注），看板1 与 3.2 逐行一致（取数口径打通） */
-function socCatCnt(catKey,m){var c=0,any=false;if(typeof LEDGER!=='undefined')LEDGER.forEach(function(r){if(kb3cat(r.st)!==catKey)return;var mo=kb3mo(r);if(!mo||mo.slice(0,4)!==String(YEAR))return;if(+mo.slice(5,7)-1===m){c++;any=true;}});return any?c:'';}
-function socCatNote(catKey,m){var lst=[];if(typeof LEDGER!=='undefined')LEDGER.forEach(function(r){if(kb3cat(r.st)!==catKey)return;var mo=kb3mo(r);if(!mo||mo.slice(0,4)!==String(YEAR))return;if(+mo.slice(5,7)-1===m)lst.push((r.who?r.who+'·':'')+r.job+(r.loc?'('+r.loc+')':'')+'·'+(r.st==='已入职'?r.join+'已入职':'预计'+r.eta+'到岗')+(r.memo?'·'+r.memo:''));});return lst.length?lst.join('\n'):'';}
+/* 看板3.2/看板1 社招·简历面试中读台账：按当前部门空间过滤（部门→匹配dept，中心→dept+中心，集团→全部），与看板3.1 同口径 */
+function _ledDeptOK(r){var d=window.CUR_DEPT||'集团';if(d==='集团')return true;var p=String(d).split('/'),dp=p[0],ct=p[1];if(String(r.dept||'')!==dp)return false;return ct?String(r.c||'')===ct:true;}
+function socCatCnt(catKey,m){var c=0,any=false;if(typeof LEDGER!=='undefined')LEDGER.forEach(function(r){if(!_ledDeptOK(r))return;if(kb3cat(r.st)!==catKey)return;var mo=kb3mo(r);if(!mo||mo.slice(0,4)!==String(YEAR))return;if(+mo.slice(5,7)-1===m){c++;any=true;}});return any?c:'';}
+function socCatNote(catKey,m){var lst=[];if(typeof LEDGER!=='undefined')LEDGER.forEach(function(r){if(!_ledDeptOK(r))return;if(kb3cat(r.st)!==catKey)return;var mo=kb3mo(r);if(!mo||mo.slice(0,4)!==String(YEAR))return;if(+mo.slice(5,7)-1===m)lst.push((r.who?r.who+'·':'')+r.job+(r.loc?'('+r.loc+')':'')+'·'+(r.st==='已入职'?r.join+'已入职':'预计'+r.eta+'到岗')+(r.memo?'·'+r.memo:''));});return lst.length?lst.join('\n'):'';}
 function socTot(m){return agg([D.soc_join[m],D.soc_sys[m],D.soc_hs[m],socCatCnt(KB3CATS[2].key,m),cSum('soc',m)]);}   // 待流入·社招 = 已入职(soc_join·系统) + 待入职/活水已offer(soc_sys+soc_hs·系统) + 简历面试中(看板3.2·3.1台账) + 分支。已入职/待入职·活水走系统接口，简历面试中读3.1。估/实双轨只在总流入/总流出层
 function campTot(m){return agg([D.camp_off[m]]);}   // 待流入·校招 = 直接取数仓「校招·已offer待入职」(camp_off) 单一取数；已发生月实际走「已流入·实际校招入职」(ai_camp) 行
 // 估/实双轨：已发生月合计=实际口径行；未发生月合计=预估口径行+分支（与后端 calc_kb1 同口径）
