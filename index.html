@@ -2254,7 +2254,12 @@ function kb3Items(){
   });
 }
 function renderKb3(){
-  var items=kb3Items(),totalN=items.length;
+  var items=kb3Items();
+  // 按当前部门空间取数：部门→匹配台账 dept；中心→匹配 dept+中心；集团→全部（草稿行不过滤）
+  var _cd=window.CUR_DEPT||'集团';
+  if(_cd&&_cd!=='集团'){var _pp=_cd.split('/'),_dp=_pp[0],_ct=_pp[1];
+    items=items.filter(function(it){if(it.r._draft)return true;if(it.v.dept!==_dp)return false;return _ct?(it.v.c===_ct):true;});}
+  var totalN=items.length;
   Object.keys(KB3F).forEach(function(f){var sel=KB3F[f]&&KB3F[f].sel;if(!sel)return;
     var set={};sel.forEach(function(x){set[x]=1;});
     items=items.filter(function(it){return it.r._draft||set[String(it.v[f])];});});
@@ -2301,7 +2306,8 @@ function renderKb3(){
   if(KB3_EDITING!==null&&typeof kb3MountRowEditor==='function'){kb3MountRowEditor(KB3_EDITING);}
   var ci=document.getElementById('kb3CountInfo');
   if(ci){var dataN=(typeof LEDGER!=='undefined'&&LEDGER)?LEDGER.length:0,colN=KB3COLS.length+1+(EDIT?1:0);
-    ci.innerHTML='台账共 <b>'+dataN+'</b> 行数据 · <b>'+colN+'</b> 列（'+KB3COLS.length+' 列字段 + 操作列'+(EDIT?' + 行号列':'')+'）';}
+    var scope=(_cd&&_cd!=='集团')?(' · <span style="color:var(--blue);font-weight:600">部门空间：'+esc(_cd)+' → '+totalN+' 行</span>'):'';
+    ci.innerHTML='台账共 <b>'+dataN+'</b> 行数据 · <b>'+colN+'</b> 列（'+KB3COLS.length+' 列字段 + 操作列'+(EDIT?' + 行号列':'')+'）'+scope;}
   var fi=document.getElementById('kb3FltInfo'),fActive=Object.keys(KB3F).length>0;
   var hidN=(window.KB3HIDE)?Object.keys(KB3HIDE).length:0;
   if(fi)fi.innerHTML=(fActive?('筛出 '+items.length+' / '+totalN+' 行'):(KB3SORT.f?('已排序 · '+totalN+' 行'):''))
@@ -2493,7 +2499,7 @@ var ORIG={saveCell:saveCell,clearCell:clearCell,saveRowDef:saveRowDef,delRowFrom
 window.USE_API=false;var API_USER='bonniewbli';
 /* 看板1 部门空间：各部门独立存一套数。DEPT 定 IIFE 内，board 接口自动带 ?dept= */
 var DEPT='集团';window.CUR_DEPT=DEPT;
-window.setDept=function(v){DEPT=v;window.CUR_DEPT=v;var el=document.getElementById('deptLbl');if(el)el.textContent='部门空间：'+v+' ▾';var pl=document.getElementById('deptPickLbl');if(pl)pl.textContent=v;var an=document.getElementById('deptAggNote');if(an)an.style.display=(typeof isDeptAgg==='function'&&isDeptAgg(v))?'inline-block':'none';if(window.renderKb1Nav)renderKb1Nav();return loadYear(YEAR).catch(apiErr);};
+window.setDept=function(v){DEPT=v;window.CUR_DEPT=v;var el=document.getElementById('deptLbl');if(el)el.textContent='部门空间：'+v+' ▾';var pl=document.getElementById('deptPickLbl');if(pl)pl.textContent=v;var an=document.getElementById('deptAggNote');if(an)an.style.display=(typeof isDeptAgg==='function'&&isDeptAgg(v))?'inline-block':'none';if(window.renderKb1Nav)renderKb1Nav();if(typeof renderKb3==='function')renderKb3();return loadYear(YEAR).catch(apiErr);};
 window.loadKb0=function(year){return api('GET','/api/kb0/'+year);};  // PM速览：按账号 kb0_depts 聚合各部门预算/预估
 window.saveKb0Adjust=function(year,dept,month,value,note){return api('POST','/api/kb0/'+year+'/adjust',{dept:dept,month:month,value:value,note:note||''}).then(function(){if(window.renderKb0)renderKb0();if(typeof toast==='function')toast('调节项已保存（看板0·不影响源数据）');}).catch(apiErr);};
 window.saveKb0Batch=function(year,dept,cells){return api('POST','/api/kb0/'+year+'/adjust-batch',{dept:dept,cells:cells}).then(function(){if(window.renderKb0)renderKb0();if(typeof toast==='function')toast('调节项已保存（'+cells.length+' 格·不影响源数据）');}).catch(apiErr);};
