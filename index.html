@@ -962,6 +962,16 @@ var KB1_OPEN={};
 function isDeptAgg(dept){dept=dept||window.CUR_DEPT||'集团';for(var i=0;i<DEPT_TREE.length;i++)if(DEPT_TREE[i].name===dept&&DEPT_TREE[i].children&&DEPT_TREE[i].children.length)return true;return false;}
 /* 侧栏「看板1」下展开部门层级：部→中心，点任一节点即切看板1 该部门空间 */
 var DEPT_BOARDS=['kb1','kb2','kb3','kb4'];  // 这些看板侧栏都可展开部门树
+/* 业务线维度：线→部（部再挂中心）。线为分组层，本身不载数据(点线名仅展开/收起)。 */
+var DEPT_LINES=[
+  {name:'coby线',head:'邱跃鹏',depts:['云产品一部','云产品五部','战略客户部','智慧行业一部','智慧行业七部','智慧行业十部','云运营管理部','云采购供应管理部','星星海实验室','港澳台及国际业务部','CSIG产品管理支持中心']},
+  {name:'wang线',head:'王慧星',depts:['云产品二部','云产品三部','云产品四部','云产品六部','安全产品一部','安全产品二部','安全产品三部','科恩实验室','玄武实验室','优图实验室','企业中台产品部','云产品技术支持部','云技术运营服务部','社交协作产品部','ima产品中心']}
+];
+var LINE_OPEN={};  // 线展开态（默认展开）
+function _deptNode(name){for(var i=0;i<DEPT_TREE.length;i++)if(DEPT_TREE[i].name===name)return DEPT_TREE[i];return {name:name,children:[]};}
+function _lineHead(board,line,open,stickyTop){var sticky=(stickyTop!=null);
+  var st=sticky?'position:sticky;top:'+stickyTop+'px;z-index:5;box-shadow:0 1px 0 #EDF3FB;':'';
+  return '<a onclick="toggleLine(\''+board+'\',\''+line+'\')" style="'+st+'display:block;padding:7px 10px 7px 20px;font-size:12.5px;font-weight:600;border-radius:8px;margin-bottom:2px;cursor:pointer;background:#F0F5FD;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+line+'<span style="float:right;font-size:10px;padding:0 4px;color:var(--ink3)">'+(open?'▾':'▸')+'</span></a>';}
 function _navA(board,deptKey,label,padLeft,cur,arrow,stickyTop){var on=(cur===deptKey),sticky=(stickyTop!=null);
   var bg=on?'var(--b50)':(sticky?'#fff':'transparent');
   var st=sticky?'position:sticky;top:'+stickyTop+'px;z-index:5;box-shadow:0 1px 0 #EDF3FB;':'';
@@ -973,18 +983,25 @@ function renderDeptNav(board){var host=document.getElementById(board+'DeptNav');
   function centerOK(n,ch){return adm||al.indexOf(n)>=0||al.indexOf(n+'/'+ch)>=0;}
   function partVisible(node){if(adm||al.indexOf(node.name)>=0)return true;
     return (node.children||[]).some(function(ch){return al.indexOf(node.name+'/'+ch)>=0;});}
-  DEPT_TREE.forEach(function(node){if(node.name==='集团')return;  // 集团=看板本身(点看板名进)，树里不列
-    var hasCh=node.children&&node.children.length,open=hasCh&&KB1_OPEN[node.name];
-    if(!hasCh){if(!wholeOK(node.name))return;h+=_navA(board,node.name,node.name,20,cur,'');return;}
-    if(!partVisible(node))return;
-    var arrow='<span onclick="event.stopPropagation();toggleDeptSub(\''+board+'\',\''+node.name+'\')" style="float:right;font-size:10px;padding:0 4px;color:var(--ink3)">'+(open?'▾':'▸')+'</span>';
-    h+=_navA(board,node.name,node.name,20,cur,arrow,open?kbH:null);
-    if(open)node.children.forEach(function(ch){if(centerOK(node.name,ch))h+=_navA(board,node.name+'/'+ch,'· '+ch,38,cur,'');});
+  DEPT_LINES.forEach(function(line){                          // 顶层=业务线
+    var nodes=line.depts.map(_deptNode).filter(partVisible);  // 该线下可见部门
+    if(!nodes.length)return;
+    var lopen=(LINE_OPEN[line.name]!==false);                 // 线默认展开
+    h+=_lineHead(board,line.name,lopen,lopen?kbH:null);        // 线标题(展开时钉在看板名下)
+    if(!lopen)return;
+    nodes.forEach(function(node){                             // 二层=部
+      var hasCh=node.children&&node.children.length,open=hasCh&&KB1_OPEN[node.name];
+      if(!hasCh){h+=_navA(board,node.name,node.name,38,cur,'');return;}
+      var arrow='<span onclick="event.stopPropagation();toggleDeptSub(\''+board+'\',\''+node.name+'\')" style="float:right;font-size:10px;padding:0 4px;color:var(--ink3)">'+(open?'▾':'▸')+'</span>';
+      h+=_navA(board,node.name,node.name,38,cur,arrow,open?(kbH+34):null);
+      if(open)node.children.forEach(function(ch){if(centerOK(node.name,ch))h+=_navA(board,node.name+'/'+ch,'· '+ch,56,cur,'');});  // 三层=中心
+    });
   });
   host.innerHTML=h||'<div style="padding:8px 20px;font-size:12px;color:var(--ink3)">无可见部门</div>';}
 function renderAllDeptNav(){DEPT_BOARDS.forEach(function(b){var h=document.getElementById(b+'DeptNav');if(h&&h.style.display!=='none')renderDeptNav(b);});}
 function renderKb1Nav(){renderAllDeptNav();}  // 兼容旧调用（setDept/loadMe）
 function toggleDeptSub(board,name){KB1_OPEN[name]=!KB1_OPEN[name];renderDeptNav(board);}
+function toggleLine(board,name){LINE_OPEN[name]=(LINE_OPEN[name]===false);renderDeptNav(board);}  // 线展开/收起（默认展开）
 function _navSticky(board,on){var lnk=document.getElementById(board+'NavLink');if(!lnk)return;  // 仅展开的看板名固定顶部，收起的不固定
   if(on){lnk.style.position='sticky';lnk.style.top='0';lnk.style.zIndex='6';lnk.style.background='var(--b50)';}
   else{lnk.style.position='';lnk.style.top='';lnk.style.zIndex='';lnk.style.background='';}}
