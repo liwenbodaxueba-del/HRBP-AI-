@@ -9,7 +9,64 @@ from fastapi import HTTPException
 
 from meta import CANON_PROJECTS, NAT_N_DEFAULT
 
-DB_PATH = os.environ.get("HCFB_DB") or os.path.join(os.path.dirname(__file__), "hcfb.db")
+# DB 选择（运行时可切·顶栏按钮）：
+#   优先级：HCFB_DB 环境变量(forced·锁定不可切) > 持久化模式文件 db_mode > 假数库存在则默认假数库 > 真库 hcfb.db。
+#   真库 hcfb.db 靠真实 API 写入(空态·库中无数据留空不编造)；假数库 hcfb_demo.db 由 seed_demo.py 生成(仅系统取数)。
+#   db() 每次现取全局 DB_PATH、无连接池 → set_db_mode() 运行时改它即切库，无需重启。
+#   is_demo_db() 供前端【示例】横幅（[[feedback_no_fabricated_data]]：假数必须标示例）。
+_DB_DIR = os.path.dirname(__file__)
+_REAL_DB = os.path.join(_DB_DIR, "hcfb.db")
+_DEMO_DB = os.path.join(_DB_DIR, "hcfb_demo.db")
+_MODE_FILE = os.path.join(_DB_DIR, "db_mode")  # 记住上次按钮选择，重启后沿用（gitignore）
+_ENV_DB = os.environ.get("HCFB_DB")
+DB_FORCED_ENV = bool(_ENV_DB)  # 环境变量锁定时按钮不可切
+
+
+def _resolve_path(mode):
+    return _DEMO_DB if mode == "demo" else _REAL_DB
+
+
+def _initial_db_path():
+    if _ENV_DB:
+        return _ENV_DB if os.path.isabs(_ENV_DB) else os.path.join(_DB_DIR, _ENV_DB)
+    try:
+        m = open(_MODE_FILE, encoding="utf-8").read().strip()
+        if m in ("demo", "real"):
+            return _resolve_path(m)
+    except OSError:
+        pass
+    return _DEMO_DB if os.path.exists(_DEMO_DB) else _REAL_DB
+
+
+DB_PATH = _initial_db_path()
+
+
+def is_demo_db():
+    return os.path.basename(DB_PATH) == "hcfb_demo.db"
+
+
+def db_mode_state():
+    return {"mode": "demo" if is_demo_db() else "real", "is_demo": is_demo_db(),
+            "demo_exists": os.path.exists(_DEMO_DB), "real_exists": os.path.exists(_REAL_DB),
+            "forced_env": DB_FORCED_ENV, "db_file": os.path.basename(DB_PATH)}
+
+
+def set_db_mode(mode):
+    """运行时切库（demo=假数库 / real=真库）。db() 无连接池，切换后下一次取数即生效。"""
+    global DB_PATH
+    if DB_FORCED_ENV:
+        raise HTTPException(409, "已通过 HCFB_DB 环境变量锁定数据库，运行时不可切换")
+    if mode not in ("demo", "real"):
+        raise HTTPException(422, "mode 须为 demo / real")
+    if mode == "demo" and not os.path.exists(_DEMO_DB):
+        raise HTTPException(404, "假数库 hcfb_demo.db 不存在，请先运行 backend/seed_demo.py 生成")
+    DB_PATH = _resolve_path(mode)
+    try:
+        with open(_MODE_FILE, "w", encoding="utf-8") as f:
+            f.write(mode)
+    except OSError:
+        pass
+    return db_mode_state()
 
 
 # ---------------- DB ----------------
@@ -185,6 +242,9 @@ def init_db():
         c.execute("UPDATE accounts SET kb1_depts=?, kb0_depts=? WHERE id='demo-bp1'", ('["云产品一部"]', '["云产品一部"]'))
         c.execute("UPDATE accounts SET kb1_depts=?, kb0_depts=? WHERE id='demo-bp2'", ('["云产品一部"]', '["云产品一部"]'))
         c.execute("UPDATE accounts SET kb1_depts=?, kb0_depts=? WHERE id='demo-hrhead'", ('["云产品二部"]', '["云产品二部"]'))
+        # demo 账号 dept 固定=所属看板1部门（幂等·修正早期把 org_path 末段误写进 dept，如「CSIG HRBP Team」）
+        for _aid, _adept in [("demo-bp1", "云产品一部"), ("demo-bp2", "云产品一部"), ("demo-hrhead", "云产品二部")]:
+            c.execute("UPDATE accounts SET dept=? WHERE id=? AND demo=1", (_adept, _aid))
         # ---- 2608 账号按看板1部门归属 + 总BP：dept=所属看板1部门；is_head=部门总BP(管本部门其他账号/加人)----
         for _pcol in ("is_head", "is_sysadmin"):  # is_head=部门总BP；is_sysadmin=系统管理员(可配自己·可转移)
             try:
@@ -192,6 +252,10 @@ def init_db():
             except sqlite3.OperationalError:
                 pass  # 列已存在
         c.execute("UPDATE accounts SET is_sysadmin=1 WHERE id='bonniewbli'")  # 内置系统管理员（幂等）
+        try:
+            c.execute("ALTER TABLE accounts ADD COLUMN kbperm TEXT DEFAULT ''")  # 4个看板(看板1/2/3/4)编辑查阅权限 [0无/1查阅/2编辑]*4；空=按角色默认
+        except sqlite3.OperationalError:
+            pass
         try:
             c.execute("ALTER TABLE kb0_adjust ADD COLUMN note TEXT")  # 看板0 调节项备注（现有库补列）
         except sqlite3.OperationalError:
@@ -324,25 +388,51 @@ _DEPT_CHILDREN = {
     "云产品四部": ["运营产品中心", "客户经营平台产品中心", "计费产品中心", "平台产品中心", "产品支持中心", "腾讯云设计一中心", "腾讯云设计二中心", "服务与产品优化组", "综合业务项目管理组", "平台架构组", "身份产品中心"],
 }
 DEPT_CENTERS = {p: [p + "/" + ch for ch in kids] for p, kids in _DEPT_CHILDREN.items()}
+_BUDGET_BASE = {"q_init", "fa_hc"}  # 看板2 预算基线：以部门维度取数(部门自身)，中心维度BP手填，部门不上卷此两项
+
+# 全部顶层部门（与 DEPT_TREE 一致，去「集团」）。「集团」不是独立部门，而是各部门加总口径（合计）。
+ALL_DEPTS = ["云产品一部", "云产品二部", "云产品三部", "云产品四部", "云产品五部", "云产品六部",
+             "安全产品一部", "安全产品二部", "安全产品三部", "战略客户部",
+             "智慧行业一部", "智慧行业七部", "智慧行业十部",
+             "科恩实验室", "玄武实验室", "优图实验室", "星星海实验室",
+             "企业中台产品部", "社交协作产品部", "ima产品中心",
+             "云产品技术支持部", "云技术运营服务部", "云运营管理部", "云采购供应管理部",
+             "港澳台及国际业务部", "CSIG产品管理支持中心"]
 
 
 def is_agg_dept(dept):
-    """该 dept 是否为『含中心的部』——看板取数=各中心加总（只读汇总，不可直接录入）"""
-    return dept in DEPT_CENTERS
+    """该 dept 是否为只读汇总：『含中心的部』(各中心加总) 或『集团』(各部门加总·合计)——不可直接录入"""
+    return dept in DEPT_CENTERS or dept == "集团"
 
 
 def _grid(c, year, dept="集团"):
     """cells → {metric: [v or None]*12}, notes → {metric: {m: note}}（按部门空间 dept）。
-    部级(含中心)→ 各中心加总(只读汇总)；其余→本 dept 直取。"""
-    if dept in DEPT_CENTERS:
+    集团→各部门加总(合计·只读)；部级(含中心)→各中心加总(只读汇总)；其余→本 dept 直取。"""
+    if dept == "集团":
         agg = {}
-        for center in DEPT_CENTERS[dept]:
-            cv, _ = _grid(c, year, center)  # 中心不在 DEPT_CENTERS，直取
+        for d in ALL_DEPTS:
+            cv, _ = _grid(c, year, d)
             for k, arr in cv.items():
                 a = agg.setdefault(k, [None] * 12)
                 for m in range(12):
                     if isinstance(arr[m], (int, float)):
                         a[m] = (a[m] if isinstance(a[m], (int, float)) else 0) + arr[m]
+        return agg, {}  # 合计不带备注
+    if dept in DEPT_CENTERS:
+        agg = {}
+        for center in DEPT_CENTERS[dept]:
+            cv, _ = _grid(c, year, center)  # 中心不在 DEPT_CENTERS，直取
+            for k, arr in cv.items():
+                if k in _BUDGET_BASE:  # 预算当量基线(q_init/fa_hc)以部门维度取看板2，不从中心加总
+                    continue
+                a = agg.setdefault(k, [None] * 12)
+                for m in range(12):
+                    if isinstance(arr[m], (int, float)):
+                        a[m] = (a[m] if isinstance(a[m], (int, float)) else 0) + arr[m]
+        # 预算当量=部门维度看看板2：q_init/fa_hc 取本部门自身 cells（中心维度由 BP 手填，不上卷；部门只加总其他项）
+        for r in c.execute("SELECT metric,month,value FROM cells WHERE year=? AND dept=? AND metric IN ('q_init','fa_hc')", (year, dept)):
+            if 1 <= r["month"] <= 12:
+                agg.setdefault(r["metric"], [None] * 12)[r["month"] - 1] = r["value"]
         return agg, {}  # 汇总不带备注
     vals, notes = {}, {}
     for r in c.execute("SELECT metric,month,value,note FROM cells WHERE year=? AND dept=?", (year, dept)):
@@ -355,7 +445,15 @@ def _grid(c, year, dept="集团"):
 
 
 def _kb0_adjust(c, year, dept, metric="chain"):
-    """看板0 调节项 [v or None]*12：部级(含中心)=各中心调节加总；其余=本 dept 直取（识空不补0）"""
+    """调节项 [v or None]*12：集团=各部门加总；部级(含中心)=各中心调节加总；其余=本 dept 直取（识空不补0）"""
+    if dept == "集团":
+        agg = [None] * 12
+        for d in ALL_DEPTS:
+            cv = _kb0_adjust(c, year, d, metric)
+            for m in range(12):
+                if isinstance(cv[m], (int, float)):
+                    agg[m] = (agg[m] if isinstance(agg[m], (int, float)) else 0) + cv[m]
+        return agg
     if dept in DEPT_CENTERS:
         agg = [None] * 12
         for center in DEPT_CENTERS[dept]:
@@ -371,7 +469,7 @@ def _kb0_adjust(c, year, dept, metric="chain"):
     return out
 
 
-def _branches(c, year, dept="集团"):
+def _read_branches(c, year, dept):
     out = []
     for b in c.execute("SELECT * FROM branches WHERE year=? AND dept=? AND on_ok=1 ORDER BY id", (year, dept)):
         vals = [None] * 12
@@ -383,3 +481,23 @@ def _branches(c, year, dept="集团"):
                     bnotes[r["month"]] = r["note"]
         out.append({"id": b["id"], "sec": b["sec"], "name": b["name"], "sign": b["sign"], "vals": vals, "notes": bnotes})
     return out
+
+
+def _branches(c, year, dept="集团"):
+    if dept == "集团":  # 合计=各部门分支并集
+        out = []
+        for d in ALL_DEPTS:
+            out.extend(_branches(c, year, d))
+        return out
+    if dept in DEPT_CENTERS:  # 含中心的部：把各中心手动分支汇总上来(标注中心·只读)，计入部门运算(表多出这几项)
+        out = []
+        for center in DEPT_CENTERS[dept]:
+            cn = center.split("/")[-1]
+            for b in _read_branches(c, year, center):
+                b = dict(b)
+                b["name"] = b["name"] + "（" + cn + "）"
+                b["center"] = cn
+                b["agg"] = True
+                out.append(b)
+        return out
+    return _read_branches(c, year, dept)

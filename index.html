@@ -76,7 +76,11 @@ body{background:var(--page);color:var(--ink);font-family:"Microsoft YaHei","Ping
 .empbar b{color:#7A3E00;}
 .layout{display:flex;height:100vh;overflow:hidden;}
 .rcol{flex:1;min-width:0;display:flex;flex-direction:column;overflow-y:auto;height:100vh;}
-nav.side{width:172px;background:#fff;border-right:1px solid var(--b100);padding:14px 10px;flex-shrink:0;display:flex;flex-direction:column;height:100vh;overflow-y:auto;}
+nav.side{width:var(--sidew,172px);background:#fff;border-right:1px solid var(--b100);padding:14px 10px;flex-shrink:0;display:flex;flex-direction:column;height:100vh;overflow-y:auto;}
+#sideResizer{width:6px;flex-shrink:0;align-self:stretch;cursor:col-resize;background:transparent;transition:background .1s;}
+#sideResizer:hover,#sideResizer.drag{background:var(--blue-l);}
+body.navfold #sideResizer{display:none;}
+body.sidedrag nav.side{transition:none !important;}
 nav.side a{display:block;padding:9px 12px;border-radius:8px;color:var(--ink2);text-decoration:none;font-size:13px;margin-bottom:4px;cursor:pointer;}
 nav.side a.on{background:var(--b50);color:var(--blue);font-weight:600;}
 nav.side .grp{font-size:11px;color:var(--ink3);margin:14px 6px 6px;}
@@ -452,14 +456,16 @@ body.navfold .navtg{left:8px;}
     <div class="bn">HC Forecast<small>人力预估看板 · V2</small></div>
   </div>
   <div class="grp">看板</div>
-  <a class="on" data-v="kb0" onclick="go(this)">看板0 · PM 速览</a>
-  <a data-v="kb1" id="kb1NavLink" onclick="go(this)" style="position:sticky;top:0;z-index:6;background:var(--b50)">看板1 · 部门人力预估表<span id="kb1NavArrow" onclick="event.stopPropagation();toggleKb1Nav()" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>
+  <div id="lineNavBox"></div>
+  <div class="grp" style="margin-top:6px" title="部门内『集团(本部/自有)』口径数据">集团本部数据</div>
+  <a class="on" data-v="kb1" id="kb1NavLink" onclick="boardTab('kb1')">看板1 · 集团人力预估表<span id="kb1NavArrow" onclick="event.stopPropagation();toggleKb1Nav()" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>
   <div id="kb1DeptNav" style="display:none;margin:-2px 0 4px 0"></div>
-  <a data-v="kb2" id="kb2NavLink" onclick="go(this)">看板2 · 预算看板<span id="kb2NavArrow" onclick="event.stopPropagation();toggleDeptNav('kb2')" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>
+  <a data-v="kb2" id="kb2NavLink" onclick="boardTab('kb2')">看板2 · 预算看板<span id="kb2NavArrow" onclick="event.stopPropagation();toggleDeptNav('kb2')" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>
   <div id="kb2DeptNav" style="display:none;margin:-2px 0 4px 0"></div>
-  <a data-v="kb3" id="kb3NavLink" onclick="go(this)">看板3 · 社招滚动台账<span id="kb3NavArrow" onclick="event.stopPropagation();toggleDeptNav('kb3')" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>
+  <a data-v="kb3" id="kb3NavLink" onclick="boardTab('kb3')">看板3 · 社招滚动台账<span id="kb3NavArrow" onclick="event.stopPropagation();toggleDeptNav('kb3')" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>
   <div id="kb3DeptNav" style="display:none;margin:-2px 0 4px 0"></div>
-  <a data-v="kb4" id="kb4NavLink" onclick="go(this)">看板4 · 云智&外包<span id="kb4NavArrow" onclick="event.stopPropagation();toggleDeptNav('kb4')" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>
+  <div class="grp" title="部门内『云智 / 外包』口径数据，与集团本部并列">云智 &amp; 外包</div>
+  <a data-v="kb4" id="kb4NavLink" onclick="boardTab('kb4')">看板4 · 云智&外包<span id="kb4NavArrow" onclick="event.stopPropagation();toggleDeptNav('kb4')" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>
   <div id="kb4DeptNav" style="display:none;margin:-2px 0 4px 0"></div>
   <a href="admin.html" id="adminEntry" style="margin-top:auto;color:var(--navy);font-weight:600" title="进入管理后台（账号与权限·项目配置）"><t-icon name="setting" size="14" style="vertical-align:-2px;margin-right:6px"></t-icon>管理后台</a>
   <div class="user" data-comment-anchor="b9591073d3-div" style="margin-top:0">iOA：<b>bonniewbli</b><br>（HRBP·可编辑）</div>
@@ -467,7 +473,7 @@ body.navfold .navtg{left:8px;}
 
 <div class="rcol">
 <div class="topbar">
-  <div class="dept" id="deptLbl">部门空间：集团 ▾</div>
+  <div class="dept" id="deptLbl">部门空间：合计（各部门加总）</div>
   <div class="sp"></div>
   <span class="sync" id="syncTag"><t-icon name="check-circle-filled" style="vertical-align:-2px;margin-right:3px"></t-icon>已就绪</span>
   <div class="fresh" id="freshTag">数据源：○ 未接入 · 单元格留空待取数</div>
@@ -494,11 +500,13 @@ body.navfold .navtg{left:8px;}
 </div>
 
 <main>
-<!-- 看板0 · PM 速览（只读三行） -->
-<div class="view on" id="v-kb0">
-  <div style="margin:2px 0 12px;display:flex;align-items:center;flex-wrap:wrap;gap:6px"><b style="font-size:16px;color:var(--navy)">看板0 · PM 速览</b><span style="color:var(--ink3);font-size:12.5px;margin-left:8px">责任部门</span><span id="kb0DeptTag" style="display:inline-flex;flex-wrap:wrap;gap:6px"></span></div>
-  <div class="yeartabs"></div>
-  <div id="kb0Host"></div>
+<!-- 业务线页（点线名进）：负责人(CVP) + 该线部门列表 -->
+<div class="view" id="v-line">
+  <div id="lineHost"></div>
+</div>
+<!-- 子PM组求和看板（勾了「展示求和」的子PM组·点目录进）：所选中心求和 + 可手调调节项 -->
+<div class="view" id="v-pmg">
+  <div id="pmgHost"></div>
 </div>
 <!-- 看板4 · 云智&外包（两张表·结构同看板1；总流入/总流出仅手填「新增分支」；预算当量/期末在岗待接入留空） -->
 <div class="view" id="v-kb4">
@@ -507,15 +515,14 @@ body.navfold .navtg{left:8px;}
   <div id="kb4Host"></div>
 </div>
 <!-- 看板1 -->
-<div class="view" id="v-kb1">
+<div class="view on" id="v-kb1">
   <div style="display:flex;align-items:center;gap:10px;margin:4px 0 14px">
-    <b style="font-size:19px;color:var(--navy)">部门人力预估表 · <span id="deptPickLbl">集团</span></b>
-    <span id="deptAggNote" style="font-size:12px;font-weight:600;color:#B45309;background:#FEF3C7;padding:2px 10px;border-radius:12px;display:none">各中心汇总 · 只读（请在具体中心录入）</span>
+    <b style="font-size:19px;color:var(--navy)">集团人力预估表 · <span id="deptPickLbl">合计（各部门加总）</span></b>
+    <span id="deptAggNote" style="font-size:12px;font-weight:600;color:#B45309;background:#FEF3C7;padding:2px 10px;border-radius:12px">各部门汇总 · 只读（请在具体部门/中心录入）</span>
     <span style="font-size:12.5px;color:var(--ink3)">（左侧「看板1」展开可切换部门）</span>
   </div>
   <div class="banner" id="demoBanner" style="background:#FDECEC;border-color:#F3B4B4;color:#8C2B2B">
-    <span><b>【示例】演示数据已加载</b>——当前含功能演示用假数（demo 标签全程可溯），非真实口径，勿用于汇报</span>
-    <button class="btn danger" onclick="demoClear()">删除假数（一键全清）</button>
+    <span><b>【示例】演示数据（独立假数库 hcfb_demo.db）</b>——仅含<b>系统取数</b>假数，BP 手填项一律留空待你自己填；非真实口径，勿用于汇报。切真库：设 <code>HCFB_DB=hcfb.db</code> 或删除 hcfb_demo.db</span>
   </div>
   <div class="banner" id="diffBanner">
     <span id="diffText"></span>
@@ -949,25 +956,217 @@ var DEPT_TREE=[
   {name:'云产品四部',children:['运营产品中心','客户经营平台产品中心','计费产品中心','平台产品中心','产品支持中心','腾讯云设计一中心','腾讯云设计二中心','服务与产品优化组','综合业务项目管理组','平台架构组','身份产品中心']},
   {name:'云产品五部',children:[]},
   {name:'云产品六部',children:[]},{name:'安全产品一部',children:[]},{name:'安全产品二部',children:[]},{name:'安全产品三部',children:[]},
-  {name:'科恩实验室',children:[]},{name:'玄武实验室',children:[]},{name:'优图实验室',children:[]},
+  {name:'战略客户部',children:[]},
+  {name:'智慧行业一部',children:[]},{name:'智慧行业七部',children:[]},{name:'智慧行业十部',children:[]},
+  {name:'科恩实验室',children:[]},{name:'玄武实验室',children:[]},{name:'优图实验室',children:[]},{name:'星星海实验室',children:[]},
   {name:'企业中台产品部',children:[]},{name:'社交协作产品部',children:[]},{name:'ima产品中心',children:[]},
-  {name:'云产品技术支持部',children:[]},{name:'云技术运营服务部',children:[]},{name:'腾讯会议产品部',children:[]},{name:'营销与交易产品部',children:[]},{name:'云运营管理部',children:[]},{name:'云采购供应管理部',children:[]},{name:'星星海实验室',children:[]},
-  {name:'CSIG产品管理支持中心',children:[]},{name:'战略客户部',children:[]},
-  {name:'智意行业一部',children:[]},{name:'智慧行业二部',children:[]},{name:'智慧行业三部',children:[]},{name:'智慧行业四部',children:[]},{name:'智慧行业五部',children:[]},{name:'智慧行业七部',children:[]},{name:'智慧行业九部',children:[]},{name:'智慧行业十部',children:[]},
-  {name:'港澳台及国际业务部',children:[]},{name:'北区业务部',children:[]},{name:'东区业务部',children:[]},{name:'南区业务部',children:[]},
-  {name:'产业生态合作部',children:[]},{name:'生态运营管理部',children:[]},{name:'服务生态管理部',children:[]},{name:'政企客户成功中心',children:[]},{name:'政企业务运营中心',children:[]},
-  {name:'地图平台部',children:[]},{name:'通途数据中心',children:[]},{name:'地图产品部',children:[]},{name:'智慧出行事业部',children:[]},{name:'智慧零售战略合作部',children:[]},{name:'医疗健康事业部',children:[]},
-  {name:'生命科学实验室',children:[]},{name:'多媒体实验室',children:[]},{name:'量子实验室',children:[]},
-  {name:'元宝产品部',children:[]},{name:'元宝搜索部',children:[]},{name:'业务经营管理部',children:[]},
-  {name:'CSIG质量部',children:[]},{name:'CSIG市场部',children:[]},{name:'CSIG战略管理中心',children:[]},{name:'CSIG行政中心',children:[]},{name:'CSIG办公室',children:[]},{name:'CSIG公关部',children:[]},{name:'CSIG服务研发采购中心',children:[]},{name:'云智研发中心',children:[]},
-  {name:'输入法部',children:[]},{name:'用户体验设计部',children:[]},{name:'浏览器产品部',children:[]},{name:'健康普惠实验室',children:[]},
-  {name:'CSIG职业发展委员会',children:[]},{name:'CSIG技术委员会',children:[]},{name:'CSIG财务管理',children:[]},{name:'CSIG法务部',children:[]}
+  {name:'云产品技术支持部',children:[]},{name:'云技术运营服务部',children:[]},
+  {name:'云运营管理部',children:[]},{name:'云采购供应管理部',children:[]},
+  {name:'港澳台及国际业务部',children:[]},{name:'CSIG产品管理支持中心',children:[]}
 ];
 var KB1_OPEN={};
+/* 子PM分组（部门→[{name,centers}]）：管理后台「设置子PM看板」配置，同源 localStorage 共享。部门展开时按 部→子PM组→中心 渲染 */
+var PM_GROUPS={};try{PM_GROUPS=JSON.parse(localStorage.getItem('hcfb_pm_groups')||'{}')||{};}catch(e){PM_GROUPS={};}
+window.addEventListener('storage',function(e){if(e.key==='hcfb_pm_groups'){try{PM_GROUPS=JSON.parse(e.newValue||'{}')||{};}catch(_){PM_GROUPS={};}if(window.renderKb1Nav)renderKb1Nav();}});
+function _pmGroupHead(g,padLeft,dept){
+  if(g&&g.sum){  // 勾了「展示求和」：目录项可点击→进求和看板
+    var nm=String(g.name).replace(/'/g,''),dq=String(dept||'').replace(/'/g,'');
+    return '<a onclick="pickPmGroup(\''+dq+'\',\''+nm+'\')" title="点击查看所选中心求和（可手调）" style="display:block;padding:5px 10px 5px '+padLeft+'px;font-size:12px;font-weight:600;color:var(--blue);cursor:pointer;border-radius:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(g.name)+' <span style="font-size:10px;font-weight:400;color:var(--green);background:#E7F6EF;border-radius:8px;padding:0 6px">求和</span></a>';
+  }
+  var label=(g&&g.name)?esc(g.name):esc(g);
+  return '<div style="padding:5px 10px 5px '+padLeft+'px;font-size:12px;font-weight:600;color:var(--navy)">'+label+' <span style="font-size:10px;font-weight:400;color:var(--ink3);background:#EEF2F8;border-radius:8px;padding:0 6px">子PM组</span></div>';}
+/* 按子PM组展开一个部门的中心：先各组(组头+组内中心 deepPad)，再未分组中心(headPad) */
+function _emitCenters(dept,centers,centerOK,headPad,deepPad,emit,emitHead){
+  var groups=(PM_GROUPS[dept]||[]),grouped={};
+  groups.forEach(function(g){(g.centers||[]).forEach(function(c){grouped[c]=1;});});
+  groups.forEach(function(g){emitHead(g,headPad);(g.centers||[]).forEach(function(c){if(centers.indexOf(c)>=0&&centerOK(dept,c))emit(c,deepPad);});});
+  centers.forEach(function(c){if(!grouped[c]&&centerOK(dept,c))emit(c,headPad);});
+}
+/* ===== 子PM组求和看板：所选中心求和(预算当量/期末在岗) + 可手调调节项(存后端·不碰源) ===== */
+var PMG=null,PMG_ON=false;  // PMG_ON=当前"空间"是某子PM组→点看板1/2/3/4 都保持显示此组求和看板（同部门选择跨看板持续的道理）
+function pickPmGroup(dept,name){
+  var groups=PM_GROUPS[dept]||[],g=null;
+  for(var i=0;i<groups.length;i++)if(groups[i].name===name)g=groups[i];
+  if(!g||!g.sum)return;
+  var centers=(g.centers||[]).map(function(c){return dept+'/'+c;});  // 中心部门空间键=部/中心
+  PMG={dept:dept,name:name,key:'PM:'+dept+':'+name,centers:centers};PMG_ON=true;
+  goView('pmg');document.getElementById('pmgHost').innerHTML='<div class="hint" style="padding:16px;color:var(--ink3)">加载中…</div>';
+  loadPmg();
+}
+/* 看板名点击：某子PM组为当前空间时，看板1/2/3/4 都停在该组求和看板；否则正常切视图(保留当前部门空间) */
+function boardTab(v){if(PMG_ON&&PMG){goView('pmg');if(typeof renderPmg==='function')renderPmg();return;}goView(v);}
+function loadPmg(){
+  var P=PMG;if(!P)return Promise.resolve();
+  if(!window.USE_API){document.getElementById('pmgHost').innerHTML='<div class="hint" style="padding:16px">子PM组求和需连接后端</div>';return Promise.resolve();}
+  var url='/api/pmgroup/'+YEAR+'?centers='+encodeURIComponent(P.centers.join(','))+'&key='+encodeURIComponent(P.key);
+  return fetch(url,{headers:{'X-User':'bonniewbli'}}).then(function(r){return r.json();}).then(function(j){P.data=j;renderPmg();}).catch(function(){document.getElementById('pmgHost').innerHTML='<div class="hint" style="padding:16px;color:var(--red)">加载失败</div>';});
+}
+function renderPmg(){
+  var host=document.getElementById('pmgHost'),P=PMG;if(!host||!P||!P.data)return;
+  var d=P.data,yy=String(YEAR).slice(2);
+  function nv(v){return (v===null||v===undefined||v==='')?'':v;}
+  var h='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:4px 0 12px">'
+    +'<b style="font-size:18px;color:var(--navy)">'+esc(P.dept)+' · '+esc(P.name)+'</b>'
+    +'<span style="font-size:12px;font-weight:600;color:var(--green);background:#E7F6EF;padding:2px 10px;border-radius:12px">子PM组求和 · '+P.centers.length+' 个中心</span>'
+    +'<span style="font-size:12px;color:var(--ink3)">预算当量/期末在岗=所选中心求和（只读）· 调节项本组可手调（不影响源）</span></div>';
+  h+='<div style="font-size:12.5px;color:var(--ink2);margin:-4px 0 12px;line-height:1.7"><b style="color:var(--navy)">含中心（'+P.centers.length+'）：</b>'
+    +P.centers.map(function(c){var cn=String(c).split('/').pop();return '<a onclick="pickDeptNav(\'kb1\',\''+String(c).replace(/\x27/g,"")+'\')" style="color:var(--blue);cursor:pointer" title="进看板1 · '+esc(cn)+'">'+esc(cn)+'</a>';}).join('、')+'</div>';
+  h+='<div class="tblwrap"><table class="bsc kb0tbl"><tr><th>项目</th>';
+  for(var m=0;m<12;m++)h+='<th class="'+(m<LOCK?'':'fut')+'">'+M[m]+(m<LOCK?'<span class="lockic"></span>':'')+'</th>';
+  h+='<th>'+yy+'年均</th></tr>';
+  h+=tr('key','预算当量 <span class="badge calc">看板2</span>',(d.budget||[]).map(nv),{avg:(typeof f2==='function'?f2(d.budgetAvg):d.budgetAvg),lockShade:true,noTot:true});
+  h+=tr('key','实际/预估期末在岗 <span class="badge calc">链·各中心求和</span>',(d.chain||[]).map(nv),{avg:(typeof f2==='function'?f2(d.chainAvg):d.chainAvg),lockShade:true,noTot:true});
+  var adj=d.adjust||[];
+  h+='<tr class="sub"><td style="color:var(--navy);font-weight:600">➕ 调节项 <span style="color:var(--ink3);font-weight:400;font-size:11px">（本组·可手调）</span></td>';
+  for(var mj=0;mj<12;mj++){var av=nv(adj[mj]);
+    if(mj<LOCK){h+='<td class="mut" style="text-align:right">'+av+'</td>';}
+    else{h+='<td style="padding:0"><input type="number" step="1" value="'+av+'" onchange="pmgSave('+(mj+1)+',this.value)" style="width:100%;min-width:42px;border:1px solid transparent;padding:3px 4px;font:inherit;text-align:right;background:transparent;border-radius:4px" onfocus="this.style.borderColor=\'var(--blue-l)\';this.style.background=\'#fff\'" onblur="this.style.borderColor=\'transparent\';this.style.background=\'transparent\'"></td>';}}
+  h+='<td></td></tr>';
+  h+=tr('key','调整后期末在岗 <span class="badge calc">＝链＋调节</span>',(d.chainAdj||[]).map(nv),{avg:(typeof f2==='function'?f2(d.chainAdjAvg):d.chainAdjAvg),lockShade:true,noTot:true});
+  h+='</table></div>';
+  // 明细（各中心·可展开）：每个中心期末在岗一行，点中心名进看板1
+  var mem=d.members||[];
+  h+='<div style="margin-top:14px"><a onclick="togglePmgDetail()" style="cursor:pointer;font-size:13px;font-weight:600;color:var(--navy)">'+(P.openDetail?'▾':'▸')+' 明细（各中心 '+mem.length+'）</a>';
+  if(P.openDetail){
+    h+='<div class="tblwrap" style="margin-top:8px"><table class="bsc kb0tbl"><tr><th>中心 · 期末在岗</th>';
+    for(var m2=0;m2<12;m2++)h+='<th class="'+(m2<LOCK?'':'fut')+'">'+M[m2]+'</th>';
+    h+='<th>'+yy+'年均</th></tr>';
+    mem.forEach(function(mb){var cn=String(mb.name).split('/').pop();
+      h+='<tr><td><a onclick="pickDeptNav(\'kb1\',\''+String(mb.name).replace(/\x27/g,"")+'\')" style="color:var(--blue);cursor:pointer" title="进看板1 · '+esc(cn)+'">'+esc(cn)+'</a></td>';
+      for(var k=0;k<12;k++){var v=(mb.chain&&mb.chain[k]!=null)?mb.chain[k]:'';h+='<td class="'+(k<LOCK?'mut':'')+'" style="text-align:right">'+v+'</td>';}
+      h+='<td style="text-align:right;font-weight:600">'+(mb.chainAvg!=null?(typeof f2==='function'?f2(mb.chainAvg):mb.chainAvg):'')+'</td></tr>';
+    });
+    h+='</table></div>';
+  }
+  h+='</div>';
+  host.innerHTML=h;
+}
+function togglePmgDetail(){if(PMG){PMG.openDetail=!PMG.openDetail;renderPmg();}}
+function pmgSave(month,value){
+  var P=PMG;if(!P)return;
+  var v=(value===''||value===null||value===undefined)?null:parseFloat(value);
+  if(v!==null&&isNaN(v))return;
+  fetch('/api/kb0/'+YEAR+'/adjust',{method:'POST',headers:{'Content-Type':'application/json','X-User':'bonniewbli'},body:JSON.stringify({dept:P.key,month:month,value:v,note:''})})
+    .then(function(r){return r.json();}).then(function(){return loadPmg();})
+    .then(function(){if(typeof toast==='function')toast('调节项已保存（子PM组·不影响源数据）');})
+    .catch(function(){});
+}
 /* 当前部门是否为『含中心的部』——各中心汇总·只读(不可直接录入，与后端一致) */
-function isDeptAgg(dept){dept=dept||window.CUR_DEPT||'集团';for(var i=0;i<DEPT_TREE.length;i++)if(DEPT_TREE[i].name===dept&&DEPT_TREE[i].children&&DEPT_TREE[i].children.length)return true;return false;}
+function isDeptAgg(dept){dept=dept||window.CUR_DEPT||'集团';if(dept==='集团')return true;for(var i=0;i<DEPT_TREE.length;i++)if(DEPT_TREE[i].name===dept&&DEPT_TREE[i].children&&DEPT_TREE[i].children.length)return true;return false;}  // 集团=各部门加总(合计·只读)
+/* 顶层「集团」不是独立部门，而是各部门加总口径 —— 显示为「合计（各部门加总）」 */
+function deptDisp(d){return d==='集团'?'合计（各部门加总）':d;}
 /* 侧栏「看板1」下展开部门层级：部→中心，点任一节点即切看板1 该部门空间 */
-var DEPT_BOARDS=['kb1','kb2','kb3','kb4'];  // 这些看板侧栏都可展开部门树
+/* 业务线维度（顶层，与看板0同级）：线→部→中心。线=分组层，点线名仅展开/收起；点部门或中心=选中该部门空间并进看板1。 */
+var DEPT_LINES_DEFAULT=[
+  {name:'coby线',head:'邱跃鹏',depts:['云产品一部','云产品五部','战略客户部','智慧行业一部','智慧行业七部','智慧行业十部','云运营管理部','云采购供应管理部','星星海实验室','港澳台及国际业务部','CSIG产品管理支持中心']},
+  {name:'wang线',head:'王慧星',depts:['云产品二部','云产品三部','云产品四部','云产品六部','安全产品一部','安全产品二部','安全产品三部','科恩实验室','玄武实验室','优图实验室','企业中台产品部','云产品技术支持部','云技术运营服务部','社交协作产品部','ima产品中心']}
+];
+var DEPT_LINES=DEPT_LINES_DEFAULT;  // 由管理后台「线维权限设置」配置，同源 localStorage 共享
+function loadLines(){try{var v=JSON.parse(localStorage.getItem('hcfb_lines')||'null');DEPT_LINES=(v&&v.length)?v:DEPT_LINES_DEFAULT;}catch(e){DEPT_LINES=DEPT_LINES_DEFAULT;}}
+loadLines();
+/* 顶层线导航项动态生成（跟随线级看板增删改） */
+function renderLineEntries(){var box=document.getElementById('lineNavBox');if(!box)return;
+  box.innerHTML=DEPT_LINES.map(function(l){var nm=String(l.name).replace(/'/g,'').replace(/"/g,'');var sum=(l.sum!==false);  // 未设过 sum 的线视为开（兼容旧数据）
+    var badge=sum?' <span style="font-size:9px;font-weight:400;color:var(--green);background:#E7F6EF;border-radius:7px;padding:0 5px;margin-left:4px">求和</span>':'';
+    var onclick=sum?('goLineView(\''+nm+'\')'):('toggleLineNav(\''+nm+'\')');  // 求和开→点线名进汇总看板；关→仅展开线内部门
+    return '<a id="lineLink_'+nm+'" onclick="'+onclick+'" style="font-weight:600">'+nm+badge+'<span id="lineArrow_'+nm+'" onclick="event.stopPropagation();toggleLineNav(\''+nm+'\')" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>'
+      +'<div id="lineNav_'+nm+'" style="display:none;margin:-2px 0 4px 0"></div>';}).join('');}
+window.addEventListener('storage',function(e){if(e.key==='hcfb_lines'){loadLines();renderLineEntries();if(window.renderKb1Nav)renderKb1Nav();}});
+renderLineEntries();  // 首次生成顶层线导航项
+function _deptNode(name){for(var i=0;i<DEPT_TREE.length;i++)if(DEPT_TREE[i].name===name)return DEPT_TREE[i];return {name:name,children:[]};}
+function _lineDeptA(deptKey,label,padLeft,cur,arrow){var on=(cur===deptKey);
+  return '<a onclick="pickLineDept(\''+deptKey.replace(/'/g,"")+'\')" title="'+label+'" style="display:block;padding:6px 10px 6px '+padLeft+'px;font-size:12.5px;border-radius:8px;margin-bottom:2px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:'+(on?'var(--b50)':'transparent')+';'+(on?'color:var(--blue);font-weight:600':'color:var(--ink2)')+'">'+label+(arrow||'')+'</a>';}
+function renderLineNav(lineName){var host=document.getElementById('lineNav_'+lineName);if(!host)return;
+  var line=null;for(var i=0;i<DEPT_LINES.length;i++)if(DEPT_LINES[i].name===lineName)line=DEPT_LINES[i];if(!line)return;
+  var cur=window.CUR_DEPT||'集团',h='';
+  var MY=window.MY, adm=!MY, al=(MY&&MY.kb1_depts)||[];  // 按 kb1_depts 过滤（仅 MY 未加载时不过滤）
+  function centerOK(n,ch){return adm||al.indexOf(n)>=0||al.indexOf(n+'/'+ch)>=0;}
+  function partVisible(node){if(adm||al.indexOf(node.name)>=0)return true;
+    return (node.children||[]).some(function(ch){return al.indexOf(node.name+'/'+ch)>=0;});}
+  line.depts.map(_deptNode).filter(partVisible).forEach(function(node){  // 线级只到部门级（不再拆中心）
+    h+=_lineDeptA(node.name,node.name,20,cur,'');
+  });
+  host.innerHTML=h||'<div style="padding:6px 20px;font-size:12px;color:var(--ink3)">无可见部门</div>';}
+function renderAllLineNav(){DEPT_LINES.forEach(function(l){var h=document.getElementById('lineNav_'+l.name);if(h&&h.style.display!=='none')renderLineNav(l.name);});}
+function renderKb1Nav(){renderAllLineNav();renderAllDeptNav();}  // 刷新线导航+各看板扁平部门树的选中高亮
+function toggleLineDept(lineName,name){KB1_OPEN[name]=!KB1_OPEN[name];renderLineNav(lineName);}
+function pickLineDept(dept){PMG_ON=false;if(window.setDept)window.setDept(dept);goView('kb1');}  // 选部门空间→进看板1（退出子PM组空间）
+var SEL_LINE=null;
+var LINEBRD=null;
+function loadLineBoard(lineName){
+  var line=null;for(var i=0;i<DEPT_LINES.length;i++)if(DEPT_LINES[i].name===lineName)line=DEPT_LINES[i];
+  var host=document.getElementById('lineHost');if(!host)return;if(!line){host.innerHTML='';return;}
+  var MY=window.MY, adm=!MY, al=(MY&&MY.kb1_depts)||[];
+  function deptVisible(nm){var node=_deptNode(nm);if(adm||al.indexOf(nm)>=0)return true;return (node.children||[]).some(function(ch){return al.indexOf(nm+'/'+ch)>=0;});}
+  var depts=line.depts.filter(deptVisible);
+  var keepDetail=(LINEBRD&&LINEBRD.name===lineName)?LINEBRD.openDetail:false;
+  LINEBRD={name:lineName,head:line.head,depts:depts,key:'LINE:'+lineName,data:null,openDetail:keepDetail};
+  host.innerHTML='<div class="hint" style="padding:16px;color:var(--ink3)">加载中…</div>';
+  if(!window.USE_API){renderLineBoard();return;}
+  var url='/api/pmgroup/'+YEAR+'?centers='+encodeURIComponent(depts.join(','))+'&key='+encodeURIComponent(LINEBRD.key);
+  fetch(url,{headers:{'X-User':'bonniewbli'}}).then(function(r){return r.json();}).then(function(j){LINEBRD.data=j;renderLineBoard();}).catch(function(){renderLineBoard();});
+}
+function renderLineBoard(){
+  var host=document.getElementById('lineHost'),L=LINEBRD;if(!host||!L)return;
+  var d=L.data,yy=String(YEAR).slice(2);
+  function nv(v){return (v===null||v===undefined||v==='')?'':v;}
+  var h='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:2px 0 12px">'
+    +'<b style="font-size:19px;color:var(--navy)">'+esc(L.name)+'</b>'
+    +'<span style="font-size:12px;font-weight:700;color:var(--blue);background:var(--b100);padding:2px 10px;border-radius:12px">CVP · '+esc(L.head||'—')+'</span>'
+    +'<span style="font-size:12.5px;color:var(--ink3)">业务线汇总 · 共 '+L.depts.length+' 个部门 · 预算当量/期末在岗=各部门求和（只读）· 调节项本线可手调</span></div>';
+  if(!d){host.innerHTML=h+'<div class="hint" style="padding:12px">无数据</div>';return;}
+  h+='<div class="tblwrap"><table class="bsc kb0tbl"><tr><th>项目</th>';
+  for(var m=0;m<12;m++)h+='<th class="'+(m<LOCK?'':'fut')+'">'+M[m]+(m<LOCK?'<span class="lockic"></span>':'')+'</th>';
+  h+='<th>'+yy+'年均</th></tr>';
+  h+=tr('key','预算当量 <span class="badge calc">看板2</span>',(d.budget||[]).map(nv),{avg:(typeof f2==='function'?f2(d.budgetAvg):d.budgetAvg),lockShade:true,noTot:true});
+  h+=tr('key','实际/预估期末在岗 <span class="badge calc">链·各部门求和</span>',(d.chain||[]).map(nv),{avg:(typeof f2==='function'?f2(d.chainAvg):d.chainAvg),lockShade:true,noTot:true});
+  var adj=d.adjust||[];
+  h+='<tr class="sub"><td style="color:var(--navy);font-weight:600">➕ 调节项 <span style="color:var(--ink3);font-weight:400;font-size:11px">（本线·可手调）</span></td>';
+  for(var mj=0;mj<12;mj++){var av=nv(adj[mj]);
+    if(mj<LOCK){h+='<td class="mut" style="text-align:right">'+av+'</td>';}
+    else{h+='<td style="padding:0"><input type="number" step="1" value="'+av+'" onchange="lineAdjSave('+(mj+1)+',this.value)" style="width:100%;min-width:42px;border:1px solid transparent;padding:3px 4px;font:inherit;text-align:right;background:transparent;border-radius:4px" onfocus="this.style.borderColor=\'var(--blue-l)\';this.style.background=\'#fff\'" onblur="this.style.borderColor=\'transparent\';this.style.background=\'transparent\'"></td>';}}
+  h+='<td></td></tr>';
+  h+=tr('key','调整后期末在岗 <span class="badge calc">＝链＋调节</span>',(d.chainAdj||[]).map(nv),{avg:(typeof f2==='function'?f2(d.chainAdjAvg):d.chainAdjAvg),lockShade:true,noTot:true});
+  h+='</table></div>';
+  // 明细（各部门·可展开）：每个部门期末在岗一行，点部门名进看板1
+  var mem=d.members||[];
+  h+='<div style="margin-top:14px"><a onclick="toggleLineDetail()" style="cursor:pointer;font-size:13px;font-weight:600;color:var(--navy)">'+(L.openDetail?'▾':'▸')+' 明细（各部门 '+mem.length+'）</a>';
+  if(L.openDetail){
+    h+='<div class="tblwrap" style="margin-top:8px"><table class="bsc kb0tbl"><tr><th>部门 · 期末在岗</th>';
+    for(var m2=0;m2<12;m2++)h+='<th class="'+(m2<LOCK?'':'fut')+'">'+M[m2]+'</th>';
+    h+='<th>'+yy+'年均</th></tr>';
+    mem.forEach(function(mb){
+      h+='<tr><td><a onclick="pickLineDept(\''+String(mb.name).replace(/'/g,"")+'\')" style="color:var(--blue);cursor:pointer" title="进看板1 · '+esc(mb.name)+'">'+esc(mb.name)+'</a></td>';
+      for(var k=0;k<12;k++){var v=(mb.chain&&mb.chain[k]!=null)?mb.chain[k]:'';h+='<td class="'+(k<LOCK?'mut':'')+'" style="text-align:right">'+v+'</td>';}
+      h+='<td style="text-align:right;font-weight:600">'+(mb.chainAvg!=null?(typeof f2==='function'?f2(mb.chainAvg):mb.chainAvg):'')+'</td></tr>';
+    });
+    h+='</table></div>';
+  }
+  h+='</div>';
+  host.innerHTML=h;
+}
+function toggleLineDetail(){if(LINEBRD){LINEBRD.openDetail=!LINEBRD.openDetail;renderLineBoard();}}
+function lineAdjSave(month,value){var L=LINEBRD;if(!L)return;
+  var v=(value===''||value==null)?null:parseFloat(value);if(v!==null&&isNaN(v))return;
+  fetch('/api/kb0/'+YEAR+'/adjust',{method:'POST',headers:{'Content-Type':'application/json','X-User':'bonniewbli'},body:JSON.stringify({dept:L.key,month:month,value:v,note:''})})
+    .then(function(r){return r.json();}).then(function(){return loadLineBoard(L.name);})
+    .then(function(){if(typeof toast==='function')toast('调节项已保存（本线·不影响源）');}).catch(function(){});
+}
+function renderLineView(lineName){loadLineBoard(lineName);}  // 兼容旧调用
+function goLineView(lineName){
+  var _l=null;for(var _i=0;_i<DEPT_LINES.length;_i++)if(DEPT_LINES[_i].name===lineName)_l=DEPT_LINES[_i];
+  if(_l&&_l.sum===false){toggleLineNav(lineName);return;}  // 该线未开求和→不进汇总看板，仅展开线内部门
+  PMG_ON=false;SEL_LINE=lineName;goView('line');loadLineBoard(lineName);
+  document.querySelectorAll('nav.side a[id^="lineLink_"]').forEach(function(a){a.classList.remove('on');});
+  var lnk=document.getElementById('lineLink_'+lineName);if(lnk)lnk.classList.add('on');}
+function toggleLineNav(lineName){var h=document.getElementById('lineNav_'+lineName),a=document.getElementById('lineArrow_'+lineName),lnk=document.getElementById('lineLink_'+lineName);
+  if(!h)return;var open=(h.style.display==='none');h.style.display=open?'block':'none';
+  if(a)a.style.transform=open?'rotate(90deg)':'';
+  if(lnk){if(open){lnk.style.position='sticky';lnk.style.top='0';lnk.style.zIndex='6';lnk.style.background='var(--b50)';}  // 展开时线名钉顶(同看板1-4)
+    else{lnk.style.position='';lnk.style.top='';lnk.style.zIndex='';lnk.style.background='';}}
+  if(open)renderLineNav(lineName);}
+/* 看板1-4 侧栏：可展开扁平部门树（无线级，部门同级；部→中心）。点部门=进该看板该部门空间。 */
+var DEPT_BOARDS=['kb1','kb2','kb3','kb4'];
 function _navA(board,deptKey,label,padLeft,cur,arrow,stickyTop){var on=(cur===deptKey),sticky=(stickyTop!=null);
   var bg=on?'var(--b50)':(sticky?'#fff':'transparent');
   var st=sticky?'position:sticky;top:'+stickyTop+'px;z-index:5;box-shadow:0 1px 0 #EDF3FB;':'';
@@ -979,20 +1178,30 @@ function renderDeptNav(board){var host=document.getElementById(board+'DeptNav');
   function centerOK(n,ch){return adm||al.indexOf(n)>=0||al.indexOf(n+'/'+ch)>=0;}
   function partVisible(node){if(adm||al.indexOf(node.name)>=0)return true;
     return (node.children||[]).some(function(ch){return al.indexOf(node.name+'/'+ch)>=0;});}
-  DEPT_TREE.forEach(function(node){var hasCh=node.children&&node.children.length,open=hasCh&&KB1_OPEN[node.name];
+  DEPT_TREE.forEach(function(node){if(node.name==='集团')return;  // 集团=看板本身(点看板名进)，树里不列
+    var hasCh=node.children&&node.children.length;
+    if(board!=='kb1'){  // 看板2/3/4：只到部门级（不拆中心；仅看板1拆中心）
+      if(!(hasCh?partVisible(node):wholeOK(node.name)))return;
+      h+=_navA(board,node.name,node.name,20,cur,'');return;
+    }
+    var open=hasCh&&KB1_OPEN[node.name];  // 看板1：部→中心（可再拆子PM组）
     if(!hasCh){if(!wholeOK(node.name))return;h+=_navA(board,node.name,node.name,20,cur,'');return;}
     if(!partVisible(node))return;
     var arrow='<span onclick="event.stopPropagation();toggleDeptSub(\''+board+'\',\''+node.name+'\')" style="float:right;font-size:10px;padding:0 4px;color:var(--ink3)">'+(open?'▾':'▸')+'</span>';
     h+=_navA(board,node.name,node.name,20,cur,arrow,open?kbH:null);
-    if(open)node.children.forEach(function(ch){if(centerOK(node.name,ch))h+=_navA(board,node.name+'/'+ch,'· '+ch,38,cur,'');});
+    if(open)_emitCenters(node.name,node.children,centerOK,38,54,
+      function(c,pad){h+=_navA(board,node.name+'/'+c,'· '+c,pad,cur,'');},
+      function(g,pad){h+=_pmGroupHead(g,pad,node.name);});
   });
   host.innerHTML=h||'<div style="padding:8px 20px;font-size:12px;color:var(--ink3)">无可见部门</div>';}
 function renderAllDeptNav(){DEPT_BOARDS.forEach(function(b){var h=document.getElementById(b+'DeptNav');if(h&&h.style.display!=='none')renderDeptNav(b);});}
-function renderKb1Nav(){renderAllDeptNav();}  // 兼容旧调用（setDept/loadMe）
 function toggleDeptSub(board,name){KB1_OPEN[name]=!KB1_OPEN[name];renderDeptNav(board);}
-function toggleDeptNav(board){var h=document.getElementById(board+'DeptNav'),a=document.getElementById(board+'NavArrow');if(!h)return;var open=(h.style.display==='none');h.style.display=open?'block':'none';if(a)a.style.transform=open?'rotate(90deg)':'';if(open)renderDeptNav(board);}
-function toggleKb1Nav(){toggleDeptNav('kb1');}  // 兼容旧调用
-function pickDeptNav(board,d){goView(board);if(window.setDept)window.setDept(d);renderDeptNav(board);}
+function _navSticky(board,on){var lnk=document.getElementById(board+'NavLink');if(!lnk)return;  // 仅展开的看板名固定顶部
+  if(on){lnk.style.position='sticky';lnk.style.top='0';lnk.style.zIndex='6';lnk.style.background='var(--b50)';}
+  else{lnk.style.position='';lnk.style.top='';lnk.style.zIndex='';lnk.style.background='';}}
+function toggleDeptNav(board){var h=document.getElementById(board+'DeptNav'),a=document.getElementById(board+'NavArrow');if(!h)return;var open=(h.style.display==='none');h.style.display=open?'block':'none';if(a)a.style.transform=open?'rotate(90deg)':'';_navSticky(board,open);if(open)renderDeptNav(board);}
+function toggleKb1Nav(){toggleDeptNav('kb1');}
+function pickDeptNav(board,d){PMG_ON=false;goView(board);if(window.setDept)window.setDept(d);renderDeptNav(board);}  // 选部门/中心→退出子PM组空间
 function renderYearTabs(){
   document.querySelectorAll('.yeartabs').forEach(function(box){
     box.innerHTML='<span class="ytscroll">'+YEARS.map(function(y){
@@ -1057,8 +1266,22 @@ var srcMap={
   camp:['数仓总数·BP按月分配','待流入·校招：数仓下发「校招·已offer待入职」总数（接口已预留·待接入）；BP 在未发生月手填每月人数做分配，总数列显示「已分配 / 目标」对齐数仓总数；已发生月实际走「已流入·实际校招入职」行。','bp'],
   custom:['BP 自定义','命名行·纯计人头(负数=调减)·右键加备注','bp'], kb2hc:['运算','法定HC：期初(当月)=上月法定HC；当月法定HC=期初+当月子项(分支)求和；首月直接取数（期初锚定）','calc'], kb2quota:['运算','预算当量：当月 = 期初 + 当月「其中」调整求和','calc'], kb2base:['BP 手填','预算过程基线·HC父行=期初+累计调整；预算当量父行=同月其中求和','bp'],
   hc_init:['BP手填(1月)+上月结转','期初法定HC取数：1月=BP手动输入（期初锚定·直接取数）；2–12月=上月「法定HC」父行结转。悬停格看当月取数。','bp'],
-  quota_init:['BP 手填','期初预算当量：BP 每月独立手动录入（全行手填·各月可不同）。','bp']
+  quota_init:['系统取数·只读','期初预算当量（部门维度）：看板2 取系统（预算系统接口·待接入）·整行只读；中心维度预算当量在看板1 由 BP 手填、不在此录入。','src']
 };
+/* 分层取数口径：数仓最小取数粒度=中心；部门=其下各中心该项之和；中心并成子PM组后 组=组内中心之和、部门=各组+未进组中心之和；集团=各部门之和。按当前部门空间给出本级口径。 */
+function levelNote(key){
+  var d=window.CUR_DEPT||'集团',isC=d.indexOf('/')>=0,isJ=(d==='集团'),isAgg=(typeof isDeptAgg==='function'&&isDeptAgg(d));
+  if(key==='budget'||key==='q_init'){  // 预算当量：部门直读看板2(系统)、中心BP手填(纯看·不上卷)、合计=各部门看板2之和
+    if(isC)return '预算当量 · <b>中心</b>：<b>直接在看板1 手填</b>（中心无独立看板2）· 不上卷、不影响部门系统取数，仅供对比';
+    if(isJ)return '预算当量 · <b>合计</b>：＝各部门看板2之和';
+    if(isAgg)return '预算当量 · <b>部门</b>：<b>直接读看板2</b>（系统/数仓取数）· 不从中心加总；下方给出各中心手填之和 vs 系统取数对比';
+    return '预算当量 · <b>部门</b>：直接读看板2（系统取数）';
+  }
+  if(isC)return '取数层级 · <b>中心</b>：数仓<b>直取</b>（中心＝取数最小粒度）';
+  if(isJ)return '取数层级 · <b>合计</b>：＝各部门该项之和（各部门＝其下中心之和）· 非独立部门';
+  if(isAgg)return '取数层级 · <b>部门</b>：＝其下各中心该项之和；中心并成<b>子PM组</b>后：组＝组内中心之和，部门＝各组＋未进组中心（同层级）之和';
+  return '取数层级 · <b>部门</b>（暂无中心拆分）：数仓直取，接入中心后自动改为各中心求和';
+}
 /* ===== 运算（识空：无源数据留空，绝不当0编造） ===== */
 function isN(x){return typeof x==='number';}
 function sum(a){var n=a.filter(isN);return n.length?n.reduce(function(x,y){return x+y;},0):'';}   // 全空→''
@@ -1069,8 +1292,10 @@ function cSum(sec,m){var s=0,any=false;custom[sec].forEach(function(r){if(isN(r.
 function agg(parts){var got=false,s=0;parts.forEach(function(p){if(isN(p)){s+=p;got=true;}});return got?s:'';}   // 有一个数才算，否则''
 /* 社招·简历面试中：单一取数口径=看板3.2（台账 st=简历&面试中 按归月计数/一句话备注），不再走 soc_bp 手填 */
 /* 社招三子行统一取自看板3.2（3.1台账按 kb3cat 归月计数/一句话备注），看板1 与 3.2 逐行一致（取数口径打通） */
-function socCatCnt(catKey,m){var c=0,any=false;if(typeof LEDGER!=='undefined')LEDGER.forEach(function(r){if(kb3cat(r.st)!==catKey)return;var mo=kb3mo(r);if(!mo||mo.slice(0,4)!==String(YEAR))return;if(+mo.slice(5,7)-1===m){c++;any=true;}});return any?c:'';}
-function socCatNote(catKey,m){var lst=[];if(typeof LEDGER!=='undefined')LEDGER.forEach(function(r){if(kb3cat(r.st)!==catKey)return;var mo=kb3mo(r);if(!mo||mo.slice(0,4)!==String(YEAR))return;if(+mo.slice(5,7)-1===m)lst.push((r.who?r.who+'·':'')+r.job+(r.loc?'('+r.loc+')':'')+'·'+(r.st==='已入职'?r.join+'已入职':'预计'+r.eta+'到岗')+(r.memo?'·'+r.memo:''));});return lst.length?lst.join('\n'):'';}
+/* 看板3.2/看板1 社招·简历面试中读台账：按当前部门空间过滤（部门→匹配dept，中心→dept+中心，集团→全部），与看板3.1 同口径 */
+function _ledDeptOK(r){var d=window.CUR_DEPT||'集团';if(d==='集团')return true;var p=String(d).split('/'),dp=p[0],ct=p[1];if(String(r.dept||'')!==dp)return false;return ct?String(r.c||'')===ct:true;}
+function socCatCnt(catKey,m){var c=0,any=false;if(typeof LEDGER!=='undefined')LEDGER.forEach(function(r){if(!_ledDeptOK(r))return;if(kb3cat(r.st)!==catKey)return;var mo=kb3mo(r);if(!mo||mo.slice(0,4)!==String(YEAR))return;if(+mo.slice(5,7)-1===m){c++;any=true;}});return any?c:'';}
+function socCatNote(catKey,m){var lst=[];if(typeof LEDGER!=='undefined')LEDGER.forEach(function(r){if(!_ledDeptOK(r))return;if(kb3cat(r.st)!==catKey)return;var mo=kb3mo(r);if(!mo||mo.slice(0,4)!==String(YEAR))return;if(+mo.slice(5,7)-1===m)lst.push((r.who?r.who+'·':'')+r.job+(r.loc?'('+r.loc+')':'')+'·'+(r.st==='已入职'?r.join+'已入职':'预计'+r.eta+'到岗')+(r.memo?'·'+r.memo:''));});return lst.length?lst.join('\n'):'';}
 function socTot(m){return agg([D.soc_join[m],D.soc_sys[m],D.soc_hs[m],socCatCnt(KB3CATS[2].key,m),cSum('soc',m)]);}   // 待流入·社招 = 已入职(soc_join·系统) + 待入职/活水已offer(soc_sys+soc_hs·系统) + 简历面试中(看板3.2·3.1台账) + 分支。已入职/待入职·活水走系统接口，简历面试中读3.1。估/实双轨只在总流入/总流出层
 function campTot(m){return agg([D.camp_off[m]]);}   // 待流入·校招 = 直接取数仓「校招·已offer待入职」(camp_off) 单一取数；已发生月实际走「已流入·实际校招入职」(ai_camp) 行
 // 估/实双轨：已发生月合计=实际口径行；未发生月合计=预估口径行+分支（与后端 calc_kb1 同口径）
@@ -1108,7 +1333,8 @@ function tr(cls,label,arr,opt){
     var rowEdit=opt.key&&ROWEDIT===opt.key;
     var anchorMonth=opt.editMonths&&opt.editMonths.indexOf(m)>=0;  // editMonths=硬约束:只放开指定月(如法定HC锚定月),并豁免已发生月锁定；即便整行编辑态也不放开其他月
     var monthOK=opt.editMonths?anchorMonth:true;
-    var editable=opt.edit&&monthOK&&(anchorMonth||m>=lock||(rowEdit&&!opt.editMonths&&!opt.futureOnly))&&!RO&&!isDeptAgg();  // 行编辑态放宽全月可填；部级汇总(含中心)只读不可录入
+    var _deptAnchorOK=opt.deptAnchor&&anchorMonth&&(window.CUR_DEPT||'集团')!=='集团';  // 期初锚定(如看板2法定HC·1月)属部门级BP录入：含中心的部也放开，仅集团(各部门加总)保持只读
+    var editable=opt.edit&&monthOK&&(anchorMonth||m>=lock||(rowEdit&&!opt.editMonths&&!opt.futureOnly))&&!RO&&(!isDeptAgg()||_deptAnchorOK);  // 行编辑态放宽全月可填；部级汇总(含中心)只读，唯期初锚定豁免
     var mut=(opt.mute==='past'&&m<lock)||(opt.mute==='future'&&m>=lock);  // 估/实双轨标灰
     var cl=(m<lock&&opt.lockShade?'lock ':'')+(editable?'edit adj ':'')+(opt.neg&&v<0?'neg ':'')+(mut?'mut ':'');
     var disp=(v===''||(v===0&&opt.hideZero))?'':(opt.negRow&&v!==0?'−'+v:(opt.plus&&v>0?'+'+v:v));
@@ -1130,6 +1356,12 @@ function customRows(sec,extra){
     var key='C'+r.id; cmap[key]={sec:sec,row:r};
     var tot=sum(r.vals)*(r.sign==='-'?-1:1);  // 260723 起新分支一律 '+'（纯计人头，负数=调减）；兼容历史 '−'
     var label;
+    if(r.agg){  // 汇总来的中心手动分支：只读·名字已含中心标注（点部门时表多出这几项，计入运算）
+      label=(extra.prefix||'')+esc(r.name)+' <span class="badge calc" title="来自中心的手动分支·已计入部门运算·请在该中心录入">中心汇总</span>';
+      var avgA=extra.avgMode==='dash'?'—':(extra.avgMode==='calc'?f2(avg12(r.vals)):undefined);
+      out+=tr('sub'+(extra.deep?'2':''),label,r.vals,{src:'custom',hideZero:true,lock:extra.lock,avg:avgA,tot:(extra.noTot?undefined:tot),noTot:extra.noTot});
+      return;
+    }
     if(r._new){  // 260724 待命名新行：行名直接内联编辑（不弹窗），回车/失焦校验必填
       label=(extra.prefix||'')+'<input class="rowname-inp" id="ninp_'+key+'" type="text" placeholder="填缘由后回车（必填）" value="'+esc(r.name||'')+'" '
         +'onkeydown="if(event.key===\'Enter\'){commitNewRow(\''+key+'\',this.value);rowEditSave(\''+key+'\');}else if(event.key===\'Escape\'){cancelNewRow(\''+key+'\');}" '
@@ -1158,7 +1390,20 @@ function render(){
   var h='<tr><th>项目</th>';
   for(var m=0;m<12;m++)h+='<th class="'+(m<LOCK?'':'fut')+'">'+M[m]+(m<LOCK?'<span class="lockic"></span>':'')+'</th>';
   h+='<th>'+String(YEAR).slice(2)+'年均</th><th>总数</th></tr>';
-  if(cfgOn('budget'))h+=tr('key',cfgName('budget','预算当量')+'<span class="drill"><t-icon name="arrow-down" size="10"></t-icon></span>',BUD,{src:'budget',avg:f2(qa),drill:'kb2',lockShade:true,noTot:false});
+  if(cfgOn('budget')){
+    var isCtr=(window.CUR_DEPT||'').indexOf('/')>=0;
+    if(isCtr){  // 中心：预算当量直接在看板1 手填（中心无独立看板2），全年可填，存 q_init
+      var QI=D.q_init.map(function(v){return isN(v)?v:'';});
+      h+=tr('key',cfgName('budget','预算当量')+' <span class="badge bp">BP·手填</span>',QI,{src:'budget',key:'q_init',edit:true,editMonths:[0,1,2,3,4,5,6,7,8,9,10,11],avg:f2(avg(QI)),lockShade:true,noTot:false});
+    }else{  // 部门/合计：直接读看板2（系统取数），双击下钻看板2
+      h+=tr('key',cfgName('budget','预算当量')+'<span class="drill"><t-icon name="arrow-down" size="10"></t-icon></span>',BUD,{src:'budget',avg:f2(qa),drill:'kb2',lockShade:true,noTot:false});
+    }
+  }
+  // 含中心的部：各中心手填预算当量之和 vs 系统取数(上行)对比行——纯看·不上卷·不影响
+  if(cfgOn('budget')&&D.budgetCentersSum){
+    var bcs=D.budgetCentersSum.map(function(v){return isN(v)?v:'';}),cAvg=avg(bcs),dz=(isN(cAvg)&&isN(qa))?(Math.round((cAvg-qa)*100)/100):null;
+    h+=tr('sub','└ 各中心手填之和 <span class="badge bp">对比·纯看</span><span style="color:var(--ink3);font-size:11px;font-weight:400">（不上卷·不影响系统取数'+(dz===null?'':('，年均差 '+(dz>0?'+':'')+dz))+'）</span>',bcs,{avg:f2(cAvg),lockShade:true,noTot:true});
+  }
   // 260723 口径：链行并入——已发生月=月末快照实际，未发生月=预估链（上月−流出+流入）
   if(cfgOn('actual')){
     var mgA=[];for(var mA=0;mA<12;mA++)mgA[mA]=(mA<LOCK)?D.actual[mA]:c[mA];
@@ -1179,7 +1424,7 @@ function render(){
     if(cfgOn('o_act')){var eOact=cfgEdit('o_act','all');h+=tr('sub',cfgName('o_act','待流出 · 主动动作（BP）（调节项）')+(eOact!=='no'?pen('o_act'):''),D.o_act,{src:'o_act',key:'o_act',edit:eOact!=='no',futureOnly:eOact==='future',hideZero:true,tot:sum(D.o_act),lockShade:true,mute:'past'});}
     h+=customRows('out');
     h+=extraRows('总流出（−）');
-    if(!RO&&secAllow('总流出（−）'))h+=addRowTr('out');
+    if(!RO&&!isDeptAgg()&&secAllow('总流出（−）'))h+=addRowTr('out');  // 汇总部门只读·不可加分支(请在中心录入)
   }
   // 总流入（＋）
   var inT=[];for(var m3=0;m3<12;m3++)inT[m3]=inflow(m3);
@@ -1217,7 +1462,7 @@ function render(){
     if(cfgOn('i_incr')){var eIincr=cfgEdit('i_incr','all');h+=tr('sub',cfgName('i_incr','待流入 · 增量需求（BP）（调节项）')+(eIincr!=='no'?pen('i_incr'):''),D.i_incr,{src:'i_incr',key:'i_incr',edit:eIincr!=='no',futureOnly:eIincr==='future',hideZero:true,tot:sum(D.i_incr),lockShade:true,mute:'past'});}
     h+=customRows('inn');
     h+=extraRows('总流入（＋）');
-    if(!RO&&secAllow('总流入（＋）'))h+=addRowTr('inn');
+    if(!RO&&!isDeptAgg()&&secAllow('总流入（＋）'))h+=addRowTr('inn');  // 汇总部门只读·不可加分支(请在中心录入)
   }
   var ca=avg(c), qa2=avg(BUD);
   // 链行已删（260723）：预估并入上方「月末实际在岗/期末在岗预估」行
@@ -1317,7 +1562,7 @@ function rowNameFilter(tblId,inpId){
 }
 function kb1Filter(){rowNameFilter('bscTbl','kb1Flt');}
 function kb2Filter(){rowNameFilter('kb2Tbl','kb2Flt');}
-function renderAll(){cmap={};render();renderKb2();renderKb0();renderKb4();bindCells();renderProg();colResizable('bscTbl');colResizable('kb2Tbl');kb1Filter();kb2Filter();if(typeof bscPaintSelection==='function')bscPaintSelection();}
+function renderAll(){cmap={};render();renderKb2();renderKb4();bindCells();renderProg();colResizable('bscTbl');colResizable('kb2Tbl');kb1Filter();kb2Filter();if(typeof bscPaintSelection==='function')bscPaintSelection();}
 /* ===== 看板2 ===== （kb2base 由 bindYear 按年份重建） */
 /* 260723 口径：法定HC=累计滚动（当月=上月+本月调整，期初锚定）；预算当量=当月子项求和（期初+当月调整） */
 function kb2Total(sec,cum){var t=[];for(var m=0;m<12;m++){
@@ -1335,12 +1580,12 @@ function renderKb2(){
     var s=tr('key',name+tgl+' <span class="badge calc">'+(isHC?'期初+当月调整':'其中求和')+'</span>',tot,{src:isHC?'kb2hc':'kb2quota',avg:isHC?'—':f2(avg12(tot)),lock:0,noTot:true});
     if(open_[sec]){
       if(isHC){
-        // 期初法定HC：1月=BP手填期初锚定（可编辑·落 fa_hc）；2–12月=上月法定HC滚结（只读派生）
+        // 期初法定HC：1月=BP手填期初锚定（含中心的部也可编辑·deptAnchor 豁免加总只读·落 fa_hc）；2–12月=上月法定HC滚结（只读派生）；仅集团(各部门加总)只读
         var baseVals=[];for(var bm=0;bm<12;bm++)baseVals[bm]=(bm===0)?kb2base.hc.vals[0]:tot[bm-1];
-        s+=tr('sub',kb2base.hc.name,baseVals,{src:'hc_init',key:'fa_hc',edit:true,editMonths:[0],avg:'—',lock:0,noTot:true});
+        s+=tr('sub',kb2base.hc.name,baseVals,{src:'hc_init',key:'fa_hc',edit:true,editMonths:[0],deptAnchor:true,avg:'—',lock:0,noTot:true});
       }else{
-        // 期初预算当量：全行手填（每月独立·可不同），落 q_init（PLAN_METRICS·全月可编辑）
-        s+=tr('sub',kb2base.quota.name,kb2base.quota.vals,{src:'quota_init',key:'q_init',edit:true,avg:f2(avg12(kb2base.quota.vals)),lock:0,noTot:true});
+        // 期初预算当量：部门维度=系统取数·只读（看板2 取系统·等预算系统接口）；中心维度预算当量在看板1 由 BP 手填
+        s+=tr('sub',kb2base.quota.name,kb2base.quota.vals,{src:'quota_init',key:'q_init',edit:false,avg:f2(avg12(kb2base.quota.vals)),lock:0,noTot:true});
       }
       s+=customRows(sec,{lock:0,noTot:true,avgMode:isHC?'dash':'calc'});
       s+=addRowTr(sec,'新增分支（填缘由·直接录人数）',true);
@@ -1350,65 +1595,6 @@ function renderKb2(){
   h+=block('hc','法定HC',true);
   h+=block('quota','预算当量',false);
   document.getElementById('kb2Tbl').innerHTML=h;
-}
-/* ===== 看板0 · PM 速览（预算当量/期末在岗预估/调节项/调整后；调节项同看板1 编辑逻辑） ===== */
-var KB0DATA=null,KB0EDIT={};  // KB0DATA=最近一次 /api/kb0 结果(缓存·避免🖊切换重拉)；KB0EDIT[dept]=该部门调节项是否处编辑态
-function renderKb0(){
-  var host=document.getElementById('kb0Host');if(!host)return;
-  if(!window.USE_API||!window.loadKb0){  // 无后端：退回本地"集团"单表
-    var qL=kb2Total('quota',false),BUD=[];for(var mQ=0;mQ<12;mQ++)BUD[mQ]=isN(qL[mQ])?qL[mQ]:'';
-    var c=chain(),mgA=[];for(var mA=0;mA<12;mA++)mgA[mA]=(mA<LOCK)?D.actual[mA]:c[mA];
-    var qa=avg(BUD),caA=avg(c);
-    KB0DATA={depts:[{dept:'集团',budget:BUD,chain:mgA,adjust:[],adjustNote:{},chainAdj:mgA,agg:false,budgetAvg:qa,chainAvg:caA,chainAdjAvg:caA}]};
-    renderKb0Tables();return;
-  }
-  window.loadKb0(YEAR).then(function(r){KB0DATA=r;renderKb0Tables();}).catch(function(){});
-}
-function renderKb0Tables(){
-  var host=document.getElementById('kb0Host');if(!host||!KB0DATA)return;
-  var depts=KB0DATA.depts||[];
-  var tag=document.getElementById('kb0DeptTag');  // 责任部门标签（与后台组织分工同源）
-  if(tag)tag.innerHTML=depts.length?depts.map(function(d){return '<span style="background:var(--b50);color:var(--blue);font-size:12px;font-weight:600;padding:2px 10px;border-radius:12px">'+esc(d.dept)+'</span>';}).join(''):'<span style="color:var(--ink3);font-size:12.5px">未配置（后台设置）</span>';
-  host.innerHTML=depts.map(function(d){return kb0Table(d);}).join('')||'<div class="hint" style="padding:16px">当前账号未配置 PM 速览可见部门 —— 请在管理后台「账号与权限」配置看板0部门。</div>';
-  // 调节项格右键菜单（编辑态+非编辑态都可用：复制/粘贴/清零/向右填充/备注）
-  host.querySelectorAll('td[data-kb0dept]').forEach(function(td){td.addEventListener('contextmenu',function(e){e.preventDefault();kb0AdjMenu(td,e);});});
-}
-var KB0EDITNOTE={};  // 编辑态临时备注 dept\tmonth -> note；保存时随值一起入库
-function kb0AdjPen(dept){KB0EDIT[dept]=true;  // 进整行编辑：备注从缓存初始化
-  var row=_kb0Row(dept),an=(row&&row.adjustNote)||{};
-  for(var m=1;m<=12;m++){var k=dept+'\t'+m;if(an[m])KB0EDITNOTE[k]=an[m];else delete KB0EDITNOTE[k];}
-  renderKb0Tables();}
-function kb0RowCancel(dept){KB0EDIT[dept]=false;renderKb0Tables();}  // 取消：不保存·回缓存
-function kb0RowSave(dept){var cells=[];
-  [].forEach.call(document.querySelectorAll('#kb0Host td[data-kb0dept] input'),function(inp){var td=inp.closest('td');if(td.getAttribute('data-kb0dept')!==dept)return;
-    var m=+td.getAttribute('data-m'),raw=inp.value,v=(raw===''||raw===null)?null:(parseFloat(raw)||0);
-    cells.push({month:m+1,value:v,note:KB0EDITNOTE[dept+'\t'+(m+1)]||''});});
-  KB0EDIT[dept]=false;window.saveKb0Batch(YEAR,dept,cells);}
-function _kb0Row(dept){var ds=(KB0DATA&&KB0DATA.depts)||[];for(var i=0;i<ds.length;i++)if(ds[i].dept===dept)return ds[i];return null;}
-/* 右拉填充：拖调节格右下角小柄，把该格值填到右侧各格（编辑态·前端，保存时统一入库） */
-var KB0FILL=null;
-function kb0FillStart(ev,dept,m){ev.preventDefault();ev.stopPropagation();var tr=ev.target.closest('tr'),si=tr.querySelector('td[data-kb0dept="'+dept+'"][data-m="'+m+'"] input');
-  KB0FILL={tr:tr,dept:dept,m0:m,val:si?si.value:'',to:m};document.addEventListener('mousemove',kb0FillMove);document.addEventListener('mouseup',kb0FillEnd);}
-function kb0FillMove(ev){if(!KB0FILL)return;var td=ev.target.closest&&ev.target.closest('td[data-kb0dept]');if(!td||!KB0FILL.tr.contains(td))return;var m=+td.getAttribute('data-m');KB0FILL.to=(m<KB0FILL.m0)?KB0FILL.m0:m;
-  [].forEach.call(KB0FILL.tr.querySelectorAll('td[data-kb0dept]'),function(c){var cm=+c.getAttribute('data-m');c.style.background=(cm>KB0FILL.m0&&cm<=KB0FILL.to)?'#EAF1FF':'';});}
-function kb0FillEnd(){if(!KB0FILL)return;for(var m=KB0FILL.m0+1;m<=KB0FILL.to;m++){var inp=KB0FILL.tr.querySelector('td[data-kb0dept="'+KB0FILL.dept+'"][data-m="'+m+'"] input');if(inp)inp.value=KB0FILL.val;}
-  [].forEach.call(KB0FILL.tr.querySelectorAll('td[data-kb0dept]'),function(c){c.style.background='';});
-  KB0FILL=null;document.removeEventListener('mousemove',kb0FillMove);document.removeEventListener('mouseup',kb0FillEnd);}
-function kb0AdjMenu(td,ev){
-  var dept=td.getAttribute('data-kb0dept'),m=+td.getAttribute('data-m'),row=_kb0Row(dept),inp=td.querySelector('input'),editing=!!inp;
-  var val=editing?inp.value:(row&&isN(row.adjust[m])?String(row.adjust[m]):'');
-  var note=editing?(KB0EDITNOTE[dept+'\t'+(m+1)]||''):((row&&row.adjustNote&&row.adjustNote[m+1])||'');
-  var items=[{t:'复制',fn:function(){clipSet(val===''?'':String(val));}}];
-  items.push({t:'粘贴',dis:CLIP.t===null,fn:function(){if(editing){inp.value=(''+CLIP.t).replace(/[^0-9.\-]/g,'');}else{var v=parseFloat(CLIP.t);window.saveKb0Adjust(YEAR,dept,m+1,isNaN(v)?null:v,note);}}});
-  items.push({t:'清零该格',fn:function(){if(editing){inp.value='';}else{window.saveKb0Adjust(YEAR,dept,m+1,null,'');}}});
-  items.push({t:'向右填充（至12月）',dis:val===''||isNaN(parseFloat(val)),fn:function(){
-    if(editing){var tr=td.closest('tr');for(var mm=m+1;mm<12;mm++){var i2=tr.querySelector('td[data-kb0dept="'+dept+'"][data-m="'+mm+'"] input');if(i2)i2.value=val;}}
-    else{var vv=parseFloat(val);(function step(mm){if(mm>12)return;window.saveKb0Adjust(YEAR,dept,mm,vv).then(function(){step(mm+1);});})(m+2);}}});
-  items.push('-');
-  items.push({t:'备注…',fn:function(){var nt=window.prompt('调节项备注（'+dept+' '+M[m]+'）：',note);if(nt===null)return;nt=nt.trim();
-    if(editing){KB0EDITNOTE[dept+'\t'+(m+1)]=nt;td.classList.toggle('hasnote',!!nt);var mk=td.querySelector('.memo');if(nt&&!mk)td.insertAdjacentHTML('beforeend','<span class="memo"></span>');else if(!nt&&mk)mk.remove();}
-    else{window.saveKb0Adjust(YEAR,dept,m+1,(val===''?null:val),nt);}}});
-  ctxShow(items,ev.clientX,ev.clientY);
 }
 /* ===== 看板4 · 云智&外包（两张表，结构同看板1；预算当量/期末在岗留空待接入；总流入/总流出仅手填分支） ===== */
 function renderKb4(){
@@ -1431,29 +1617,6 @@ function kb4Table(prefix,label){
   // 总流出（−）：仅手填分支
   h+=tr('subtot','总流出（−） <span class="rowtool" onclick="tg(\''+outSec+'\')"><t-icon name="'+(open_[outSec]?'chevron-down':'chevron-right')+'" size="12"></t-icon></span> <span class="badge bp">BP·手填</span>',outT,{tot:sum(outT),lockShade:true});
   if(open_[outSec]){h+=customRows(outSec);if(!RO)h+=addRowTr(outSec);}
-  h+='</table></div>';
-  return h;
-}
-function kb0Table(d){
-  var yy=String(YEAR).slice(2),dept=d.dept,agg=d.agg;
-  function nv(v){return (v===null||v===undefined||v==='')?'':v;}
-  var h='<div style="font-size:14px;font-weight:700;color:var(--navy);margin:16px 0 6px">'+esc(dept)+(agg?' <span style="font-weight:400;font-size:11px;color:#B45309;background:#FEF3C7;padding:1px 8px;border-radius:10px">各中心汇总·调节只读</span>':'')+'</div>';
-  h+='<div class="tblwrap"><table class="bsc kb0tbl"><tr><th>项目</th>';
-  for(var m=0;m<12;m++)h+='<th class="'+(m<LOCK?'':'fut')+'">'+M[m]+(m<LOCK?'<span class="lockic"></span>':'')+'</th>';
-  h+='<th>'+yy+'年均</th></tr>';
-  var ov=isN(d.chainAdjAvg)&&isN(d.budgetAvg)&&d.chainAdjAvg>d.budgetAvg+0.005;
-  h+=tr('key','预算当量 <span class="badge calc">看板2</span>',(d.budget||[]).map(nv),{src:'budget',avg:f2(d.budgetAvg),lockShade:true,noTot:true});
-  h+=tr('key',cfgName('actual','实际/预估期末在岗')+' <span class="badge calc">链</span>',(d.chain||[]).map(nv),{src:'chain',avg:f2(d.chainAvg),lockShade:true,noTot:true});
-  // 调节项行：中心/叶子 🖊 进整行编辑（可右拉填充·保存/取消·右键菜单·备注）；部级只读汇总
-  var editing=!agg&&KB0EDIT[dept],adj=d.adjust||[],anote=d.adjustNote||{},de=dept.replace(/'/g,'');
-  var penIc=(!agg&&!RO&&!editing)?' <span class="rowtool" title="编辑调节项（整行·可右拉填充·右键复制/粘贴/清零/备注）" onclick="kb0AdjPen(\''+de+'\')"><t-icon name="edit-1" size="12"></t-icon></span>':'';
-  h+='<tr class="sub"><td style="color:var(--navy);font-weight:600">➕ 调节项'+penIc+(agg?'<span style="color:var(--ink3);font-weight:400;font-size:11px">（各中心汇总）</span>':'')+'</td>';
-  for(var mj=0;mj<12;mj++){var av=nv(adj[mj]),nt=anote[mj+1]||'';
-    if(agg){h+='<td class="mut">'+av+'</td>';}
-    else if(editing){h+='<td class="edit adj" data-kb0dept="'+esc(de)+'" data-m="'+mj+'" style="position:relative"><input type="number" step="1" value="'+av+'" style="width:100%;min-width:40px;border:1px solid var(--blue-l);padding:2px 4px;font:inherit;text-align:right;background:#fff"><span onmousedown="kb0FillStart(event,\''+de+'\','+mj+')" title="拖拽向右填充" style="position:absolute;right:0;bottom:0;width:8px;height:8px;background:var(--blue);cursor:crosshair"></span></td>';}
-    else{h+='<td data-kb0dept="'+esc(de)+'" data-m="'+mj+'"'+(nt?' class="hasnote" data-note="'+esc(nt)+'"':'')+' style="cursor:context-menu">'+av+(nt?'<span class="memo"></span>':'')+'</td>';}}
-  h+=(editing?'<td style="white-space:nowrap"><button class="btn" style="padding:2px 8px;font-size:11px" onclick="kb0RowSave(\''+de+'\')">保存</button><button class="btn gray" style="padding:2px 8px;font-size:11px;margin-left:4px" onclick="kb0RowCancel(\''+de+'\')">取消</button></td>':'<td></td>')+'</tr>';
-  h+=tr('key','调整后期末在岗 <span class="badge calc">＝链＋调节</span>',(d.chainAdj||[]).map(nv),{avg:f2(d.chainAdjAvg),avgCls:ov?'neg':'',lockShade:true,noTot:true});
   h+='</table></div>';
   return h;
 }
@@ -1631,17 +1794,17 @@ function bindCells(){
     td.addEventListener('mousemove',function(e){
       var s=srcMap[key];
       var fxh=fxFor(key,td.cellIndex-1);
-      tip.innerHTML='<div class="s1">'+s[0]+'</div><div class="s2">'+s[1]+'</div>'+(fxh?'<div class="s3">'+fxh+'</div>':'');
+      tip.innerHTML='<div class="s1">'+s[0]+'</div><div class="s2">'+s[1]+'</div>'+(fxh?'<div class="s3">'+fxh+'</div>':'')+'<div class="s3" style="margin-top:5px;border-top:1px dashed rgba(255,255,255,.25);padding-top:5px">'+levelNote(key)+'</div>';
       tip.style.display='block';tip.style.left=Math.min(e.clientX+14,window.innerWidth-320)+'px';tip.style.top=(e.clientY+14)+'px';
     });
     td.addEventListener('mouseleave',function(){tip.style.display='none';});
   });
   // 行名悬浮：复用样式化 src-tip 框（标题=来源、说明=口径），替代系统默认 title
-  document.querySelectorAll('#bscTbl td[data-labsrc],#kb2Tbl td[data-labsrc],#kb0Host td[data-labsrc]').forEach(function(td){
+  document.querySelectorAll('#bscTbl td[data-labsrc],#kb2Tbl td[data-labsrc]').forEach(function(td){
     var key=td.getAttribute('data-labsrc');if(!key||!srcMap[key])return;
     td.addEventListener('mousemove',function(e){
       var s=srcMap[key];
-      tip.innerHTML='<div class="s1">'+s[0]+'</div><div class="s2">'+s[1]+'</div>';
+      tip.innerHTML='<div class="s1">'+s[0]+'</div><div class="s2">'+s[1]+'</div><div class="s3" style="margin-top:5px;border-top:1px dashed rgba(255,255,255,.25);padding-top:5px">'+levelNote(key)+'</div>';
       tip.style.display='block';tip.style.left=Math.min(e.clientX+14,window.innerWidth-320)+'px';tip.style.top=(e.clientY+14)+'px';
     });
     td.addEventListener('mouseleave',function(){tip.style.display='none';});
@@ -1897,8 +2060,8 @@ function openKb3Add(){
 }
 function closeKb3Add(){document.getElementById('maskKb3').classList.remove('on');if(window.KB3ANCHOR!==undefined)KB3ANCHOR=null;}
 var KB3CATS=[
-  {key:'社招· 已入职',st:'已入职',cal:'取数口径：直接取系统接口（HR数仓·实际社招已入职），非3.1台账。看板1「社招·已入职」取此行 → 两表逐行一致。'},
-  {key:'社招· 待入职/活水已offer',st:'已offer待入职',cal:'取数口径：直接取系统接口（社招系统·待入职 ＋ 活水系统·已offer），非3.1台账。看板1 取此行 → 两表逐行一致。'},
+  {key:'社招· 已入职',st:'已入职',cal:'取数口径：直接取系统接口（HR数仓·实际社招已入职），非3.1台账。看板1「社招·已入职」取此行 → 两表逐行一致。每条明细的岗位/入职时间/相关备注亦取自数仓（接口预留·待权限开通再接入，当前空态·不取台账不编造）。'},
+  {key:'社招· 待入职/活水已offer',st:'已offer待入职',cal:'取数口径：直接取系统接口（社招系统·待入职 ＋ 活水系统·已offer），非3.1台账。看板1 取此行 → 两表逐行一致。每条明细的岗位/预计到岗时间/相关备注亦取自数仓（接口预留·待权限开通再接入，当前空态·不取台账不编造）。'},
   {key:'社招· 简历面试中',st:'简历&面试中',cal:'取数口径：读3.1台账（st=简历&面试中·按归月计数）；看板1 取此行。'}
 ];
 function kb3cat(st){var f=KB3CATS.find(function(x){return x.st===st;});return f?f.key:'不计入';}
@@ -2060,7 +2223,12 @@ function kb3Items(){
   });
 }
 function renderKb3(){
-  var items=kb3Items(),totalN=items.length;
+  var items=kb3Items();
+  // 按当前部门空间取数：部门→匹配台账 dept；中心→匹配 dept+中心；集团→全部（草稿行不过滤）
+  var _cd=window.CUR_DEPT||'集团';
+  if(_cd&&_cd!=='集团'){var _pp=_cd.split('/'),_dp=_pp[0],_ct=_pp[1];
+    items=items.filter(function(it){if(it.r._draft)return true;if(it.v.dept!==_dp)return false;return _ct?(it.v.c===_ct):true;});}
+  var totalN=items.length;
   Object.keys(KB3F).forEach(function(f){var sel=KB3F[f]&&KB3F[f].sel;if(!sel)return;
     var set={};sel.forEach(function(x){set[x]=1;});
     items=items.filter(function(it){return it.r._draft||set[String(it.v[f])];});});
@@ -2107,7 +2275,8 @@ function renderKb3(){
   if(KB3_EDITING!==null&&typeof kb3MountRowEditor==='function'){kb3MountRowEditor(KB3_EDITING);}
   var ci=document.getElementById('kb3CountInfo');
   if(ci){var dataN=(typeof LEDGER!=='undefined'&&LEDGER)?LEDGER.length:0,colN=KB3COLS.length+1+(EDIT?1:0);
-    ci.innerHTML='台账共 <b>'+dataN+'</b> 行数据 · <b>'+colN+'</b> 列（'+KB3COLS.length+' 列字段 + 操作列'+(EDIT?' + 行号列':'')+'）';}
+    var scope=(_cd&&_cd!=='集团')?(' · <span style="color:var(--blue);font-weight:600">部门空间：'+esc(_cd)+' → '+totalN+' 行</span>'):'';
+    ci.innerHTML='台账共 <b>'+dataN+'</b> 行数据 · <b>'+colN+'</b> 列（'+KB3COLS.length+' 列字段 + 操作列'+(EDIT?' + 行号列':'')+'）'+scope;}
   var fi=document.getElementById('kb3FltInfo'),fActive=Object.keys(KB3F).length>0;
   var hidN=(window.KB3HIDE)?Object.keys(KB3HIDE).length:0;
   if(fi)fi.innerHTML=(fActive?('筛出 '+items.length+' / '+totalN+' 行'):(KB3SORT.f?('已排序 · '+totalN+' 行'):''))
@@ -2119,12 +2288,15 @@ function renderKb3(){
     if(mi>=0&&mi<12){mat[cat][mi]++;note[cat][mi].push((r.who?r.who+'·':'')+r.job+(r.loc?'('+r.loc+')':'')+'·'+(r.st==='已入职'?r.join+'已入职':'预计'+r.eta+'到岗')+(r.memo?'·'+r.memo:''));}});
   // 已入职/待入职·活水已offer 直接取系统（soc_join / soc_sys+soc_hs），非3.1台账；简历面试中读3.1台账(mat)。看板1 取此三行 → 两表逐行一致
   var joinSys=[],waitSys=[];for(var _sm=0;_sm<12;_sm++){joinSys[_sm]=isN(D.soc_join[_sm])?D.soc_join[_sm]:'';waitSys[_sm]=agg([D.soc_sys[_sm],D.soc_hs[_sm]]);}
+  // 口径预留：已入职/待入职·活水 的每条明细（岗位/时间/备注）取自数仓，待权限开通接入。后端填 D.soc_join_detail/soc_wait_detail（每月一句话数组）即自动显示紫角；当前未提供 → 空态（不取台账·不编造）。
+  function socSysDetail(kind){var src=(kind==='join')?(D.soc_join_detail||null):(D.soc_wait_detail||null);var out=[];for(var _dm=0;_dm<12;_dm++)out[_dm]=(src&&src[_dm]&&src[_dm].length)?src[_dm]:null;return out;}
+  var joinDet=socSysDetail('join'),waitDet=socSysDetail('wait');
   var total=[],totNote=[];for(var tm=0;tm<12;tm++){total[tm]=agg([joinSys[tm],waitSys[tm],mat[KB3CATS[2].key][tm]]);totNote[tm]=note[KB3CATS[2].key][tm];}
   var s='<tr><th>计入看板1的行</th>';for(var m=0;m<12;m++)s+='<th>'+moLbl(YEAR+'-'+String(m+1).padStart(2,'0'))+'</th>';s+='<th>全年总数</th></tr>';
   function mr(cls,n,a,nt,catId,cal){var t='<tr class="'+cls+'"><td'+(cal?' title="'+esc(cal).replace(/"/g,'&quot;')+'" style="cursor:help"':'')+'>'+n+'</td>';for(var m=0;m<12;m++){var lst=nt&&nt[m]&&nt[m].length?nt[m]:null;
     var da=(catId&&lst)?(' data-cat="'+esc(catId).replace(/"/g,'&quot;')+'" data-mon="'+(m+1)+'" style="cursor:context-menu"'):'';
     t+='<td'+(lst?' class="hasnote" data-note="'+esc(lst.join('\n')).replace(/"/g,'&quot;')+'"'+da:'')+'>'+(a[m]||'')+(lst?'<span class="memo"></span>':'')+'</td>';}return t+'<td>'+sum(a)+'</td></tr>';}
-  s+=mr('sub',KB3CATS[0].key,joinSys,null,null,KB3CATS[0].cal)+mr('sub',KB3CATS[1].key,waitSys,null,null,KB3CATS[1].cal)+mr('sub',KB3CATS[2].key,mat[KB3CATS[2].key],note[KB3CATS[2].key],KB3CATS[2].key,KB3CATS[2].cal)+mr('key','待流入-社招（三项加总）',total,totNote);
+  s+=mr('sub',KB3CATS[0].key,joinSys,joinDet,null,KB3CATS[0].cal)+mr('sub',KB3CATS[1].key,waitSys,waitDet,null,KB3CATS[1].cal)+mr('sub',KB3CATS[2].key,mat[KB3CATS[2].key],note[KB3CATS[2].key],KB3CATS[2].key,KB3CATS[2].cal)+mr('key','待流入-社招（三项加总）',total,totNote);
   document.getElementById('kb3Sum').innerHTML=s;
   // 紫角 + 紫色悬浮框（与看板1 备注同款）；内容=各人一句话备注（源自 3.1，右键可就地改 memo·同步）
   var kb3nt=document.getElementById('noteTip');
@@ -2236,7 +2408,41 @@ function kb3Import(inp){var f=inp.files[0];if(!f)return;document.getElementById(
     rows.forEach(function(rr,i){h+='<tr>'+rr.map(function(cc){return (i===0?'<th>':'<td>')+esc(cc)+(i===0?'</th>':'</td>');}).join('')+'</tr>';});view.innerHTML=h+'</tbody></table></div>';};r.readAsText(f,'utf-8');return;}
   view.innerHTML='<div class="hint" style="margin:8px 0">已接收 <b>'+esc(f.name)+'</b>。正式版将服务端解析为台账行→自动派生归月/计入看板1并刷新速查矩阵；原型暂不在浏览器内解析 xlsx（可先导 CSV 预览）。</div>';}
 /* ===== 导航 ===== */
-function goView(v){document.querySelectorAll('nav.side a').forEach(function(x){x.classList.toggle('on',x.getAttribute('data-v')===v);});document.querySelectorAll('.view').forEach(function(w){w.classList.remove('on');});var el=document.getElementById('v-'+v);if(el){el.classList.add('on');window.scrollTo(0,0);}}
+/* 刷新后停留当前页：存当前视图+部门空间(+线/子PM组)，重载时恢复 */
+var _restoring=false;
+function saveNavState(){
+  if(_restoring)return;
+  try{
+    var view='';document.querySelectorAll('.view.on').forEach(function(v){view=v.id.replace('v-','');});
+    if(!view)return;
+    var st={view:view,dept:window.CUR_DEPT||''};
+    if(view==='line')st.line=(typeof SEL_LINE!=='undefined')?SEL_LINE:'';
+    if(view==='pmg'&&typeof PMG!=='undefined'&&PMG)st.pmg={dept:PMG.dept,name:PMG.name};
+    localStorage.setItem('hcfb_nav',JSON.stringify(st));
+  }catch(e){}
+}
+function restoreNavState(){
+  var st;try{st=JSON.parse(localStorage.getItem('hcfb_nav')||'null');}catch(e){}
+  if(!st||!st.view)return;
+  _restoring=true;
+  try{
+    if(st.view==='pmg'&&st.pmg&&typeof PM_GROUPS!=='undefined'&&(PM_GROUPS[st.pmg.dept]||[]).some(function(x){return x.name===st.pmg.name&&x.sum;})){
+      pickPmGroup(st.pmg.dept,st.pmg.name);
+    }else if(st.view==='line'&&st.line&&typeof DEPT_LINES!=='undefined'&&DEPT_LINES.some(function(l){return l.name===st.line;})){
+      goLineView(st.line);
+    }else if(['kb1','kb2','kb3','kb4'].indexOf(st.view)>=0){
+      if(st.dept&&window.setDept&&st.dept!==window.CUR_DEPT)window.setDept(st.dept);
+      goView(st.view);
+    }else if(document.getElementById('v-'+st.view)){  // 其他视图(审计/数据源等)
+      goView(st.view);
+    }
+  }catch(e){}
+  _restoring=false;saveNavState();
+}
+function goView(v){
+  // 看板2/3/4 只有部门维度（中心仅存在于看板1）：若当前部门空间是中心，切过来时回落到其所属部门
+  if((v==='kb2'||v==='kb3'||v==='kb4')&&window.CUR_DEPT&&window.CUR_DEPT.indexOf('/')>=0&&window.setDept){window.setDept(window.CUR_DEPT.split('/')[0]);}
+  document.querySelectorAll('nav.side a').forEach(function(x){x.classList.toggle('on',x.getAttribute('data-v')===v);});document.querySelectorAll('.view').forEach(function(w){w.classList.remove('on');});var el=document.getElementById('v-'+v);if(el){el.classList.add('on');window.scrollTo(0,0);}saveNavState();}
 function go(a){goView(a.getAttribute('data-v'));}
 function tbToggle(id){document.querySelectorAll('.tbdrop').forEach(function(d){d.classList.toggle('on',!!(id&&d.id===id&&!d.classList.contains('on')));});}
 document.addEventListener('click',function(e){if(!e.target.closest('.tbmenu'))tbToggle();});
@@ -2299,12 +2505,17 @@ var ORIG={saveCell:saveCell,clearCell:clearCell,saveRowDef:saveRowDef,delRowFrom
 window.USE_API=false;var API_USER='bonniewbli';
 /* 看板1 部门空间：各部门独立存一套数。DEPT 定 IIFE 内，board 接口自动带 ?dept= */
 var DEPT='集团';window.CUR_DEPT=DEPT;
-window.setDept=function(v){DEPT=v;window.CUR_DEPT=v;var el=document.getElementById('deptLbl');if(el)el.textContent='部门空间：'+v+' ▾';var pl=document.getElementById('deptPickLbl');if(pl)pl.textContent=v;var an=document.getElementById('deptAggNote');if(an)an.style.display=(typeof isDeptAgg==='function'&&isDeptAgg(v))?'inline-block':'none';if(window.renderKb1Nav)renderKb1Nav();return loadYear(YEAR).catch(apiErr);};
-window.loadKb0=function(year){return api('GET','/api/kb0/'+year);};  // PM速览：按账号 kb0_depts 聚合各部门预算/预估
-window.saveKb0Adjust=function(year,dept,month,value,note){return api('POST','/api/kb0/'+year+'/adjust',{dept:dept,month:month,value:value,note:note||''}).then(function(){if(window.renderKb0)renderKb0();if(typeof toast==='function')toast('调节项已保存（看板0·不影响源数据）');}).catch(apiErr);};
-window.saveKb0Batch=function(year,dept,cells){return api('POST','/api/kb0/'+year+'/adjust-batch',{dept:dept,cells:cells}).then(function(){if(window.renderKb0)renderKb0();if(typeof toast==='function')toast('调节项已保存（'+cells.length+' 格·不影响源数据）');}).catch(apiErr);};
+window.setDept=function(v){DEPT=v;window.CUR_DEPT=v;var el=document.getElementById('deptLbl');if(el)el.textContent='部门空间：'+deptDisp(v);var pl=document.getElementById('deptPickLbl');if(pl)pl.textContent=deptDisp(v);var an=document.getElementById('deptAggNote');if(an){var ag=(typeof isDeptAgg==='function'&&isDeptAgg(v));an.style.display=ag?'inline-block':'none';if(ag)an.textContent=(v==='集团'?'各部门汇总 · 只读（请在具体部门/中心录入）':'各中心汇总 · 只读（请在具体中心录入）');}if(window.renderKb1Nav)renderKb1Nav();if(typeof renderKb3==='function')renderKb3();saveNavState();return loadYear(YEAR).catch(apiErr);};
 window.MY=null;  // 当前登录账号权限（看板1可见部门/角色）
-window.loadMe=function(){return api('GET','/api/me').then(function(m){window.MY=m;var ae=document.getElementById('adminEntry');if(ae)ae.style.display=(m&&m.role==='管理员')?'':'none';if(window.renderKb1Nav)renderKb1Nav();return m;}).catch(function(){});};
+window.loadMe=function(){return api('GET','/api/me').then(function(m){window.MY=m;var ae=document.getElementById('adminEntry');if(ae)ae.style.display=(m&&m.role==='管理员')?'':'none';
+  // 默认进「自己权限的第一个部门/中心」，而非合计（看板1 不默认全部门加总）
+  var perms=((m&&m.kb1_depts)||[]).filter(function(d){return d!=='集团';});
+  var fd=perms.length?perms[0]:DEPT;
+  DEPT=fd;window.CUR_DEPT=fd;
+  var el=document.getElementById('deptLbl');if(el)el.textContent='部门空间：'+deptDisp(fd);
+  var pl=document.getElementById('deptPickLbl');if(pl)pl.textContent=deptDisp(fd);
+  var an=document.getElementById('deptAggNote');if(an){var ag=(typeof isDeptAgg==='function'&&isDeptAgg(fd));an.style.display=ag?'inline-block':'none';if(ag)an.textContent=(fd==='集团'?'各部门汇总 · 只读（请在具体部门/中心录入）':'各中心汇总 · 只读（请在具体中心录入）');}
+  if(window.renderKb1Nav)renderKb1Nav();return m;}).catch(function(){});};
 function api(m,p,b){if(p.indexOf('/api/board/')===0)p+=(p.indexOf('?')<0?'?':'&')+'dept='+encodeURIComponent(DEPT);return fetch(p,{method:m,headers:{'Content-Type':'application/json','X-User':API_USER},body:b?JSON.stringify(b):undefined}).then(function(r){return r.json().then(function(j){if(!r.ok)throw j;return j;});});}
 var SEC2FRONT={'总流出（−）':'out','总流入（＋）':'inn','社招∇ 分列':'soc','校招∇ 分列':'camp','法定HC·其中':'hc','预算当量·其中':'quota','云智·总流入（＋）':'yz_inn','云智·总流出（−）':'yz_out','外包·总流入（＋）':'wb_inn','外包·总流出（−）':'wb_out'};
 var FRONT2SEC={out:'总流出（−）',inn:'总流入（＋）',soc:'社招∇ 分列',camp:'校招∇ 分列',hc:'法定HC·其中',quota:'预算当量·其中',yz_inn:'云智·总流入（＋）',yz_out:'云智·总流出（−）',wb_inn:'外包·总流入（＋）',wb_out:'外包·总流出（−）'};
@@ -2323,12 +2534,13 @@ function applyBoard(b){
   var coArr=((b.metrics.camp_off_tot||{}).vals||[]);d.camp_off_tot='';
   for(var ci=0;ci<coArr.length;ci++)if(coArr[ci]!=null){d.camp_off_tot=coArr[ci];break;}
   d.q_init=((b.metrics.q_init||{}).vals||[]).map(nn);while(d.q_init.length<12)d.q_init.push('');
+  d.budgetCentersSum=b.budget_centers_sum||null;  // 含中心的部：各中心预算当量之和（对比用·纯看）
   MEMOS[y]={};
   Object.keys(b.metrics).forEach(function(k){var ns=b.metrics[k].notes||{};Object.keys(ns).forEach(function(m){MEMOS[y][k+'_'+(m-1)]=ns[m];});});
   var cu=emptyCustom();
   (b.branches||[]).forEach(function(br){
     var fk=SEC2FRONT[br.sec];if(!fk)return;
-    cu[fk].push({id:br.id,name:br.name,sign:br.sign,vals:br.vals.map(nn),api:true});
+    cu[fk].push({id:br.id,name:br.name,sign:br.sign,vals:br.vals.map(nn),api:true,agg:!!br.agg,center:br.center||''});
     Object.keys(br.notes||{}).forEach(function(m){MEMOS[y]['C'+br.id+'_'+(m-1)]=br.notes[m];});
   });
   CUSTOM[y]=cu;
@@ -2414,22 +2626,33 @@ setYear=function(y){
   YEAR=y;loadYear(y).catch(apiErr);
 };
 renderAudit=function(){if(!USE_API)return ORIG.renderAudit();renderAuditApi();};
-demoLoad=function(){
-  if(!USE_API)return alert('连接后端后可导入示例数据');
-  if(RO)return alert('当前账号为只读权限');
-  api('POST','/api/demo/load',{year:YEAR})
-    .then(function(b){applyBoard(b);return loadLedger();})
-    .then(function(){renderAuditApi();if(typeof toast==='function')toast('示例数据已加载（demo 标签·只填空格不覆盖真数）');})
-    .catch(apiErr);
+// 旧「一键导入/清除假数」已下线：假数改由独立假数库 hcfb_demo.db 提供（结构=真库副本，只灌系统取数、不含 BP 手填）。
+// 生成/重建：backend/seed_demo.py；切真库：设 HCFB_DB=hcfb.db 或删除 hcfb_demo.db。保留空函数防旧调用/语音口令误触。
+demoLoad=function(){alert('示例数据现由独立假数库 hcfb_demo.db 提供（运行 backend/seed_demo.py 生成，仅系统取数）。已不再用「一键导入」——那会灌回带 BP 手填的旧式假数。');};
+demoClear=function(){alert('假数在独立库 hcfb_demo.db 里。切真库/假数库请用顶栏「假数库/真库」切换按钮（仅管理员），或设 HCFB_DB=hcfb.db 锁定。');};
+/* ===== 假数库 ↔ 真库 运行时切换（顶栏按钮·仅管理员·全局生效）===== */
+dbModeRefresh=function(){
+  var btn=document.getElementById('dbModeBtn');if(!btn)return Promise.resolve();
+  var isAdmin=window.MY&&window.MY.role==='管理员';
+  if(!isAdmin){btn.style.display='none';return Promise.resolve();}
+  return api('GET','/api/dbmode').then(function(st){
+    window.DBMODE=st;btn.style.display='';
+    var demo=(st.mode==='demo');
+    btn.innerHTML='<t-icon name="'+(demo?'server':'cloud')+'" size="14" style="vertical-align:-2px;margin-right:4px"></t-icon>'+(demo?'假数库':'真库')+(st.forced_env?' · 锁定':'');
+    btn.title=(demo?'当前读【假数库 hcfb_demo.db】· 演示系统假数；点击切到真库':'当前读【真库 hcfb.db】· 空态待真实 API；点击切到假数库')+(st.forced_env?'（HCFB_DB 环境变量锁定 · 运行时不可切）':'');
+    btn.style.color=demo?'#8C2B2B':'';btn.disabled=!!st.forced_env;
+  }).catch(function(){});
 };
-demoClear=function(){
-  if(!USE_API)return alert('连接后端后可清除示例数据');
-  if(RO)return alert('当前账号为只读权限');
-  if(!window.confirm('删除全部示例假数？（按 demo 标签彻底清除，真实数据不动）'))return;
-  api('POST','/api/demo/clear',{})
-    .then(function(r){return loadYear(YEAR).then(function(){return loadLedger();}).then(function(){
-      renderAuditApi();if(typeof toast==='function')toast('假数已全清：'+r.cells+' 格 + 分支 '+r.branches+' 条 + 台账 '+r.ledger+' 行');});})
-    .catch(apiErr);
+dbModeToggle=function(){
+  var st=window.DBMODE||{};
+  if(st.forced_env)return alert('已通过 HCFB_DB 环境变量锁定数据库，运行时不可切换。');
+  var to=(st.mode==='demo')?'real':'demo';
+  if(to==='demo'&&!st.demo_exists)return alert('假数库 hcfb_demo.db 不存在，请先运行 backend/seed_demo.py 生成。');
+  var msg=(to==='real')
+    ? '切换到【真库 hcfb.db】？\n真库靠真实 API 写入，当前为空态（库中无数据留空不编造）；假数库数据不会丢，可随时切回。\n\n全局生效 · 影响所有人。'
+    : '切换到【假数库 hcfb_demo.db】？\n显示演示用系统假数，页面挂【示例】横幅。\n\n全局生效 · 影响所有人。';
+  if(!window.confirm(msg))return;
+  api('POST','/api/dbmode',{mode:to}).then(function(){location.reload();}).catch(apiErr);
 };
 srcSync=function(metric){
   if(!USE_API)return alert('连接后端后可取数（当前为本地模式）');
@@ -2674,9 +2897,8 @@ function apiTag(){var el=document.getElementById('freshTag');if(el)el.textConten
 exportCSV=function(){if(!USE_API)return ORIG.exportCSV();window.open('/api/export/'+YEAR+'.csv');};
 function addImportBtn(){
   var bar=document.querySelector('.topbar');if(!bar||document.getElementById('impSnapBtn'))return;
-  var db=document.createElement('button');db.id='demoBtn';db.className='tbi';db.innerHTML='<t-icon name="browse" size="14" style="vertical-align:-2px;margin-right:4px"></t-icon>导入示例数据';
-  db.title='功能演示用假数：demo 标签全程可溯、只填空格不覆盖真数、页面挂【示例】横幅；再点或说「删除假数」一键全清';
-  db.onclick=function(){var on=document.getElementById('demoBanner').classList.contains('on');on?demoClear():demoLoad();};
+  // 旧「导入示例数据/删除假数」按钮已下线：假数改由独立假数库 hcfb_demo.db 提供（后端选库·横幅自动标示例）
+  var dbBtn=document.createElement('button');dbBtn.id='dbModeBtn';dbBtn.className='tbi';dbBtn.style.display='none';dbBtn.onclick=dbModeToggle;  // 假数库/真库 切换（仅管理员可见·loadMe 后 dbModeRefresh 填充）
   var b=document.createElement('button');b.id='impSnapBtn';b.className='tbi';b.innerHTML='<t-icon name="upload" size="14" style="vertical-align:-2px;margin-right:4px"></t-icon>导入快照CSV';b.title='上传兜底：metric,month,value；校验闸不合格整批拒绝';
   var inp=document.createElement('input');inp.type='file';inp.accept='.csv';inp.style.display='none';
   inp.onchange=function(){var f=inp.files[0];if(!f)return;var fd=new FormData();fd.append('file',f);
@@ -2688,7 +2910,7 @@ function addImportBtn(){
     inp.value='';};
   b.onclick=function(){inp.click();};
   var firstBtn=bar.querySelector('.btn');
-  if(firstBtn){bar.insertBefore(b,firstBtn);bar.insertBefore(db,b);}else{bar.appendChild(db);bar.appendChild(b);}
+  if(firstBtn){bar.insertBefore(dbBtn,firstBtn);bar.insertBefore(b,firstBtn);}else{bar.appendChild(dbBtn);bar.appendChild(b);}
   bar.appendChild(inp);
 }
 /* ===== 多端实时同步：每 ~3s 轮询 /api/version（=审计表 MAX(id)，任何改动即变），
@@ -2727,7 +2949,7 @@ fetch('/api/health').then(function(r){return r.json();}).then(function(h){
   USE_API=true;
   apiTag();
   addImportBtn();
-  return loadCfg().then(loadYears).then(function(){return window.loadMe();}).then(function(){return loadYear(YEAR);}).then(function(){return loadLedger();}).then(function(){return loadPrefs();}).then(function(){return loadGPrefs();}).then(function(){return loadSources();}).then(function(){renderAuditApi();})
+  return loadCfg().then(loadYears).then(function(){return window.loadMe();}).then(function(){dbModeRefresh();return loadYear(YEAR);}).then(function(){return loadLedger();}).then(function(){return loadPrefs();}).then(function(){return loadGPrefs();}).then(function(){return loadSources();}).then(function(){renderAuditApi();restoreNavState();})
     .then(function(){return api('GET','/api/version');}).then(function(r){SYNC.ver=r.v;SYNC.on=true;syncStart();syncMark('自动同步开 · '+_hhmm());}).catch(function(){});
 }).catch(function(){/* 无后端：本地空态模式 */});
 })();
@@ -2749,6 +2971,21 @@ function navFold(f){
   document.body.appendChild(btn);
   var f=false;try{f=localStorage.getItem('hcfb_navfold')==='1';}catch(e){}
   navFold(f);
+})();
+/* ===== 侧栏宽度可拖拽调整（分隔条·存 localStorage·刷新保持） ===== */
+(function(){
+  var MINW=140,MAXW=480;
+  function clampW(w){return Math.max(MINW,Math.min(MAXW,w));}
+  var sw=172;try{var s=parseInt(localStorage.getItem('hcfb_sidew'));if(s)sw=clampW(s);}catch(e){}
+  document.documentElement.style.setProperty('--sidew',sw+'px');
+  var nav=document.querySelector('nav.side');if(!nav||!nav.parentNode)return;
+  var rz=document.createElement('div');rz.id='sideResizer';rz.title='拖拽调整目录宽度';
+  nav.parentNode.insertBefore(rz,nav.nextSibling);  // 侧栏与主区之间的分隔条
+  var dragging=false;
+  rz.addEventListener('mousedown',function(e){dragging=true;rz.classList.add('drag');document.body.classList.add('sidedrag');document.body.style.userSelect='none';e.preventDefault();});
+  window.addEventListener('mousemove',function(e){if(!dragging)return;document.documentElement.style.setProperty('--sidew',clampW(e.clientX)+'px');});
+  window.addEventListener('mouseup',function(){if(!dragging)return;dragging=false;rz.classList.remove('drag');document.body.classList.remove('sidedrag');document.body.style.userSelect='';var w=parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sidew'))||172;try{localStorage.setItem('hcfb_sidew',w);}catch(e){}});
+  rz.addEventListener('dblclick',function(){document.documentElement.style.setProperty('--sidew','172px');try{localStorage.setItem('hcfb_sidew',172);}catch(e){}});  // 双击复位
 })();
 </script>
 <script>

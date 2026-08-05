@@ -32,7 +32,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 # meta=指标口径 · store=存储/权限/审计 · calc_kb1=看板1/2运算引擎 · sources=外部源直连 · kb3_ledger=看板3台账解析
 from meta import (CANON_PROJECTS, OUT_KEYS, CAMP_KEYS, IN_DIRECT_KEYS, BP_EDITABLE,
                   IMPORTABLE, VALUE_ABS_MAX, PLAN_METRICS, PLAN_BRANCH_SECS, EXTRA_METRICS, NAT_N_DEFAULT)
-from store import (DB_PATH, db, init_db, now, _audit, _write_cell, get_account,
+from store import (DB_PATH, is_demo_db, db_mode_state, set_db_mode, db, init_db, now, _audit, _write_cell, get_account,
                    require_writer, require_admin, can_manage, manageable_ids, is_agg_dept, DEPT_CENTERS, _kb0_adjust, _grid, _branches)
 from calc_kb1 import compute
 from sources import SOURCE_METRICS, load_sources_cfg, fetch_source, _month_completed
@@ -76,7 +76,8 @@ def get_config():
              "manager_id": (r["manager_id"] if "manager_id" in r.keys() else "") or "",
              "org_path": (r["org_path"] if "org_path" in r.keys() else "") or "",
              "kb1_depts": json.loads((r["kb1_depts"] if "kb1_depts" in r.keys() else "") or '["集团"]'),
-             "kb0_depts": json.loads((r["kb0_depts"] if "kb0_depts" in r.keys() else "") or '["集团"]')}
+             "kb0_depts": json.loads((r["kb0_depts"] if "kb0_depts" in r.keys() else "") or '["集团"]'),
+             "kbperm": json.loads((r["kbperm"] if "kbperm" in r.keys() else "") or "[]")}
             for r in c.execute("SELECT * FROM accounts")
         ]
         return {"projs": projs, "accts": accts, "ts": int(time.time() * 1000)}
@@ -111,23 +112,24 @@ def put_config(doc: ConfigDoc, x_user: str = Header("bonniewbli")):
             if a["id"] == x_user and me_old and not me_sys:
                 # 非系统管理员的本人：权限字段一律用旧值（不能自己配自己），仅姓名可改
                 c.execute(
-                    "INSERT INTO accounts(id,name,role,dept,kb,on_ok,demo,level,manager_id,org_path,kb1_depts,kb0_depts,is_head,is_sysadmin) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "INSERT INTO accounts(id,name,role,dept,kb,on_ok,demo,level,manager_id,org_path,kb1_depts,kb0_depts,is_head,is_sysadmin,kbperm) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (x_user, a.get("name", me_old["name"]), me_old["role"], me_old["dept"],
                      me_old["kb"], 1, me_old["demo"],
                      me_old["level"] or "", me_old["manager_id"] or "", me_old["org_path"] or "",
                      me_old["kb1_depts"] or '["集团"]', me_old["kb0_depts"] or '["集团"]',
-                     int(me_old["is_head"] or 0), keep_sys),
+                     int(me_old["is_head"] or 0), keep_sys, (me_old.get("kbperm") or "")),
                 )
                 continue
             # 其他账号 / 系统管理员本人：用下发值（本人 on 强制启用防自锁；is_sysadmin 保原值）
             c.execute(
-                "INSERT INTO accounts(id,name,role,dept,kb,on_ok,demo,level,manager_id,org_path,kb1_depts,kb0_depts,is_head,is_sysadmin) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO accounts(id,name,role,dept,kb,on_ok,demo,level,manager_id,org_path,kb1_depts,kb0_depts,is_head,is_sysadmin,kbperm) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (a["id"], a.get("name", ""), a.get("role", "HRBP·可编辑"), a.get("dept", ""),
                  json.dumps(a.get("kb", [1, 1, 1, 1])), (1 if a["id"] == x_user else int(a.get("on", True))), int(bool(a.get("demo"))),
                  a.get("level", ""), a.get("manager_id", ""), a.get("org_path", ""),
                  json.dumps(a.get("kb1_depts", ["集团"]), ensure_ascii=False),
                  json.dumps(a.get("kb0_depts", ["集团"]), ensure_ascii=False),
-                 int(bool(a.get("is_head"))), keep_sys),
+                 int(bool(a.get("is_head"))), keep_sys,
+                 json.dumps(a.get("kbperm") or [], ensure_ascii=False)),
             )
         _audit(c, x_user, "配置更新", f"项目 {len(doc.projs)} 项 / 账号 {len(doc.accts)} 个（管理后台下发）")
         return {"ok": True}
@@ -165,7 +167,8 @@ def get_me(x_user: str = Header("bonniewbli")):
         return {"id": a["id"], "name": a["name"], "role": a["role"], "dept": a.get("dept", "") or "",
                 "is_head": bool(a.get("is_head", 0)), "is_sysadmin": bool(a.get("is_sysadmin", 0)),
                 "kb1_depts": json.loads((a.get("kb1_depts") or "") or '["集团"]'),
-                "kb0_depts": json.loads((a.get("kb0_depts") or "") or '["集团"]')}
+                "kb0_depts": json.loads((a.get("kb0_depts") or "") or '["集团"]'),
+                "kbperm": json.loads((a.get("kbperm") or "") or "[]")}
 
 
 # ---------------- 账号层级树（上级只看到自己管辖子树；管理员看全员） ----------------
@@ -193,9 +196,11 @@ def accounts_tree(x_user: str = Header("bonniewbli")):
                 "kb": json.loads(r["kb"] or "[1,1,1,1]"),
                 "kb1_depts": json.loads((r["kb1_depts"] if "kb1_depts" in r.keys() else "") or '["集团"]'),
                 "kb0_depts": json.loads((r["kb0_depts"] if "kb0_depts" in r.keys() else "") or '["集团"]'),
+                "kbperm": json.loads((r["kbperm"] if "kbperm" in r.keys() else "") or "[]"),
                 "can_manage": bool(can_manage(c, x_user, r["id"])),  # 我能否管这个人（自己=False）
             })
         return {"me": {"id": me["id"], "role": me["role"],
+                       "is_sysadmin": bool(me.get("is_sysadmin", 0)),  # 仅系统管理员可改他人看板权限
                        "org_path": (me["org_path"] if "org_path" in me.keys() else "") or ""},
                 "accounts": rows}
 
@@ -269,6 +274,43 @@ def fetch_ioa_profile(acct_id):
     return prof if prof.get("org_path") else None
 
 
+def fetch_ioa_bp_roster():
+    """iOA 读取 BP 关系链（BP名单→所属部门→上级/权限链）。配置驱动·接口即插即用：
+      · 无配置 → None（前端提示待接入，不建号不编造）
+      · 配 mock（ioa_config.json 里 {"bp_roster":[{id,name,dept,org_path,manager_id,role},...]}）→ 直接返回，供联调
+      · 配 bp_url/headers → 调 iOA OpenAPI 拉全量 BP 关系（urllib·无第三方依赖）"""
+    cfg = load_ioa_cfg()
+    if not cfg:
+        return None
+    if cfg.get("bp_roster") is not None:
+        return cfg["bp_roster"]
+    url = cfg.get("bp_url")
+    if not url:
+        return None
+    import urllib.request
+    try:
+        req = urllib.request.Request(url, headers=cfg.get("headers", {}))
+        with urllib.request.urlopen(req, timeout=cfg.get("timeout", 8)) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        return data if isinstance(data, list) else data.get("roster")
+    except Exception:
+        return None  # 接口异常→判空，绝不编造
+
+
+@app.get("/api/bp-relations")
+def bp_relations(x_user: str = Header("bonniewbli")):
+    """读取 BP 关系链（BP名单 · 所属部门 · 部门权限BP关系）——iOA 配置驱动的预留窗口。
+    未接入 → 428（不编造）；接入后返回 [{id,name,dept,org_path,manager_id,role}]，供后台按链回填/识别部门权限。"""
+    with db() as c:
+        require_admin(c, x_user)
+    roster = fetch_ioa_bp_roster()
+    if roster is None:
+        raise HTTPException(428, {"msg": "iOA BP 关系链未接入（预留窗口·等待接入）",
+                                  "expect": ["id", "name", "dept", "org_path", "manager_id", "role"],
+                                  "hint": "在 backend/ioa_config.json 配 bp_roster(mock) 或 bp_url 即打通；接入后由后台读取识别 BP→所属部门→部门权限关系链"})
+    return {"ok": True, "count": len(roster), "roster": roster}
+
+
 # ---------------- 年份 ----------------
 @app.get("/api/years")
 def list_years():
@@ -338,12 +380,23 @@ def get_board(year: int, dept: str = "集团"):
             if av[m] is None and comp["chain"][m] is not None:
                 av[m] = comp["chain"][m]
         metrics["actual"]["vals"] = av
-        demo = bool(c.execute("SELECT 1 FROM cells WHERE year=? AND dept=? AND source='demo' LIMIT 1", (year, dept)).fetchone()
+        # 假数库(hcfb_demo.db)：整库皆示例 → 直接置 demo 横幅；真库则按 source='demo' 兜底判断
+        demo = bool(is_demo_db()
+                    or c.execute("SELECT 1 FROM cells WHERE year=? AND dept=? AND source='demo' LIMIT 1", (year, dept)).fetchone()
                     or c.execute("SELECT 1 FROM branches WHERE year=? AND dept=? AND created_by='demo' LIMIT 1", (year, dept)).fetchone()
                     or (dept == "集团" and c.execute("SELECT 1 FROM ledger_rows WHERE batch=-999 LIMIT 1").fetchone()))
-        return {"year": year, "dept": dept, "status": yr["status"], "lock": yr["lock_month"], "seed": seed,
-                "metrics": metrics, "branches": brs, "computed": comp, "nat": comp["nat"],
-                "demo": demo, "ts": int(time.time() * 1000)}
+    # 含中心的部：各中心预算当量之和（供与系统取数=看板2部门维度对比·纯参考·不上卷不影响）
+    budget_centers_sum = None
+    if dept in DEPT_CENTERS:
+        budget_centers_sum = [None] * 12
+        for center in DEPT_CENTERS[dept]:
+            cb = get_board(year, center)["metrics"]["budget"]["vals"]
+            for m in range(12):
+                if isinstance(cb[m], (int, float)):
+                    budget_centers_sum[m] = (budget_centers_sum[m] if isinstance(budget_centers_sum[m], (int, float)) else 0) + cb[m]
+    return {"year": year, "dept": dept, "status": yr["status"], "lock": yr["lock_month"], "seed": seed,
+            "metrics": metrics, "branches": brs, "computed": comp, "nat": comp["nat"],
+            "budget_centers_sum": budget_centers_sum, "demo": demo, "ts": int(time.time() * 1000)}
 
 
 DEPTS_ALL = ["集团", "云产品一部", "云产品二部", "云产品三部", "云产品四部", "云产品五部"]
@@ -363,49 +416,6 @@ def _user_depts(c, user_id, field="kb0_depts"):
         return depts  # 直接用配置的部门（可含「部/中心」中心路径）
     return DEPTS_ALL if a.get("role") == "管理员" else ["集团"]
 
-
-@app.get("/api/kb0/{year}")
-def get_kb0(year: int, x_user: str = Header("bonniewbli")):
-    """PM 速览：按当前账号权限（kb1_depts）聚合其可见的各部门 —— 每部门回预算当量 + 期末在岗预估（不含法定HC）。"""
-    with db() as c:
-        if not c.execute("SELECT 1 FROM years WHERE year=?", (year,)).fetchone():
-            raise HTTPException(404, "年份不存在")
-        depts = _user_depts(c, x_user)
-    # 看板0：逐个中心展示；某部所有中心都在 → 额外展示该部汇总（中心全选才现部门）
-    show, seen = [], set()
-    for d in depts:
-        if d not in seen:
-            show.append(d); seen.add(d)
-    for part, centers in DEPT_CENTERS.items():
-        if part not in seen and centers and all(ct in seen for ct in centers):
-            show.append(part); seen.add(part)
-    depts = show
-    rows = []
-    for dept in depts:
-        b = get_board(year, dept)  # 复用看板1 运算（各自开库连接）
-        with db() as c:
-            adj = _kb0_adjust(c, year, dept)  # 看板0 调节项（部级=各中心汇总）
-            anote = {}
-            if not is_agg_dept(dept):  # 部级只读无备注；中心/叶子读调节项备注
-                for r in c.execute("SELECT month,note FROM kb0_adjust WHERE year=? AND dept=? AND metric='chain' AND note IS NOT NULL AND note!=''", (year, dept)):
-                    anote[str(r["month"])] = r["note"]
-        chain = b["metrics"]["actual"]["vals"]
-        chain_adj = [((chain[m] if isinstance(chain[m], (int, float)) else 0) + adj[m])
-                     if isinstance(adj[m], (int, float)) else chain[m] for m in range(12)]  # 调整后=期末在岗+调节项
-        nums = [x for x in chain_adj if isinstance(x, (int, float))]
-        rows.append({
-            "dept": dept, "agg": is_agg_dept(dept),  # agg=部级(只读汇总)
-            "budget": b["metrics"]["budget"]["vals"],      # 预算当量
-            "chain": chain,                                 # 实际/预估期末在岗
-            "adjust": adj,                                  # 调节项（中心/叶子可填）
-            "adjustNote": anote,                            # 调节项备注 {month: note}
-            "chainAdj": chain_adj,                          # 调整后期末在岗
-            "budgetAvg": b["computed"]["budget_avg"],
-            "chainAvg": b["computed"]["chain_avg"],
-            "chainAdjAvg": round(sum(nums) / len(nums), 2) if nums else None,
-            "lock": b["lock"], "demo": b["demo"],
-        })
-    return {"year": year, "lock": rows[0]["lock"] if rows else 0, "depts": rows}
 
 
 class Kb0Adjust(BaseModel):
@@ -433,7 +443,7 @@ def kb0_adjust_write(year: int, e: Kb0Adjust, x_user: str = Header("bonniewbli")
             (year, e.dept, e.metric, e.month, e.value, (e.note or "").strip(), x_user, now()),
         )
         _audit(c, x_user, "看板0调节", f"[{e.dept}] {year} {e.month}月 调节项 → {e.value}（{(e.note or '').strip()}）")
-    return get_kb0(year, x_user)
+    return {"ok": True}  # 看板0已删；调节项写入端点保留给子PM组/线级复用
 
 
 class Kb0AdjustBatch(BaseModel):
@@ -462,7 +472,51 @@ def kb0_adjust_batch(year: int, b: Kb0AdjustBatch, x_user: str = Header("bonniew
                 (year, b.dept, b.metric, m, v, (cell.get("note") or "").strip(), x_user, now()),
             )
         _audit(c, x_user, "看板0调节", f"[{b.dept}] {year} 调节项整行保存（{len(b.cells)} 格）")
-    return get_kb0(year, x_user)
+    return {"ok": True}  # 看板0已删；调节项写入端点保留给子PM组/线级复用
+
+
+@app.get("/api/pmgroup/{year}")
+def get_pmgroup(year: int, centers: str = "", key: str = "", x_user: str = Header("bonniewbli")):
+    """子PM组求和看板：对所选中心求和(预算当量/期末在岗)，叠加该组独立调节项(存 kb0_adjust，dept=key)。
+    调节项写入复用 POST /api/kb0/{year}/adjust（dept 传 key；key 不在 DEPT_CENTERS→非汇总→可写）。"""
+    cl = [x.strip() for x in centers.split(",") if x.strip()]
+    with db() as c:
+        if not c.execute("SELECT 1 FROM years WHERE year=?", (year,)).fetchone():
+            raise HTTPException(404, "年份不存在")
+    budget = [None] * 12
+    chain = [None] * 12
+    lock = 0
+    demo = False
+    members = []  # 各成员(部门/中心)明细：供线级/组页展开查看
+    for ct in cl:
+        b = get_board(year, ct)  # 复用看板1 运算求各成员 预算当量/期末在岗
+        lock = b["lock"]
+        demo = demo or b["demo"]
+        bv = b["metrics"]["budget"]["vals"]
+        cv = b["metrics"]["actual"]["vals"]
+        for m in range(12):
+            if isinstance(bv[m], (int, float)):
+                budget[m] = (budget[m] if isinstance(budget[m], (int, float)) else 0) + bv[m]
+            if isinstance(cv[m], (int, float)):
+                chain[m] = (chain[m] if isinstance(chain[m], (int, float)) else 0) + cv[m]
+        members.append({"name": ct, "budget": bv, "chain": cv,
+                        "budgetAvg": b["computed"].get("budget_avg"), "chainAvg": b["computed"].get("chain_avg")})
+    with db() as c:
+        adj = _kb0_adjust(c, year, key) if key else [None] * 12
+        anote = {}
+        if key:
+            for r in c.execute("SELECT month,note FROM kb0_adjust WHERE year=? AND dept=? AND metric='chain' AND note IS NOT NULL AND note!=''", (year, key)):
+                anote[str(r["month"])] = r["note"]
+    chain_adj = [((chain[m] if isinstance(chain[m], (int, float)) else 0) + adj[m])
+                 if isinstance(adj[m], (int, float)) else chain[m] for m in range(12)]
+
+    def _avg(a):
+        nums = [x for x in a if isinstance(x, (int, float))]
+        return round(sum(nums) / len(nums), 2) if nums else None
+    return {"year": year, "key": key, "centers": cl, "lock": lock, "demo": demo,
+            "budget": budget, "chain": chain, "adjust": adj, "adjustNote": anote, "chainAdj": chain_adj,
+            "budgetAvg": _avg(budget), "chainAvg": _avg(chain), "chainAdjAvg": _avg(chain_adj),
+            "members": members}
 
 
 class CellEdit(BaseModel):
@@ -477,7 +531,10 @@ def edit_cell(year: int, e: CellEdit, dept: str = "集团", x_user: str = Header
     with db() as c:
         require_writer(c, x_user)
         if is_agg_dept(dept):
-            raise HTTPException(403, f"「{dept}」为各中心汇总（只读），请在具体中心录入")
+            # 期初法定HC(fa_hc) 是部门级 BP 录入·期初锚定（落部门自身 cells，_grid 按部门维度直取、不上卷）：
+            # 含中心的部放开，仅集团（各部门加总）保持只读。其余项在含中心部仍只读（=各中心之和）。
+            if not (dept in DEPT_CENTERS and e.metric == "fa_hc"):
+                raise HTTPException(403, f"「{dept}」为各中心汇总（只读），请在具体中心录入")
         yr = c.execute("SELECT * FROM years WHERE year=?", (year,)).fetchone()
         if not yr:
             raise HTTPException(404, "年份不存在")
@@ -734,6 +791,23 @@ def source_sync(metric: str, q: SyncReq, x_user: str = Header("bonniewbli")):
             "applied": applied, "diffs": diffs, "skipped": skipped}
 
 
+# ---------------- 数据库切换：假数库 hcfb_demo.db ↔ 真库 hcfb.db（顶栏按钮·运行时切·无需重启）----------------
+class DbMode(BaseModel):
+    mode: str  # demo / real
+
+
+@app.get("/api/dbmode")
+def get_dbmode():
+    return db_mode_state()
+
+
+@app.post("/api/dbmode")
+def post_dbmode(m: DbMode, x_user: str = Header("bonniewbli")):
+    with db() as c:
+        require_admin(c, x_user)  # 全局切库影响所有人：仅系统管理员可切
+    return set_db_mode(m.mode)
+
+
 # ---------------- 示例（演示假数）数据：source='demo' 全程打标，一键彻底清除 ----------------
 # 高压线兜底：示例数据只填当前为空的格（绝不覆盖真实数据）；页面挂【示例】横幅；
 # 清除 = 按 demo 标签删 cells/branch/台账/历史，真实数据分毫不动。
@@ -742,7 +816,12 @@ DEMO_LEDGER_BATCH = -999
 
 @app.post("/api/demo/load")
 def demo_load(y: YearNew, x_user: str = Header("bonniewbli")):
-    """一次填所有年份页签（含历史归档年）：按各年 lock 填历史实际月，只填空格不覆盖真数"""
+    """【已下线】旧式一键导入假数（含 BP 手填项）。假数改由独立假数库 hcfb_demo.db 提供
+    （backend/seed_demo.py 生成·仅系统取数）。此端点保留但拒绝执行，防止把带 BP 手填的旧假数灌回。"""
+    raise HTTPException(410, "旧式示例导入已下线：假数改由独立假数库 hcfb_demo.db 提供（运行 backend/seed_demo.py 生成，仅系统取数）。切真库请设 HCFB_DB=hcfb.db 或删除 hcfb_demo.db。")
+
+
+def _demo_load_disabled(y, x_user):
     with db() as c:
         require_writer(c, x_user)
         if not c.execute("SELECT 1 FROM years WHERE year=?", (y.year,)).fetchone():
