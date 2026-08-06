@@ -256,8 +256,9 @@ body.navfold .navtg{left:8px;}
 <!-- 指定线级BP modal（从现有账号里加人） -->
 <div class="mask" id="maskLnBp"><div class="modal" style="width:460px">
   <h3>指定线级BP · <span id="lbLine" style="color:var(--navy)"></span></h3>
-  <div class="meta">从<b>已有账号</b>（部门维度里的人）中选择，加入即为本线级 BP、可看本线级板块；添加后在部门维度页自动挂「线维BP」tag。只列本线级所含部门的人。</div>
-  <div class="pmlist" id="lnBpList" style="max-height:320px;overflow:auto;margin:8px 0"></div>
+  <div class="meta">从<b>所有已注册账号</b>中选择（按部门结构查找），加入即为本线级 BP、可看本线级板块；添加后在部门维度页自动挂「线维BP」tag。</div>
+  <input type="text" class="pmsearch" id="lnBpSearch" placeholder="搜索账号 / 姓名 / 部门…" oninput="_lnBpRender(this.value)" style="width:100%;margin:6px 0">
+  <div class="pmlist" id="lnBpList" style="max-height:340px;overflow:auto;margin:4px 0"></div>
   <div class="row"><button class="btn gray" onclick="closeLnBp()">取消</button><button class="btn" onclick="lnBpSave()">添加</button></div>
 </div></div>
 
@@ -671,12 +672,19 @@ function lnRender(){
 var _lnBpIdx=-1;
 function lnAddBp(i){_lnBpIdx=i;var l=lines[i];if(!l)return;
   document.getElementById('lbLine').textContent=l.name;
-  var have=l.bps||[];
-  var cand=accts.filter(function(a){return !a.is_sysadmin&&have.indexOf(a.id)<0&&(l.depts||[]).indexOf(a.dept)>=0;});
-  var box=document.getElementById('lnBpList');
-  box.innerHTML=cand.length?cand.map(function(a){return '<label style="display:flex;align-items:center;gap:8px;padding:6px 4px;cursor:pointer;font-weight:400"><input type="checkbox" class="lbCk" value="'+esc(a.id)+'"><b>'+esc(a.name)+'</b> <span style="color:var(--ink3);font-size:12px">'+esc(a.id)+' · '+esc(a.dept||'')+'</span></label>';}).join('')
-    :'<div class="hint" style="padding:10px 6px;margin:0">本线级部门里暂无可选账号——请先在「部门维度权限设置」里为这些部门加人（登录后会自动出现在部门维度）。</div>';
+  var s=document.getElementById('lnBpSearch');if(s)s.value='';
+  _lnBpRender('');
   document.getElementById('maskLnBp').classList.add('on');}
+function _lnBpRender(q){var l=lines[_lnBpIdx];if(!l)return;var have=l.bps||[];q=(q||'').trim().toLowerCase();
+  var cand=accts.filter(function(a){return !a.is_sysadmin&&have.indexOf(a.id)<0;});  // 所有已注册账号(排除系统管理员/已是本线BP)
+  if(q)cand=cand.filter(function(a){return (a.id+' '+a.name+' '+(a.dept||'')).toLowerCase().indexOf(q)>=0;});
+  var byDept={},order=[];cand.forEach(function(a){var d=a.dept||'（未分配部门）';if(!byDept[d]){byDept[d]=[];order.push(d);}byDept[d].push(a);});  // 按部门结构分组
+  var box=document.getElementById('lnBpList');
+  if(!cand.length){box.innerHTML='<div class="hint" style="padding:10px 6px;margin:0">无匹配账号。</div>';return;}
+  box.innerHTML=order.map(function(d){var inLine=(l.depts||[]).indexOf(d)>=0;
+    return '<div style="font-size:12px;font-weight:600;color:var(--navy);background:#F1F5F9;padding:4px 10px;margin-top:4px;position:sticky;top:0">'+esc(d)+(inLine?' <span style="font-size:10px;font-weight:400;color:var(--green)">本线部门</span>':'')+'</div>'
+      +byDept[d].map(function(a){return '<label style="display:flex;align-items:center;gap:8px;padding:5px 10px 5px 16px;cursor:pointer;font-weight:400"><input type="checkbox" class="lbCk" value="'+esc(a.id)+'"><b>'+esc(a.name)+'</b> <span style="color:var(--ink3);font-size:12px">'+esc(a.id)+'</span></label>';}).join('');
+  }).join('');}
 function closeLnBp(){document.getElementById('maskLnBp').classList.remove('on');}
 function lnBpSave(){var l=lines[_lnBpIdx];if(!l)return;
   var add=[].map.call(document.querySelectorAll('#lnBpList .lbCk:checked'),function(c){return c.value;});
