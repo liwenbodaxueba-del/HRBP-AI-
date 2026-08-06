@@ -269,6 +269,7 @@ body.navfold .navtg{left:8px;}
 <div class="mask" id="maskCenters"><div class="modal" style="width:660px;max-height:82vh;display:flex;flex-direction:column">
   <h3 id="vcTitle">部门中心清单</h3>
   <div class="meta">部门为一级层级，中心为二级层级；已建子PM组的中心在该 BP 下降为三级。清单正式版由 iOA 组织架构同步。</div>
+  <div class="row" style="justify-content:flex-end;margin:-2px 0 8px"><button class="btn gray" id="vcSortBtn" onclick="vcToggleSort()" style="font-size:12px;padding:4px 12px">拼音升序 A→Z</button></div>
   <div class="ctrgrid" id="vcGrid"></div>
   <div class="row" style="justify-content:space-between;align-items:center;border-top:1px solid var(--b100);padding-top:14px"><span class="hint" id="vcCount" style="margin:0"></span><button class="btn gray" onclick="closeCenters()">关闭</button></div>
 </div></div>
@@ -491,14 +492,20 @@ function boxSyncAll(listId,allId){var all=document.getElementById(allId);if(!all
   boxLabels(listId).forEach(function(l){if(l.style.display==='none')return;var c=l.querySelector('input[type=checkbox]');if(c&&!c.disabled){tot++;if(c.checked)on++;}});
   all.checked=(tot>0&&on===tot);}
 function deptCenters(dept){for(var i=0;i<DEPT_TREE.length;i++)if(DEPT_TREE[i].name===dept)return (DEPT_TREE[i].children||[]).slice();return [];}
-function viewCenters(dept,e){if(e)e.stopPropagation();var list=deptCenters(dept);
-  document.getElementById('vcTitle').textContent=dept+' · 中心清单';
+var vcDept='',vcSortMode='asc';  // 中心清单排序：asc=拼音升序 / desc=降序（localeCompare 'zh' 拼音序·统一口径）
+function _vcSortLabel(){return vcSortMode==='asc'?'拼音升序 A→Z':'拼音降序 Z→A';}
+function _vcRender(){var list=deptCenters(vcDept).slice().sort(function(x,y){return String(x).localeCompare(String(y),'zh-Hans-CN');});if(vcSortMode==='desc')list.reverse();
   document.getElementById('vcGrid').innerHTML=list.length?list.map(function(c){return '<label style="cursor:default">· '+esc(c)+'</label>';}).join(''):'<div class="hint" style="grid-column:1/-1;padding:10px 4px;margin:0">该部门的中心清单待接入 iOA 组织架构后同步（当前 demo 仅云产品一~四部已录入中心）。</div>';
-  document.getElementById('vcCount').textContent=list.length?('共 '+list.length+' 个中心'):'待同步';
+  document.getElementById('vcCount').textContent=list.length?('共 '+list.length+' 个中心'):'待同步';}
+function vcToggleSort(){vcSortMode=(vcSortMode==='asc')?'desc':'asc';var b=document.getElementById('vcSortBtn');if(b)b.textContent=_vcSortLabel();_vcRender();}
+function viewCenters(dept,e){if(e)e.stopPropagation();vcDept=dept;
+  document.getElementById('vcTitle').textContent=dept+' · 中心清单';
+  var b=document.getElementById('vcSortBtn');if(b)b.textContent=_vcSortLabel();
+  _vcRender();
   document.getElementById('maskCenters').classList.add('on');}
 function closeCenters(){document.getElementById('maskCenters').classList.remove('on');}
 var pmIdx=-1,pmDept='',pmCenters=[],pmGroups=[];
-function openPm(dept){pmDept=(dept==='集团'?'':dept)||'';pmCenters=deptCenters(pmDept);
+function openPm(dept){pmDept=(dept==='集团'?'':dept)||'';pmCenters=deptCenters(pmDept).slice().sort(function(a,b){return String(a).localeCompare(String(b),'zh-Hans-CN');});  // 子PM建组·中心清单同按拼音序（与查看中心清单统一）
   pmGroups=JSON.parse(JSON.stringify(PM_GROUPS[pmDept]||[]));
   document.getElementById('pmMeta').textContent=(pmDept||'（集团/未归属含中心的部门）')+' —— 从该部门中心里选择若干中心并命名，创建子PM看板：组为二级层级，组内中心降为三级，未进组的中心仍为二级。改动同步到看板1-4 侧栏层级。';
   document.getElementById('pmName').value='';document.getElementById('pmErr').style.display='none';
