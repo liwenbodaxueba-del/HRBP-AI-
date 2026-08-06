@@ -254,7 +254,7 @@ body.navfold .navtg{left:8px;}
   <div class="meta" id="pmMeta">从该部门下的中心里选择若干中心，命名后创建子PM看板组。建组后：组为二级层级，组内中心降为三级；未进组的中心仍为二级。</div>
   <div class="pmbox">
     <div class="pmcol"><h4>可选中心（该部门下全部中心）</h4>
-      <div class="pmtools"><input type="text" class="pmsearch" id="pmSearch" placeholder="搜索中心…" oninput="boxFilter('pmList',this.value,'pmAll')"><label class="pmall"><input type="checkbox" id="pmAll" onchange="boxToggleAll('pmList',this.checked)">全选</label></div>
+      <div class="pmtools"><input type="text" class="pmsearch" id="pmSearch" placeholder="搜索中心…" oninput="boxFilter('pmList',this.value,'pmAll')"><button class="btn gray" id="pmSortBtn" onclick="pmToggleSort()" style="font-size:12px;padding:4px 10px;white-space:nowrap;margin:0 8px">拼音升序 A→Z</button><label class="pmall"><input type="checkbox" id="pmAll" onchange="boxToggleAll('pmList',this.checked)">全选</label></div>
       <div class="pmlist" id="pmList"></div>
       <div class="pmmk"><input type="text" id="pmName" placeholder="子PM组名称，如：数据库子PM"><button class="btn" onclick="pmCreate()">创建子PM组</button></div>
       <label class="pmsum"><input type="checkbox" id="pmSum"> 展示求和（看板目录可点击 · 汇总所选中心 · 可手调）</label>
@@ -518,12 +518,19 @@ function openPm(dept){pmDept=(dept==='集团'?'':dept)||'';pmCenters=deptCenters
   document.getElementById('pmName').value='';document.getElementById('pmErr').style.display='none';
   document.getElementById('pmSum').checked=false;
   document.getElementById('pmSearch').value='';document.getElementById('pmAll').checked=false;
+  pmSortMode='asc';var _psb=document.getElementById('pmSortBtn');if(_psb)_psb.textContent='拼音升序 A→Z';
   document.getElementById('pmList').onchange=function(){boxSyncAll('pmList','pmAll');};
   pmRender();document.getElementById('maskPm').classList.add('on');}
+var pmSortMode='asc';  // 子PM建组·可选中心 拼音升/降序（与中心清单口径一致）
+function pmToggleSort(){pmSortMode=(pmSortMode==='asc')?'desc':'asc';
+  pmCenters.sort(function(a,b){return String(a).localeCompare(String(b),'zh-Hans-CN');});
+  if(pmSortMode==='desc')pmCenters.reverse();
+  var b=document.getElementById('pmSortBtn');if(b)b.textContent=(pmSortMode==='asc')?'拼音升序 A→Z':'拼音降序 Z→A';
+  pmRender();}
 function pmRender(){
   var grouped={};pmGroups.forEach(function(g){(g.centers||[]).forEach(function(c){grouped[c]=g.name;});});
   var list=document.getElementById('pmList');
-  list.innerHTML=pmCenters.length?pmCenters.map(function(c){return '<label'+(grouped[c]?' style="opacity:.5"':'')+'><input type="checkbox" value="'+esc(c)+'" '+(grouped[c]?'disabled':'')+'>'+esc(c)+(grouped[c]?' <span class="lvl">已在「'+esc(grouped[c])+'」</span>':'')+'</label>';}).join(''):'<div class="hint" style="padding:10px 6px;margin:0">该部门暂无中心清单（仅云产品一~四部已录入；其余待接 iOA）。</div>';
+  list.innerHTML=pmCenters.length?pmCenters.map(function(c){return '<label'+(grouped[c]?' style="opacity:.5"':'')+'><input type="checkbox" value="'+esc(c)+'" '+(grouped[c]?'disabled':'')+'>'+esc(c)+(grouped[c]?' <span class="lvl">已在「'+esc(grouped[c])+'」</span>':'')+'</label>';}).join(''):'<div class="hint" style="padding:10px 6px;margin:0">该部门暂无中心清单（待接入 iOA 组织架构后同步）。</div>';
   var t='<div class="l1">'+esc(pmDept||'总部')+' <span class="lvl">一级</span></div>';
   pmGroups.forEach(function(g,i){
     t+='<div class="l2"><span class="gname">'+esc(g.name)+'</span> <span class="lvl">二级 · 子PM组</span>'+(g.sum?' <span class="lvl" style="background:#E7F6EF;color:var(--green)">求和·可点击</span>':'')+'<span class="del" onclick="pmDel('+i+')">解散</span></div>';
