@@ -1384,14 +1384,19 @@ def put_pref(key: str, p: PrefSet, x_user: str = Header("bonniewbli")):
 
 
 # ---------------- 静态前端（同源托管 index.html / admin.html） ----------------
+# no-cache：浏览器每次向服务端校验（ETag/Last-Modified），文件变了立刻取新版、没变返回304。
+# 避免改完前端后浏览器吃旧缓存看不到更新（如中心清单同步）。
+_NOCACHE = {"Cache-Control": "no-cache"}
+
+
 @app.get("/")
 def root():
-    return FileResponse(os.path.join(FRONT_DIR, "index.html"))
+    return FileResponse(os.path.join(FRONT_DIR, "index.html"), headers=_NOCACHE)
 
 
 @app.get("/{page}.html")
 def page(page: str):
     fp = os.path.join(FRONT_DIR, f"{page}.html")
     if page in ("index", "admin") and os.path.exists(fp):
-        return FileResponse(fp)
+        return FileResponse(fp, headers=_NOCACHE)
     raise HTTPException(404)
