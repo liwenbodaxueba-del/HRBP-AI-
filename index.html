@@ -971,7 +971,8 @@ window.addEventListener('storage',function(e){if(e.key==='hcfb_pm_groups'){try{P
 function _pmGroupHead(g,padLeft,dept){
   if(g&&g.sum){  // 勾了「展示求和」：目录项可点击→进求和看板
     var nm=String(g.name).replace(/'/g,''),dq=String(dept||'').replace(/'/g,'');
-    return '<a onclick="pickPmGroup(\''+dq+'\',\''+nm+'\')" title="点击查看所选中心求和（可手调）" style="display:block;padding:5px 10px 5px '+padLeft+'px;font-size:12px;font-weight:600;color:var(--blue);cursor:pointer;border-radius:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(g.name)+' <span style="font-size:10px;font-weight:400;color:var(--green);background:#E7F6EF;border-radius:8px;padding:0 6px">求和</span></a>';
+    var isCur=(typeof PMG_ON!=='undefined'&&PMG_ON&&PMG&&String(PMG.dept)===String(dept)&&String(PMG.name)===String(g.name));  // 当前空间=本子PM组→整块高亮
+    return '<a onclick="pickPmGroup(\''+dq+'\',\''+nm+'\')" title="点击查看所选中心求和（可手调）" style="display:block;padding:5px 10px 5px '+padLeft+'px;font-size:12px;font-weight:600;color:var(--blue);cursor:pointer;border-radius:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis'+(isCur?';background:#E8F1FF':'')+'">'+esc(g.name)+' <span style="font-size:10px;font-weight:400;color:var(--green);background:#E7F6EF;border-radius:8px;padding:0 6px">求和</span></a>';
   }
   var label=(g&&g.name)?esc(g.name):esc(g);
   return '<div style="padding:5px 10px 5px '+padLeft+'px;font-size:12px;font-weight:600;color:var(--navy)">'+label+' <span style="font-size:10px;font-weight:400;color:var(--ink3);background:#EEF2F8;border-radius:8px;padding:0 6px">子PM组</span></div>';}
@@ -991,6 +992,7 @@ function pickPmGroup(dept,name){
   var centers=(g.centers||[]).map(function(c){return dept+'/'+c;});  // 中心部门空间键=部/中心
   PMG={dept:dept,name:name,key:'PM:'+dept+':'+name,centers:centers};PMG_ON=true;
   goView('pmg');document.getElementById('pmgHost').innerHTML='<div class="hint" style="padding:16px;color:var(--ink3)">加载中…</div>';
+  if(window.renderKb1Nav)renderKb1Nav();  // 刷新侧栏→当前子PM组整块高亮
   loadPmg();
 }
 /* 看板名点击：某子PM组为当前空间时，看板1/2/3/4 都停在该组求和看板；否则正常切视图(保留当前部门空间) */
