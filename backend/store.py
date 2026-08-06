@@ -61,6 +61,10 @@ def set_db_mode(mode):
     if mode == "demo" and not os.path.exists(_DEMO_DB):
         raise HTTPException(404, "假数库 hcfb_demo.db 不存在，请先运行 backend/seed_demo.py 生成")
     DB_PATH = _resolve_path(mode)
+    #切库后必须对新库跑一次 init_db（幂等）：init_db 只在启动时对【当时那个库】建表/迁移，
+    # 切过去的库可能是旧结构（例如没有 org_depts/org_centers、cells 缺 org_type/org_id），
+    # 不初始化就会在取数时报 no such table / no such column。顺带刷新组织缓存到新库的组织。
+    init_db()
     try:
         with open(_MODE_FILE, "w", encoding="utf-8") as f:
             f.write(mode)
@@ -235,6 +239,18 @@ def init_db():
                 c.execute(f'ALTER TABLE accounts ADD COLUMN {_col} TEXT DEFAULT \'["集团"]\'')
             except sqlite3.OperationalError:
                 pass  # 列已存在
+        # ---- 2608 组织架构三层落库（部门/中心/个人）：唯一数据源 = org_depts / org_centers ----
+        # 首次建库把内置示例组织(_SEED_*)灌进库作为 demo 数据；等接入真实数据源（企业微信通讯录 /
+        # 核心人事 getOrgUnit）后走 org_store.apply_org 增量同步，改名只改 name、调动只改 dept_id，
+        # 稳定 id 不变 → 历史数据永不失联。刷新缓存必须在下面用到 ALL_DEPTS 之前完成。
+        from org_store import ensure_tables as _org_ensure, seed_org as _org_seed, backfill_cells_org as _org_fill
+        _org_ensure(c)
+        _org_seed(c, _SEED_ALL_DEPTS, _SEED_DEPT_CHILDREN)
+        refresh_org_cache(c)
+        _bf = _org_fill(c)  # cells 稳定锚点 org_type/org_id 回填（幂等·只补空值）
+        if _bf.get("unresolved"):
+            _audit(c, "system", "组织回填告警",
+                   f"cells 有 {_bf['unresolved']} 个名字键匹配不到部门/中心，已保持 NULL 未做任何猜测（请人工核对）")
         # bonniewbli（内置系统管理员）= 全部部门：集团 + ALL_DEPTS 动态生成（部门增补自动跟随），无条件覆盖 → 现有库重启即更新，不只新库
         _ALLD = '[' + ','.join('"' + d + '"' for d in (["集团"] + list(ALL_DEPTS))) + ']'
         c.execute("UPDATE accounts SET kb1_depts=?, kb0_depts=? WHERE id='bonniewbli'",
@@ -377,8 +393,14 @@ def manageable_ids(c, granter_id):
 
 
 # ---------------- 识空取数（服务端·与前端同口径） ----------------
-# 部门→中心（与前端 index.html/admin.html DEPT_TREE 一致）。部级看板数据 = 其各中心加总（部为只读汇总，数据在中心录入）
-_DEPT_CHILDREN = {
+# ============ 内置示例组织（seed 源·只在首次建库时灌入 org_depts/org_centers） ============
+# 【注意】这两个 _SEED_* 常量【不再是运行时数据源】，运行时一律读 org_depts/org_centers 两张表
+# （见文件末尾 refresh_org_cache）。它们只承担两个职责：
+#① 首次建库时把这份内置组织灌进库，作为 demo 数据，让系统立刻可用；
+#   ② 等接入真实组织架构数据源（企业微信通讯录 / 核心人事 getOrgUnit）后，
+#      真实数据经 org_store.apply_org 增量同步覆盖，这里就只是历史起点、不再参与运算。
+# 部门→中心。部级看板数据 = 其各中心加总（部为只读汇总，数据在中心录入）
+_SEED_DEPT_CHILDREN = {
     "云产品一部": ["计算产品中心", "轻量云产品中心", "异构计算产品中心", "存储产品中心", "网络产品中心", "高性能网络产品中心", "CBS产品中心", "CLS产品中心", "虚拟化产品中心", "TCE产品中心", "TCS产品中心", "云开发产品中心", "中间件产品中心", "云原生产品中心", "国产数据库产品中心", "云原生数据库产品中心", "NoSQL数据库产品中心", "数据库SaaS产品与技术平台中心", "数据库架构与支持中心", "数据库平台研发中心", "区块链产品中心", "IaaS前沿技术组", "产品架构组", "产品管理支持组", "可用性架构组", "MaaS产品中心", "Agent Runtime产品中心", "TIONE产品中心", "计算加速中心"],
     "云产品二部": ["大数据产品架构与支持中心", "大数据基础产品中心", "TBDS产品中心", "WeData产品中心", "大数据应用产品中心", "产品运营及管理支持组", "数字孪生产品中心"],
     "云产品三部": ["应用产品一中心", "应用产品二中心", "智能体平台产品中心", "交付中心", "经营分析组", "海外运营组"],
@@ -403,19 +425,44 @@ _DEPT_CHILDREN = {
     "港澳台及国际业务部": ["欧洲业务中心", "亚太区一中心", "亚太区二中心", "港澳台业务中心", "国际产品技术支持中心", "北美业务中心", "业务管理中心", "中东业务中心"],
     "CSIG产品管理支持中心": ["产品运营规范组", "产品生态业务发展组", "投资运营组", "产品出海合规建设组"],
 }
-DEPT_CENTERS = {p: [p + "/" + ch for ch in kids] for p, kids in _DEPT_CHILDREN.items()}
 _BUDGET_BASE = {"q_init", "fa_hc"}  # 看板2 预算基线：以部门维度取数(部门自身)，中心维度BP手填，部门不上卷此两项
+# 部门级【不从中心上卷】、直接取部门自身 cells 的指标（口径已拍板 2608）：
+#   · 仅预算当量基线 q_init / fa_hc → 读看板2（部门维度编制）；中心维度 BP 手填，不上卷。
+# 【待流入·社招 不在此列】口径已确认：中心级直读该中心的看板3.2；部门级 = 其下各中心求和。
+#   所以 soc_join / soc_sys / soc_hs 仍按「部门 = 各中心加总」，不要再加进这个集合。
+_DEPT_DIRECT = set(_BUDGET_BASE)
+_DEPT_DIRECT_PH = ",".join("?" * len(_DEPT_DIRECT))
 
-# 全部顶层部门（与 DEPT_TREE 一致，去「集团」）。「集团」不是独立部门，而是各部门加总口径（合计）。
-ALL_DEPTS = ["云产品一部", "云产品二部", "云产品三部", "云产品四部", "云产品五部", "云产品六部",
-             "安全产品一部", "安全产品二部", "安全产品三部", "战略客户部",
-             "智慧行业一部", "智慧行业七部", "智慧行业十部",
-             "科恩实验室", "玄武实验室", "优图实验室", "星星海实验室",
-             "企业中台产品部", "社交协作产品部", "ima产品中心",
-             "云产品技术支持部", "云技术运营服务部", "云运营管理部", "云采购供应管理部",
-             "港澳台及国际业务部", "CSIG产品管理支持中心"]
+# 内置示例组织的全部顶层部门（有序·决定前端展示顺序）。「集团」不是独立部门，而是各部门加总口径（合计）。
+_SEED_ALL_DEPTS = ["云产品一部", "云产品二部", "云产品三部", "云产品四部", "云产品五部", "云产品六部",
+                   "安全产品一部", "安全产品二部", "安全产品三部", "战略客户部",
+                   "智慧行业一部", "智慧行业七部", "智慧行业十部",
+                   "科恩实验室", "玄武实验室", "优图实验室", "星星海实验室",
+                   "企业中台产品部", "社交协作产品部", "ima产品中心",
+                   "云产品技术支持部", "云技术运营服务部", "云运营管理部", "云采购供应管理部",
+                   "港澳台及国际业务部", "CSIG产品管理支持中心"]
 
-# 建库/迁移须在 ALL_DEPTS 定义之后（init_db 内用 ALL_DEPTS 给 bonniewbli 赋全部门权限）
+# ============ 运行时组织缓存（唯一数据源 = org_depts / org_centers 两张表） ============
+# 【必须原地更新·不可重新赋值】app.py 用的是 `from store import DEPT_CENTERS`（名字绑定），
+# 一旦重新赋值，已import 的引用仍指向旧对象 → 组织变更不会生效。所以只能 clear()+update()。
+_DEPT_CHILDREN = {}# {部门名: [中心短名, ...]}，只含【有中心的部】
+DEPT_CENTERS = {}     # {部门名: [「部/中心」全路径键, ...]}，即 cells.dept 用的名字键
+ALL_DEPTS = []        # 全部顶层部门（有序）
+
+
+def refresh_org_cache(c):
+    """从 org_depts/org_centers 刷新上面三个容器。组织改名/调动/新增后必须调一次。"""
+    from org_store import load_org  # 函数级导入避免模块环
+    children, all_depts = load_org(c)
+    _DEPT_CHILDREN.clear()
+    _DEPT_CHILDREN.update(children)
+    DEPT_CENTERS.clear()
+    DEPT_CENTERS.update({p: [p + "/" + ch for ch in kids] for p, kids in children.items()})
+    ALL_DEPTS[:] = all_depts
+    return {"depts": len(all_depts), "centers": sum(len(v) for v in children.values())}
+
+
+# 建库/迁移须在 _SEED_* 与 refresh_org_cache 定义之后（init_db 内要seed 组织并刷新缓存）
 init_db()
 
 
@@ -442,14 +489,16 @@ def _grid(c, year, dept="集团"):
         for center in DEPT_CENTERS[dept]:
             cv, _ = _grid(c, year, center)  # 中心不在 DEPT_CENTERS，直取
             for k, arr in cv.items():
-                if k in _BUDGET_BASE:  # 预算当量基线(q_init/fa_hc)以部门维度取看板2，不从中心加总
+                if k in _DEPT_DIRECT:  # 仅预算基线(q_init/fa_hc)：部门维度直取看板2，不从中心加总
                     continue
                 a = agg.setdefault(k, [None] * 12)
                 for m in range(12):
                     if isinstance(arr[m], (int, float)):
                         a[m] = (a[m] if isinstance(a[m], (int, float)) else 0) + arr[m]
-        # 预算当量=部门维度看看板2：q_init/fa_hc 取本部门自身 cells（中心维度由 BP 手填，不上卷；部门只加总其他项）
-        for r in c.execute("SELECT metric,month,value FROM cells WHERE year=? AND dept=? AND metric IN ('q_init','fa_hc')", (year, dept)):
+        # 部门维度直取（仅看板2 预算基线）：取本部门自身 cells；中心维度由 BP 手填、不上卷。
+        # 待流入·社招不在此列：中心级直读该中心看板3.2，部门级= 各中心求和（走上面的加总分支）。
+        for r in c.execute("SELECT metric,month,value FROM cells WHERE year=? AND dept=? "
+                           f"AND metric IN ({_DEPT_DIRECT_PH})", (year, dept, *sorted(_DEPT_DIRECT))):
             if 1 <= r["month"] <= 12:
                 agg.setdefault(r["metric"], [None] * 12)[r["month"] - 1] = r["value"]
         return agg, {}  # 汇总不带备注

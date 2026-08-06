@@ -33,7 +33,9 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 from meta import (CANON_PROJECTS, OUT_KEYS, CAMP_KEYS, IN_DIRECT_KEYS, BP_EDITABLE,
                   IMPORTABLE, VALUE_ABS_MAX, PLAN_METRICS, PLAN_BRANCH_SECS, EXTRA_METRICS, NAT_N_DEFAULT)
 from store import (DB_PATH, is_demo_db, db_mode_state, set_db_mode, db, init_db, now, _audit, _write_cell, get_account,
-                   require_writer, require_admin, can_manage, manageable_ids, is_agg_dept, DEPT_CENTERS, _kb0_adjust, _grid, _branches)
+                   require_writer, require_admin, can_manage, manageable_ids, is_agg_dept, DEPT_CENTERS, ALL_DEPTS,
+                   refresh_org_cache, _kb0_adjust, _grid, _branches)
+import org_store as og  # 组织架构三层（部门/中心/个人）：稳定 ID + 改名/调动留痕
 from calc_kb1 import compute
 from sources import SOURCE_METRICS, load_sources_cfg, fetch_source, _month_completed
 from kb3_ledger import (LEDGER_CLS, LEDGER_DATE_F, LEDGER_F2DB, LEDGER_REQUIRED, LEDGER_ST_CANON,
@@ -220,6 +222,127 @@ def ioa_sync(acct_id: str, x_user: str = Header("bonniewbli")):
                   (prof["name"], prof["dept"], prof["org_path"], prof["level"], prof["manager_id"], acct_id))
         _audit(c, x_user, "iOA同步", f"{acct_id}：{prof['org_path']} · {prof['level']}")
         return {"ok": True, "profile": prof}
+
+
+# ---------------- 组织架构：部门 / 中心 / 个人 三层（唯一数据源 = org_depts / org_centers 表） ----------------
+# 现阶段库内是内置示例组织（demo 数据，ext_source=builtin-demo）；等企业微信通讯录 / 核心人事
+# getOrgUnit 权限到位，只需配backend/org_config.json 并调 POST /api/departments/sync，
+# 改名只改 name、调动只改 dept_id，稳定 id 不变 → 看板历史数据永不失联。
+@app.get("/api/departments")
+def get_departments():
+    """部门树（带稳定 id）。前端index.html / admin.html 启动时拉这个，替代两份硬编码 DEPT_TREE。"""
+    with db() as c:
+        tree = og.tree(c)
+        ext_n = c.execute("SELECT COUNT(*) n FROM org_depts WHERE active=1 AND ext_id<>''").fetchone()["n"]
+        last = c.execute("SELECT MAX(synced_at) t FROM org_depts").fetchone()["t"]
+        return {"tree": tree,
+                "all_depts": [d["name"] for d in tree],
+                "centers_n": sum(len(d["centers"]) for d in tree),
+                "source": "external" if ext_n else og.SEED_SOURCE,  # builtin-demo=内置示例组织，尚未接真实数据源
+                "is_demo_org": ext_n == 0,
+                "updated_at": last or ""}
+
+
+class OrgSyncReq(BaseModel):
+    dry_run: bool = True  # 默认只预览不写库
+    force: bool = False  # 停用比例超阈值时的人工放行（默认拦截，防数据源范围配错造成大面积误停用）
+    payload: Optional[dict] = None        # 直接喂一份组织快照（本地演练/前端上传）；缺省则走 org_config.json 数据源
+
+
+@app.post("/api/departments/sync")
+def departments_sync(q: OrgSyncReq, x_user: str = Header("bonniewbli")):
+    """全量比对外部组织架构 → 预览/落库 {新增, 改名, 调动, 停用}。
+
+    数据源三档兜底（与 sources.py / load_ioa_cfg 一致）：无配置→428 明确报未接入且不动数据；
+    配了 mock→用 mock；配了真实 endpoint→待权限开通。落库时改名/调动只动 name/dept_id 并留痕，
+    消失的组织只active=0 软删，绝不物理删除、绝不动 cells 历史数据。
+    """
+    with db() as c:
+        require_admin(c, x_user)
+        src = q.payload or og.fetch_org()
+        if not src or not src.get("depts"):
+            raise HTTPException(428, {"msg": "组织架构数据源未接入", "cfg": "backend/org_config.json",
+                                      "options": ["企业微信通讯录（corpid + 通讯录同步 Secret）",
+                                                  "核心人事 getOrgUnit（内网·推荐）"],
+                                      "note": "未接入时不做任何改动，当前沿用库内组织数据"})
+        res = og.apply_org(c, src, x_user, dry_run=q.dry_run, force=q.force)
+        d = res["diff"]
+        n = {k: len(v) for k, v in d.items()}
+        if not q.dry_run:
+            refresh_org_cache(c)
+            _audit(c, x_user, "组织架构同步",
+                   f"绑定 {n['bound']} / 新增 {n['added']} / 改名 {n['renamed']} / 调动 {n['moved']} / 停用 {n['disabled']}"
+                   f"（来源 {src.get('source') or 'external'}；改名与调动已同步迁移看板名字键，历史数据未丢）")
+        return {"ok": True, "dry_run": q.dry_run, "counts": n, "guard": res.get("guard"), "diff": d}
+
+
+class OrgRename(BaseModel):
+    entity_type: str      # dept | center
+    id: int
+    new_name: str
+
+
+@app.post("/api/departments/rename")
+def departments_rename(q: OrgRename, x_user: str = Header("bonniewbli")):
+    """手工改名（没接数据源期间的维护入口）。会同步迁移看板名字键，历史数据不丢。"""
+    with db() as c:
+        require_admin(c, x_user)
+        if not (q.new_name or "").strip():
+            raise HTTPException(422, "新名称不能为空")
+        if q.entity_type == og.ENTITY_DEPT:
+            r = og.rename_dept(c, q.id, q.new_name.strip(), x_user)
+        elif q.entity_type == og.ENTITY_CENTER:
+            r = og.rename_center(c, q.id, q.new_name.strip(), x_user)
+        else:
+            raise HTTPException(422, "entity_type 须为 dept / center")
+        if not r.get("changed"):
+            return {"ok": True, "changed": False, "msg": "名称未变化或对象不存在"}
+        refresh_org_cache(c)
+        _audit(c, x_user, "组织改名", f"{q.entity_type} #{q.id}：{r.get('old')} → {r.get('new')}（看板名字键已迁移）")
+        return {"ok": True, **r}
+
+
+class OrgMove(BaseModel):
+    center_id: int
+    new_dept_id: int
+
+
+@app.post("/api/departments/move-center")
+def departments_move_center(q: OrgMove, x_user: str = Header("bonniewbli")):
+    """中心跨部门调动。口径已拍板：数据跟着中心走——该中心全部历史数据归入新部门汇总。"""
+    with db() as c:
+        require_admin(c, x_user)
+        r = og.move_center(c, q.center_id, q.new_dept_id, x_user)
+        if not r.get("changed"):
+            return {"ok": True, "changed": False, "msg": r.get("err") or "归属未变化或对象不存在"}
+        refresh_org_cache(c)
+        _audit(c, x_user, "中心调动", f"中心 #{q.center_id}：{r.get('old')} → {r.get('new')}"
+                                      f"（数据跟着中心走·历史数据已归入新部门）")
+        return {"ok": True, **r}
+
+
+@app.get("/api/kb32/{year}")
+def kb32_levels(year: int, dept: str = "集团"):
+    """看板3.2 层级数据：部门总 + 其下【各中心】的社招系统两源（已入职 soc_join / 待入职·活水已offer soc_sys+soc_hs）。
+
+    用途：看板3.2 要在同一页里同时展示「部门总表」和「各中心分表」，而前端 D 只有当前部门空间那一份，
+    拿不到兄弟中心的数据；逐个中心去请求 /api/board 又会打出几十个请求（云产品一部有 29 个中心）。
+    这里一次返回，前端直接渲染多张表。
+
+    口径（已拍板）：中心级直读该中心自己的数；部门总 = 其下各中心求和（复用 _grid 的加总分支，
+    与看板1 部门级「待流入·社招」完全同源，两边不会打架）。
+    第三行「社招·简历面试中」不在此返回——它由前端实时读 3.1 台账并按 部门/中心 过滤，口径天然对齐。
+    """
+    keys = ("soc_join", "soc_sys", "soc_hs")
+    with db() as c:
+        def pick(space):
+            v, _ = _grid(c, year, space)
+            return {k: (v.get(k) or [None] * 12) for k in keys}
+        centers = []
+        for full in DEPT_CENTERS.get(dept, []):
+            centers.append({"key": full, "name": full.split("/")[-1], "metrics": pick(full)})
+        return {"year": year, "dept": dept, "total": pick(dept), "centers": centers,
+                "has_centers": bool(centers)}
 
 
 IOA_CFG_PATH = os.path.join(os.path.dirname(__file__), "ioa_config.json")

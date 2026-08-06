@@ -507,7 +507,7 @@ function _vcShow(title,meta,items,unit,empty){vcItems=(items||[]).slice();vcUnit
   _vcRender();
   document.getElementById('maskCenters').classList.add('on');}
 function viewCenters(dept,e){if(e)e.stopPropagation();
-  _vcShow(dept+' · 中心清单','部门为一级层级，中心为二级层级；已建子PM组的中心在该 BP 下降为三级。清单正式版由 iOA 组织架构同步。',deptCenters(dept),'个中心','该部门尚未录入中心清单（待接入 iOA 组织架构后同步）。');}
+  _vcShow(dept+' · 中心清单','部门为一级层级，中心为二级层级；已建子PM组的中心在该 BP 下降为三级。清单已由后端组织表统一提供（当前为内置示例组织，接入企业微信通讯录/核心人事后自动更新；中心改名或跨部门调动都不会丢历史数据）。',deptCenters(dept),'个中心','该部门当前没有中心（组织表中无下级）。');}
 function viewLineDepts(i,e){if(e)e.stopPropagation();var l=lines[i];if(!l)return;
   _vcShow(l.name+' · 部门清单','线级为一级层级，线内部门为二级层级。清单正式版由 iOA 组织架构同步。',l.depts,'个部门','该线级尚未归入部门。');}
 function closeCenters(){document.getElementById('maskCenters').classList.remove('on');}
@@ -659,6 +659,47 @@ var DEPT_TREE=[
   {name:'云运营管理部',children:[]},{name:'云采购供应管理部',children:[]},
   {name:'港澳台及国际业务部',children:['欧洲业务中心','亚太区一中心','亚太区二中心','港澳台业务中心','国际产品技术支持中心','北美业务中心','业务管理中心','中东业务中心']},{name:'CSIG产品管理支持中心',children:['产品运营规范组','产品生态业务发展组','投资运营组','产品出海合规建设组']}
 ];
+/* ===== 组织架构以后端为准（唯一数据源 = org_depts / org_centers 两张表） =====
+   ⚠ 上面那份 DEPT_TREE 已【降级为接口不可用时的兜底】。后端 GET /api/departments 返回带稳定 id 的树；
+   中心改名/跨部门调动只改 name/dept_id，稳定 id 不变 → 看板历史数据永不失联。
+   与 index.html 的同名逻辑保持一致，避免两份硬编码再次漂移。 */
+var ORG_META={source:'fallback-inline',is_demo_org:true,updated_at:'',from_api:false};
+function applyDeptTree(d){
+  if(!d||!d.tree||!d.tree.length)return false;
+  var arr=[{name:'集团'}];   // 「集团」是各部门加总的伪节点，后端不返回，前端固定置顶
+  for(var i=0;i<d.tree.length;i++){var t=d.tree[i];
+    arr.push({name:t.name,id:t.id,line_name:t.line_name||'',
+              children:(t.centers||[]).map(function(c){return c.name;}),
+              centerIds:(t.centers||[]).map(function(c){return c.id;})});}
+  DEPT_TREE.length=0;                // 原地覆盖：防止其他模块持有旧数组引用而失效
+  for(var j=0;j<arr.length;j++)DEPT_TREE.push(arr[j]);
+  ORG_META={source:d.source||'',is_demo_org:!!d.is_demo_org,updated_at:d.updated_at||'',from_api:true};
+  orgOrphanCheck();
+  if(typeof renderAccts==='function')renderAccts();   // 权限勾选树依赖部门树，拉到新树后重渲染
+  if(typeof lnRender==='function')lnRender();         // 线维设置同理
+  return true;
+}
+function orgOrphanCheck(){
+  /* 线维/子PM组里存的是部门【名字】，组织调整后可能残留失效引用。只显式报出，绝不静默删除。*/
+  var names={},bad=[];
+  for(var i=0;i<DEPT_TREE.length;i++)names[DEPT_TREE[i].name]=1;
+  try{var ls=JSON.parse(localStorage.getItem('hcfb_lines')||'[]')||[];
+    for(var a=0;a<ls.length;a++){var ds=(ls[a]&&ls[a].depts)||[];
+      for(var b=0;b<ds.length;b++)if(!names[ds[b]])bad.push('线「'+(ls[a].name||'?')+'」→ '+ds[b]);}
+  }catch(e){}
+  try{var pg=JSON.parse(localStorage.getItem('hcfb_pm_groups')||'{}')||{};
+    for(var k in pg)if(pg.hasOwnProperty(k)&&!names[k])bad.push('子PM组 → '+k);
+  }catch(e2){}
+  ORG_META.orphans=bad;
+  if(bad.length&&window.console&&console.warn)
+    console.warn('[组织架构] 以下配置引用了已不存在的部门（未自动删除，请人工核对）：',bad);
+  return bad;
+}
+function loadDeptTree(){
+  return fetch('/api/departments').then(function(r){return r.json();}).then(function(d){
+    return applyDeptTree(d);
+  }).catch(function(){return false;});   /* 拉不到就沿用兜底树，后台照常可用 */
+}
 var _dcId=null;
 function _dcLeaf(val,label,list,pad){return '<label style="display:block;margin:2px 0 2px '+pad+'px;font-size:13px"><input type="checkbox" value="'+val.replace(/"/g,'')+'" '+((list||[]).indexOf(val)>=0?'checked':'')+'> '+label+'</label>';}
 function _dcBox(host,list,mode){list=list||[];var kb0=(mode==='kb0'),h='';
@@ -813,7 +854,7 @@ fetch('/api/health').then(function(r){return r.json();}).then(function(h){
   if(!h.ok)throw 0;
   USE_API=true;
   var el=document.querySelector('.topbar .fresh');if(el)el.textContent='已连接后端 API · 配置落库并即时下发（'+h.storage+'）';
-  return api('GET','/api/config');
+  return loadDeptTree().then(function(){return api('GET','/api/config');});
 }).then(function(cfg){projs=cfg.projs;renderProjs();renderAudit();return window.cfgReloadAccts();})
 .catch(function(){/* 无后端：本机暂存模式 */});
 })();

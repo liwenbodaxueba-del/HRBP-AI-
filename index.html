@@ -562,10 +562,12 @@ body.navfold .navtg{left:8px;}
   <div class="hint" id="kb3CountInfo" style="color:var(--ink2);font-weight:600;margin-bottom:2px"></div>
   <div class="hint">加行：编辑态右键行号选「在上方/下方插入行」会先生成黄色空白行；部门、中心、业务负责人、招聘岗位、进展为必填，填齐后才能保存入库，取消则不留痕。<b>粘贴分列</b>：从 Excel 复制一整行（Tab/多空格分隔），选中空白行第一格按 Cmd/Ctrl+V，会从该格起按列顺序自动分列铺开——请按此列序对齐源数据：部门·中心·业务负责人·HC来源备注·招聘岗位·招聘经理·分类·地点·需求提出时间·招聘数量·进展·预计到岗·备注·offer人选·人选职级·实际入职时间·备注。四段：①需求信息 ②进展阶段 ③入选与入职（①②③=招聘系统取数+BP维护）④系统派生（勿改，自动）。</div>
 
-  <h2 class="sec" style="margin-top:20px">看板3.2 · 待流入-社招面板（总结·便核对 · 喂看板1）</h2>
+  <h2 class="sec" style="margin-top:20px" id="kb32-dept"><span id="kb32DeptTitle">看板3.2 · 待流入-社招面板</span><span style="font-weight:400;color:var(--ink3);font-size:12.5px">（总结·便核对 · 喂看板1）</span></h2>
   <div class="yeartabs"></div>
   <div class="tblwrap"><table class="bsc" id="kb3Sum" style="min-width:900px"></table></div>
   <div class="hint" id="kb3SumNote"></div>
+  <!-- 各中心 3.2 分表：部门空间下逐个中心一张表，左侧目录点中心即锚点跳到对应标题（同页，不切页面）-->
+  <div id="kb3SumCenters"></div>
 </div>
 
 <!-- 数据源 -->
@@ -964,6 +966,62 @@ var DEPT_TREE=[
   {name:'云运营管理部',children:[]},{name:'云采购供应管理部',children:[]},
   {name:'港澳台及国际业务部',children:['欧洲业务中心','亚太区一中心','亚太区二中心','港澳台业务中心','国际产品技术支持中心','北美业务中心','业务管理中心','中东业务中心']},{name:'CSIG产品管理支持中心',children:['产品运营规范组','产品生态业务发展组','投资运营组','产品出海合规建设组']}
 ];
+/* ===== 组织架构以后端为准（唯一数据源 = org_depts / org_centers 两张表） =====
+   ⚠ 上面那份 DEPT_TREE 已【降级为接口不可用时的兜底】，不再是数据源本身。
+   后端 GET /api/departments 返回带【稳定 id】的部门树：中心改名只改 name、跨部门调动只改 dept_id，
+   稳定 id 始终不变 → 看板历史数据永不失联（口径已拍板：中心调部门后数据跟着中心走）。
+   等企业微信通讯录 / 核心人事 getOrgUnit 权限到位，后端换数据源即可，这里无需再改。*/
+var ORG_META={source:'fallback-inline',is_demo_org:true,updated_at:'',from_api:false};
+function applyDeptTree(d){
+  if(!d||!d.tree||!d.tree.length)return false;
+  var arr=[{name:'集团'}];   // 「集团」是各部门加总的伪节点，后端不返回，前端固定置顶
+  for(var i=0;i<d.tree.length;i++){var t=d.tree[i];
+    arr.push({name:t.name,id:t.id,line_name:t.line_name||'',
+              children:(t.centers||[]).map(function(c){return c.name;}),
+              centerIds:(t.centers||[]).map(function(c){return c.id;})});}
+  DEPT_TREE.length=0;                // 原地覆盖：防止其他模块持有旧数组引用而失效
+  for(var j=0;j<arr.length;j++)DEPT_TREE.push(arr[j]);
+  ORG_META={source:d.source||'',is_demo_org:!!d.is_demo_org,updated_at:d.updated_at||'',from_api:true};
+  orgOrphanCheck();
+  return true;
+}
+function orgOrphanCheck(){
+  /* 线维(hcfb_lines)/子PM组(hcfb_pm_groups) 里存的是部门【名字】，组织调整后可能残留失效引用。
+     这里只【显式报出】、绝不静默删除，避免用户以为自己的配置无声消失了。 */
+  var names={},bad=[];
+  for(var i=0;i<DEPT_TREE.length;i++)names[DEPT_TREE[i].name]=1;
+  try{var ls=JSON.parse(localStorage.getItem('hcfb_lines')||'[]')||[];
+    for(var a=0;a<ls.length;a++){var ds=(ls[a]&&ls[a].depts)||[];
+      for(var b=0;b<ds.length;b++)if(!names[ds[b]])bad.push('线「'+(ls[a].name||'?')+'」→ '+ds[b]);}
+  }catch(e){}
+  try{var pg=JSON.parse(localStorage.getItem('hcfb_pm_groups')||'{}')||{};
+    for(var k in pg)if(pg.hasOwnProperty(k)&&!names[k])bad.push('子PM组 → '+k);
+  }catch(e2){}
+  ORG_META.orphans=bad;
+  if(bad.length&&window.console&&console.warn)
+    console.warn('[组织架构] 以下配置引用了已不存在的部门（未自动删除，请人工核对）：',bad);
+  return bad;
+}
+function loadDeptTree(){
+  return fetch('/api/departments').then(function(r){return r.json();}).then(function(d){
+    return applyDeptTree(d);
+  }).catch(function(){return false;});   /* 拉不到就沿用上面的兜底树，页面照常可用 */
+}
+/* ===== 台账3.1「部门 / 中心」两列的下拉选项（来自组织表，通讯录同步后自动跟着变） =====
+   中心选项 = 该行【部门】下的中心，实现"台账可拆分到中心维度"。
+   部门列留空时回落当前部门空间的部门；集团空间且行内未填部门 → 给全部中心（去重·拼音序），避免无从可选。*/
+function kb3DeptOpts(){
+  var out=[];for(var i=0;i<DEPT_TREE.length;i++){var n=DEPT_TREE[i].name;if(n!=='集团')out.push(n);}return out;
+}
+function kb3CenterOptsOf(deptName){
+  var d=String(deptName||'').trim();
+  if(!d){var cd=String(window.CUR_DEPT||'');if(cd&&cd!=='集团')d=cd.split('/')[0];}
+  if(d){for(var i=0;i<DEPT_TREE.length;i++)if(DEPT_TREE[i].name===d)return (DEPT_TREE[i].children||[]).slice();return [];}
+  var seen={},all=[];
+  for(var j=0;j<DEPT_TREE.length;j++)(DEPT_TREE[j].children||[]).forEach(function(c){if(!seen[c]){seen[c]=1;all.push(c);}});
+  return all.sort(function(a,b){return String(a).localeCompare(String(b),'zh-Hans-CN');});
+}
+window.kb3DeptOpts=kb3DeptOpts;window.kb3CenterOptsOf=kb3CenterOptsOf;
 var KB1_OPEN={};
 /* 子PM分组（部门→[{name,centers}]）：管理后台「设置子PM看板」配置，同源 localStorage 共享。部门展开时按 部→子PM组→中心 渲染 */
 var PM_GROUPS={};try{PM_GROUPS=JSON.parse(localStorage.getItem('hcfb_pm_groups')||'{}')||{};}catch(e){PM_GROUPS={};}
@@ -1167,10 +1225,10 @@ function toggleLineNav(lineName){var h=document.getElementById('lineNav_'+lineNa
   if(open)renderLineNav(lineName);}
 /* 看板1-4 侧栏：可展开扁平部门树（无线级，部门同级；部→中心）。点部门=进该看板该部门空间。 */
 var DEPT_BOARDS=['kb1','kb2','kb3','kb4'];
-function _navA(board,deptKey,label,padLeft,cur,arrow,stickyTop){var on=(cur===deptKey),sticky=(stickyTop!=null);
+function _navA(board,deptKey,label,padLeft,cur,arrow,stickyTop,clickJs){var on=(cur===deptKey),sticky=(stickyTop!=null);
   var bg=on?'var(--b50)':(sticky?'#fff':'transparent');
   var st=sticky?'position:sticky;top:'+stickyTop+'px;z-index:5;box-shadow:0 1px 0 #EDF3FB;':'';
-  return '<a onclick="pickDeptNav(\''+board+'\',\''+deptKey.replace(/'/g,"")+'\')" title="'+label+'" style="'+st+'display:block;padding:6px 10px 6px '+padLeft+'px;font-size:12.5px;border-radius:8px;margin-bottom:2px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:'+bg+';'+(on?'color:var(--blue);font-weight:600':'color:var(--ink2)')+'">'+label+arrow+'</a>';}
+  return '<a onclick="'+(clickJs||('pickDeptNav(\''+board+'\',\''+deptKey.replace(/'/g,"")+'\')'))+'" title="'+label+'" style="'+st+'display:block;padding:6px 10px 6px '+padLeft+'px;font-size:12.5px;border-radius:8px;margin-bottom:2px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:'+bg+';'+(on?'color:var(--blue);font-weight:600':'color:var(--ink2)')+'">'+label+arrow+'</a>';}
 function renderDeptNav(board){var host=document.getElementById(board+'DeptNav');if(!host)return;var cur=window.CUR_DEPT||'集团',h='';
   var kbH=(document.getElementById(board+'NavLink')||{}).offsetHeight||42;  // 部标题钉在该看板导航下方
   var MY=window.MY, adm=!MY, al=(MY&&MY.kb1_depts)||[];  // 按 kb1_depts 过滤（仅 MY 未加载时不过滤）
@@ -1180,7 +1238,18 @@ function renderDeptNav(board){var host=document.getElementById(board+'DeptNav');
     return (node.children||[]).some(function(ch){return al.indexOf(node.name+'/'+ch)>=0;});}
   DEPT_TREE.forEach(function(node){if(node.name==='集团')return;  // 集团=看板本身(点看板名进)，树里不列
     var hasCh=node.children&&node.children.length;
-    if(board!=='kb1'){  // 看板2/3/4：只到部门级（不拆中心；仅看板1拆中心）
+    if(board==='kb3'){  // 看板3：部门下可展开中心，但中心＝【页内锚点】（同页的 3.2 分表），不切部门空间
+      if(!(hasCh?partVisible(node):wholeOK(node.name)))return;
+      var clk3='kb3GotoDept(\''+String(node.name).replace(/'/g,'')+'\')';   // 点部门＝切该部门 + 跳到最上方「部门总表」
+      if(!hasCh){h+=_navA(board,node.name,node.name,20,cur,'',null,clk3);return;}
+      var o3=KB1_OPEN['kb3:'+node.name];
+      var a3='<span onclick="event.stopPropagation();toggleDeptSub(\''+board+'\',\'kb3:'+node.name+'\')" style="float:right;font-size:10px;padding:0 4px;color:var(--ink3)">'+(o3?'▾':'▸')+'</span>';
+      h+=_navA(board,node.name,node.name,20,cur,a3,o3?kbH:null,clk3);
+      if(o3)node.children.forEach(function(ch,ci){if(!centerOK(node.name,ch))return;
+        h+='<a onclick="kb3GotoCenter(\''+String(node.name).replace(/'/g,'')+'\','+ci+')" title="'+ch+'（跳到本页该中心的 3.2 分表）" style="display:block;padding:5px 10px 5px 38px;font-size:12.5px;border-radius:8px;margin-bottom:2px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink2)">· '+ch+'</a>';});
+      return;
+    }
+    if(board!=='kb1'){  // 看板2/4：只到部门级（不拆中心）
       if(!(hasCh?partVisible(node):wholeOK(node.name)))return;
       h+=_navA(board,node.name,node.name,20,cur,'');return;
     }
@@ -1277,9 +1346,15 @@ function levelNote(key){
     if(isAgg)return '预算当量 · <b>部门</b>：<b>直接读看板2</b>（系统/数仓取数）· 不从中心加总；下方给出各中心手填之和 vs 系统取数对比';
     return '预算当量 · <b>部门</b>：直接读看板2（系统取数）';
   }
+  if(key==='i_soc'||key==='soc_join'||key==='soc_wait'||key==='i_soc_intv'){  // 待流入·社招：中心级直读该中心看板3.2；部门级=各中心求和
+    if(isC)return '待流入·社招 ·<b>中心</b>：<b>直接读该中心的看板3.2</b>（已入职、待入职/活水已offer＝系统接口；简历面试中＝3.1台账按本中心过滤）';
+    if(isJ)return '待流入·社招 · <b>合计</b>：＝各部门之和（各部门＝其下各中心之和）';
+    if(isAgg)return '待流入·社招 · <b>部门</b>：＝<b>其下各中心之和</b>（每个中心直读自己的看板3.2）· 与本页部门总3.2 互为核对';
+    return '待流入·社招 · <b>部门</b>（暂无中心拆分）：直接读看板3.2（系统接口 + 3.1台账）';
+  }
   if(isC)return '取数层级 · <b>中心</b>：数仓<b>直取</b>（中心＝取数最小粒度）';
   if(isJ)return '取数层级 · <b>合计</b>：＝各部门该项之和（各部门＝其下中心之和）· 非独立部门';
-  if(isAgg)return '取数层级 · <b>部门</b>：＝其下各中心该项之和；中心并成<b>子PM组</b>后：组＝组内中心之和，部门＝各组＋未进组中心（同层级）之和';
+  if(isAgg)return '取数层级 · <b>部门</b>：＝其下各中心该项之和；中心并成<b>子PM组</b>后：组＝组内中心之和，部门＝各组＋未进组中心（同层级）之和（<b>仅预算当量除外</b>：部门级直读看板2，不由中心加总）';
   return '取数层级 · <b>部门</b>（暂无中心拆分）：数仓直取，接入中心后自动改为各中心求和';
 }
 /* ===== 运算（识空：无源数据留空，绝不当0编造） ===== */
@@ -1292,10 +1367,15 @@ function cSum(sec,m){var s=0,any=false;custom[sec].forEach(function(r){if(isN(r.
 function agg(parts){var got=false,s=0;parts.forEach(function(p){if(isN(p)){s+=p;got=true;}});return got?s:'';}   // 有一个数才算，否则''
 /* 社招·简历面试中：单一取数口径=看板3.2（台账 st=简历&面试中 按归月计数/一句话备注），不再走 soc_bp 手填 */
 /* 社招三子行统一取自看板3.2（3.1台账按 kb3cat 归月计数/一句话备注），看板1 与 3.2 逐行一致（取数口径打通） */
-/* 看板3.2/看板1 社招·简历面试中读台账：按当前部门空间过滤（部门→匹配dept，中心→dept+中心，集团→全部），与看板3.1 同口径 */
-function _ledDeptOK(r){var d=window.CUR_DEPT||'集团';if(d==='集团')return true;var p=String(d).split('/'),dp=p[0],ct=p[1];if(String(r.dept||'')!==dp)return false;return ct?String(r.c||'')===ct:true;}
-function socCatCnt(catKey,m){var c=0,any=false;if(typeof LEDGER!=='undefined')LEDGER.forEach(function(r){if(!_ledDeptOK(r))return;if(kb3cat(r.st)!==catKey)return;var mo=kb3mo(r);if(!mo||mo.slice(0,4)!==String(YEAR))return;if(+mo.slice(5,7)-1===m){c++;any=true;}});return any?c:'';}
-function socCatNote(catKey,m){var lst=[];if(typeof LEDGER!=='undefined')LEDGER.forEach(function(r){if(!_ledDeptOK(r))return;if(kb3cat(r.st)!==catKey)return;var mo=kb3mo(r);if(!mo||mo.slice(0,4)!==String(YEAR))return;if(+mo.slice(5,7)-1===m)lst.push((r.who?r.who+'·':'')+r.job+(r.loc?'('+r.loc+')':'')+'·'+(r.st==='已入职'?r.join+'已入职':'预计'+r.eta+'到岗')+(r.memo?'·'+r.memo:''));});return lst.length?lst.join('\n'):'';}
+/* 看板3.2/看板1 社招·简历面试中读台账：按部门空间过滤（部门→匹配dept，中心→dept+中心，集团→全部），与看板3.1 同口径 */
+/* space 形如 '集团' | '云产品二部' | '云产品二部/WeData产品中心'。泛化出space 参数是为了让看板3.2
+   能在同一页里既算部门总表、又算其下每个中心的分表（各中心口径 = 该中心自己的台账行）。*/
+function _ledSpaceOK(r,space){var d=String(space||'集团');if(d==='集团')return true;var p=d.split('/'),dp=p[0],ct=p[1];if(String(r.dept||'')!==dp)return false;return ct?String(r.c||'')===ct:true;}
+function _ledDeptOK(r){return _ledSpaceOK(r,window.CUR_DEPT||'集团');}
+function socCatCntSpace(space,catKey,m){var c=0,any=false;if(typeof LEDGER!=='undefined')LEDGER.forEach(function(r){if(!_ledSpaceOK(r,space))return;if(kb3cat(r.st)!==catKey)return;var mo=kb3mo(r);if(!mo||mo.slice(0,4)!==String(YEAR))return;if(+mo.slice(5,7)-1===m){c++;any=true;}});return any?c:'';}
+function socCatNoteSpace(space,catKey,m){var lst=[];if(typeof LEDGER!=='undefined')LEDGER.forEach(function(r){if(!_ledSpaceOK(r,space))return;if(kb3cat(r.st)!==catKey)return;var mo=kb3mo(r);if(!mo||mo.slice(0,4)!==String(YEAR))return;if(+mo.slice(5,7)-1===m)lst.push((r.who?r.who+'·':'')+r.job+(r.loc?'('+r.loc+')':'')+'·'+(r.st==='已入职'?r.join+'已入职':'预计'+r.eta+'到岗')+(r.memo?'·'+r.memo:''));});return lst.length?lst.join('\n'):'';}
+function socCatCnt(catKey,m){return socCatCntSpace(window.CUR_DEPT||'集团',catKey,m);}
+function socCatNote(catKey,m){return socCatNoteSpace(window.CUR_DEPT||'集团',catKey,m);}
 function socTot(m){return agg([D.soc_join[m],D.soc_sys[m],D.soc_hs[m],socCatCnt(KB3CATS[2].key,m),cSum('soc',m)]);}   // 待流入·社招 = 已入职(soc_join·系统) + 待入职/活水已offer(soc_sys+soc_hs·系统) + 简历面试中(看板3.2·3.1台账) + 分支。已入职/待入职·活水走系统接口，简历面试中读3.1。估/实双轨只在总流入/总流出层
 function campTot(m){return agg([D.camp_off[m]]);}   // 待流入·校招 = 直接取数仓「校招·已offer待入职」(camp_off) 单一取数；已发生月实际走「已流入·实际校招入职」(ai_camp) 行
 // 估/实双轨：已发生月合计=实际口径行；未发生月合计=预估口径行+分支（与后端 calc_kb1 同口径）
@@ -2041,7 +2121,8 @@ function kb3CancelRow(){}
 function saveKb3Add(){alert('连接后端后可添加行（当前为本地演示模式）');}
 /* 台账添加行弹窗：必填标★，前端先校验，后端 422 再兜底 */
 var KB3_FIELDS=[
-  {f:'dept',l:'部门',req:1},{f:'c',l:'中心',req:1},{f:'own',l:'业务负责人',req:1},{f:'src',l:'HC来源备注'},
+  /* dept/c 用 dyn 标记：选项来自组织表且中心随部门联动（见openKb3Add 里的 onchange），不能写死 sel */
+  {f:'dept',l:'部门',req:1,dyn:'dept'},{f:'c',l:'中心',req:1,dyn:'center'},{f:'own',l:'业务负责人',req:1},{f:'src',l:'HC来源备注'},
   {f:'job',l:'招聘岗位',req:1},{f:'rmgr',l:'招聘经理'},{f:'cls',l:'分类（国内/海外）',sel:['国内','海外']},{f:'loc',l:'地点'},
   {f:'ask',l:'需求提出时间',date:1},{f:'num',l:'招聘数量（必须为1）',num:1,def:'1'},
   {f:'st',l:'进展（当前状态）',req:1,sel:['需求确认','简历&面试中','已offer待入职','已入职','Hold','取消']},
@@ -2049,12 +2130,25 @@ var KB3_FIELDS=[
   {f:'offer',l:'offer人选'},{f:'lvl',l:'人选职级'},{f:'join',l:'实际入职时间',date:1},{f:'jmemo',l:'备注（如:活水/base城市）'}];
 function openKb3Add(){
   var g=document.getElementById('kb3FormGrid');
+  var curDept='';var _cd=String(window.CUR_DEPT||'');if(_cd&&_cd!=='集团')curDept=_cd.split('/')[0];  // 在部门/中心空间下新增：默认带出该部门
+  var curCtr='';if(_cd.indexOf('/')>=0)curCtr=_cd.split('/')[1]||'';
+  function selHtml(id,opts,cur){return '<select id="'+id+'"><option value="">（请选择）</option>'
+    +opts.map(function(o){return '<option'+(o===cur?' selected':'')+'>'+esc(o)+'</option>';}).join('')+'</select>';}
   g.innerHTML=KB3_FIELDS.map(function(d){
     var lab='<label>'+d.l+(d.req?' <span style="color:var(--red)">★</span>':'')+'</label>',id='kb3f_'+d.f,inner;
-    if(d.sel)inner='<select id="'+id+'"><option value="">（请选择）</option>'+d.sel.map(function(o){return '<option>'+o+'</option>';}).join('')+'</select>';
+    if(d.dyn==='dept')inner=selHtml(id,kb3DeptOpts(),curDept);
+    else if(d.dyn==='center')inner=selHtml(id,kb3CenterOptsOf(curDept),curCtr);
+    else if(d.sel)inner='<select id="'+id+'"><option value="">（请选择）</option>'+d.sel.map(function(o){return '<option>'+o+'</option>';}).join('')+'</select>';
     else inner='<input type="'+(d.num?'number':'text')+'" id="'+id+'"'+(d.date?' placeholder="YYYY-MM-DD"':'')+(d.num?' min="1" max="1" step="1"':'')+(d.def?' value="'+d.def+'"':'')+'>';
     return '<div>'+lab+inner+'</div>';
   }).join('');
+  // 部门改变 → 中心选项跟着换（中心必须属于所选部门，否则层级会串）
+  var dEl=document.getElementById('kb3f_dept'),cEl=document.getElementById('kb3f_c');
+  if(dEl&&cEl)dEl.addEventListener('change',function(){
+    var opts=kb3CenterOptsOf(dEl.value);
+    cEl.innerHTML='<option value="">（请选择）</option>'+opts.map(function(o){return '<option>'+esc(o)+'</option>';}).join('');
+    if(!opts.length)cEl.innerHTML='<option value="">（该部门暂无中心）</option>';
+  });
   document.getElementById('kb3AddErr').style.display='none';
   document.getElementById('maskKb3').classList.add('on');
 }
@@ -2283,8 +2377,11 @@ function renderKb3(){
     +(hidN?((fActive||KB3SORT.f?' · ':'')+'已隐藏 '+hidN+' 行 <a style="color:var(--blue);cursor:pointer" onclick="kb3Unhide()">恢复</a>'):'');
   var fb=document.getElementById('kb3FltBtn');if(fb)fb.innerHTML='<t-icon name="filter" style="vertical-align:-2px;margin-right:4px"></t-icon>'+(KB3FON?'收起筛选':'筛选');
   // 3.2 汇总（每格带出该分类·该月各人的一句话备注，悬浮显示）
+  // ⚠ 口径：必须按【当前部门空间】过滤台账（_ledDeptOK），与看板1 的 socCatCnt、看板3.1 完全同口径。
+  //    之前这里漏了过滤 → 前两行(soc_join/soc_sys+soc_hs·后端按部门返回)是部门口径、第三行却是全集团口径，
+  //    导致 3.2 自身内部不一致、且与看板1「社招·简历面试中」差出一个部门/全量的倍数。
   var mat={},note={};KB3CATS.forEach(function(c){mat[c.key]=Array(12).fill(0);note[c.key]=[];for(var mn=0;mn<12;mn++)note[c.key][mn]=[];});
-  LEDGER.forEach(function(r){var cat=kb3cat(r.st);if(cat==='不计入')return;var mo=kb3mo(r);if(!mo)return;if(mo.slice(0,4)!==String(YEAR))return;var mi=+mo.slice(5,7)-1;
+  LEDGER.forEach(function(r){if(!_ledDeptOK(r))return;var cat=kb3cat(r.st);if(cat==='不计入')return;var mo=kb3mo(r);if(!mo)return;if(mo.slice(0,4)!==String(YEAR))return;var mi=+mo.slice(5,7)-1;
     if(mi>=0&&mi<12){mat[cat][mi]++;note[cat][mi].push((r.who?r.who+'·':'')+r.job+(r.loc?'('+r.loc+')':'')+'·'+(r.st==='已入职'?r.join+'已入职':'预计'+r.eta+'到岗')+(r.memo?'·'+r.memo:''));}});
   // 已入职/待入职·活水已offer 直接取系统（soc_join / soc_sys+soc_hs），非3.1台账；简历面试中读3.1台账(mat)。看板1 取此三行 → 两表逐行一致
   var joinSys=[],waitSys=[];for(var _sm=0;_sm<12;_sm++){joinSys[_sm]=isN(D.soc_join[_sm])?D.soc_join[_sm]:'';waitSys[_sm]=agg([D.soc_sys[_sm],D.soc_hs[_sm]]);}
@@ -2308,9 +2405,108 @@ function renderKb3(){
       var top=rc.top-kb3nt.offsetHeight-8;kb3nt.style.top=(top>4?top:rc.bottom+8)+'px';});
     td.addEventListener('mouseleave',function(){if(kb3nt)kb3nt.style.display='none';});
   });
-  document.getElementById('kb3SumNote').innerHTML='<b>取数口径</b>（悬停行名看详情）：<b>社招·已入职</b>=系统接口(HR数仓)、<b>待入职/活水已offer</b>=系统接口(社招系统+活水系统)——两者<b>非3.1台账</b>，此处按台账归月汇总仅供核对；<b>简历面试中</b>=读3.1台账。归月：已入职=实际入职月；已offer/面试中=预计到岗月；Hold/取消不计入。按行计数、不去重。此三项即<b>喂看板1</b>「待流入·社招」数据源。<b>矩阵始终按全量台账统计</b>，不随 3.1 的筛选/排序变。';
+  document.getElementById('kb3SumNote').innerHTML='<b>取数口径</b>（悬停行名看详情）：<b>社招·已入职</b>=系统接口(HR数仓)、<b>待入职/活水已offer</b>=系统接口(社招系统+活水系统)——两者<b>非3.1台账</b>；<b>简历面试中</b>=读3.1台账。归月：已入职=实际入职月；已offer/面试中=预计到岗月；Hold/取消不计入。按行计数、不去重。此三项即<b>喂看板1</b>「待流入·社招」数据源：<b>看板1 中心级直读该中心的 3.2 分表；部门级＝其下各中心求和</b>（即本表）。本表按当前部门空间（<b>'+esc(window.CUR_DEPT||'集团')+'</b>）统计，<b>不随 3.1 的筛选/排序变</b>；台账行归属哪个中心，由 3.1「中心」列（下拉·取自组织表）决定。';
   colResizable('kb3Tbl');colResizable('kb3Sum');
+  // 部门总表标题标明当前是哪个部门（下方各中心分表之和＝本表），避免与中心分表混淆
+  var _t3=document.getElementById('kb32DeptTitle');
+  if(_t3){var _sp=String(window.CUR_DEPT||'集团');
+    _t3.textContent='看板3.2 · '+deptDisp(_sp)+(_sp==='集团'?'（全部门合计）':(_sp.indexOf('/')>=0?'（中心维度）':'（部门总 · ＝其下各中心求和）'));}
+  kb32CentersEnsure();   // 追加渲染其下各中心的 3.2 分表（同页·供左侧目录锚点跳转）
 }
+/* ===== 看板3.2 中心维度分表 =====
+   页面结构（同一页，中心不再是独立页面）：看板3.1 部门台账 → 看板3.2 部门总表 → 其下各中心 3.2 分表。
+   左侧看板3 目录里的中心分支 = 页内锚点，点击直接跳到对应中心标题（见 kb3GotoCenter）。
+   数据：前两行（已入职/ 待入职·活水已offer）来自 GET /api/kb32（一次拿回部门总+各中心，避免几十个请求）；
+        第三行（简历面试中）前端按该中心过滤 3.1 台账实时算，与 3.1逐行对得上。*/
+var KB32={dept:null,year:null,centers:[],loading:false};
+function kb32CenterAnchor(i){return 'kb32-c-'+i;}   // 锚点用「该中心在部门内的序号」，导航侧同样算法，稳定不受改名影响
+function loadKb32(){
+  var d=String(window.CUR_DEPT||'集团'),dp=d.split('/')[0];
+  if(d==='集团'){KB32={dept:'集团',year:YEAR,centers:[],loading:false};renderKb32Centers();return Promise.resolve(false);}
+  KB32.loading=true;
+  return fetch('/api/kb32/'+YEAR+'?dept='+encodeURIComponent(dp)).then(function(r){return r.json();}).then(function(j){
+    KB32={dept:dp,year:j.year,centers:j.centers||[],loading:false};renderKb32Centers();return true;
+  }).catch(function(){KB32.loading=false;return false;});
+}
+function kb32CentersEnsure(){
+  var dp=String(window.CUR_DEPT||'集团').split('/')[0];
+  if(dp==='集团'){renderKb32Centers();return;}
+  if(KB32.dept===dp&&KB32.year===YEAR){renderKb32Centers();return;}   // 缓存命中直接画，避免重复请求
+  if(!KB32.loading)loadKb32();
+}
+function renderKb32Centers(){
+  var host=document.getElementById('kb3SumCenters');if(!host)return;
+  var dp=String(window.CUR_DEPT||'集团').split('/')[0];
+  if(dp==='集团'||!KB32.centers||!KB32.centers.length){host.innerHTML='';return;}
+  var h='';
+  KB32.centers.forEach(function(ct,i){
+    var space=dp+'/'+ct.name,mt=ct.metrics||{};
+    var join=[],wait=[],intv=[],intvN=[],tot=[],totN=[];
+    for(var m=0;m<12;m++){
+      var jv=(mt.soc_join||[])[m],sv=(mt.soc_sys||[])[m],hv=(mt.soc_hs||[])[m];
+      join[m]=isN(jv)?jv:'';
+      wait[m]=agg([isN(sv)?sv:'',isN(hv)?hv:'']);
+      intv[m]=socCatCntSpace(space,KB3CATS[2].key,m);
+      intvN[m]=socCatNoteSpace(space,KB3CATS[2].key,m);
+      tot[m]=agg([join[m],wait[m],intv[m]]);totN[m]=intvN[m];
+    }
+    function row(cls,name,a,notes){
+      var t='<tr class="'+cls+'"><td>'+esc(name)+'</td>';
+      for(var m=0;m<12;m++){var nt=notes&&notes[m]?notes[m]:'';
+        t+='<td'+(nt?' class="hasnote" data-note="'+esc(nt).replace(/"/g,'&quot;')+'"':'')+'>'+(a[m]||'')+(nt?'<span class="memo"></span>':'')+'</td>';}
+      return t+'<td>'+sum(a)+'</td></tr>';
+    }
+    var head='<tr><th>计入看板1的行</th>';
+    for(var hm=0;hm<12;hm++)head+='<th>'+moLbl(YEAR+'-'+String(hm+1).padStart(2,'0'))+'</th>';
+    head+='<th>全年总数</th></tr>';
+    h+='<h3 class="sec" id="'+kb32CenterAnchor(i)+'" style="margin-top:18px;font-size:15px">看板3.2 · '+esc(ct.name)
+      +' <span style="font-weight:400;color:var(--ink3);font-size:12.5px">（中心维度 · 喂看板1 该中心「待流入·社招」）</span></h3>'
+      +'<div class="tblwrap"><table class="bsc" style="min-width:900px">'+head
+      +row('sub',KB3CATS[0].key,join,null)+row('sub',KB3CATS[1].key,wait,null)
+      +row('sub',KB3CATS[2].key,intv,intvN)+row('key','待流入-社招（三项加总）',tot,totN)
+      +'</table></div>';
+  });
+  h='<div class="hint" style="margin-top:16px">下列为<b>'+esc(dp)+'</b> 各中心的 3.2 分表（合计＝上方部门总表）：已入职、待入职/活水已offer 取该中心系统数；简历面试中读3.1 台账按该中心过滤。中心的台账归属由 3.1「中心」列（下拉·组织表）决定。</div>'+h;
+  host.innerHTML=h;
+  // 紫角悬浮备注（与部门总表同款）
+  var nt=document.getElementById('noteTip');
+  host.querySelectorAll('td.hasnote').forEach(function(td){
+    td.addEventListener('mouseenter',function(){var txt=td.getAttribute('data-note');if(!txt||!nt)return;var arr=txt.split('\n');
+      nt.innerHTML='<div class="nt-h">一句话备注（'+arr.length+' 人）</div>'+arr.map(function(x){return '· '+esc(x);}).join('\n');
+      nt.style.display='block';var rc=td.getBoundingClientRect();
+      nt.style.left=Math.max(8,Math.min(rc.left+rc.width/2-120,window.innerWidth-260))+'px';
+      var top=rc.top-nt.offsetHeight-8;nt.style.top=(top>4?top:rc.bottom+8)+'px';});
+    td.addEventListener('mouseleave',function(){if(nt)nt.style.display='none';});
+  });
+}
+/* 左侧看板3 目录点【部门】→ 切到该部门空间并跳到本页「看板3.2 · 部门总表」标题（最上方那张＝整个部门的数据）*/
+function kb3GotoDept(dept){
+  if(typeof boardTab==='function')boardTab('kb3');
+  var cur=String(window.CUR_DEPT||'集团');
+  if(cur!==dept){pickDeptNav('kb3',dept);Promise.resolve(loadKb32()).then(function(){setTimeout(function(){_kb3Flash('kb32-dept');},120);});return;}
+  _kb3Flash('kb32-dept');
+}
+function _kb3Flash(id){
+  var el=document.getElementById(id);if(!el)return;
+  el.scrollIntoView({behavior:'smooth',block:'start'});
+  el.style.transition='background .3s';el.style.background='#FFFBE6';
+  setTimeout(function(){el.style.background='';},1200);   // 高亮一下，明确跳到了哪张表
+}
+window.kb3GotoDept=kb3GotoDept;
+/* 左侧看板3 目录点中心 → 同页跳到该中心的 3.2 分表标题（中心不是独立页面，只是目录锚点）。
+   若当前不在该部门空间，先切到该部门（3.1 台账也随之过滤到该部门），再滚动定位。*/
+function kb3GotoCenter(dept,i){
+  if(typeof boardTab==='function')boardTab('kb3');
+  var cur=String(window.CUR_DEPT||'集团'),dp=cur.split('/')[0];
+  function go(){_kb3Flash(kb32CenterAnchor(i));}
+  if(dp!==dept&&typeof setDept==='function'){
+    Promise.resolve(setDept(dept)).then(function(){return loadKb32();}).then(function(){setTimeout(go,120);}).catch(function(){});
+    return;
+  }
+  if(KB32.dept===dept&&KB32.year===YEAR&&KB32.centers.length){go();return;}
+  Promise.resolve(loadKb32()).then(function(){setTimeout(go,120);});
+}
+window.kb3GotoCenter=kb3GotoCenter;
 /* ===== 视图/筛选页签（结合截图功能块，仅切换选中态，数据待接入） ===== */
 function setVTab(el){if(el.classList.contains('dis'))return;el.parentElement.querySelectorAll('.vtab').forEach(function(t){t.classList.remove('on');});el.classList.add('on');log('bonniewbli','切换视图',el.textContent.trim());}
 /* ===== 实时/diff ===== */
@@ -2949,7 +3145,7 @@ fetch('/api/health').then(function(r){return r.json();}).then(function(h){
   USE_API=true;
   apiTag();
   addImportBtn();
-  return loadCfg().then(loadYears).then(function(){return window.loadMe();}).then(function(){dbModeRefresh();return loadYear(YEAR);}).then(function(){return loadLedger();}).then(function(){return loadPrefs();}).then(function(){return loadGPrefs();}).then(function(){return loadSources();}).then(function(){renderAuditApi();restoreNavState();})
+  return loadDeptTree().then(function(){return loadCfg();}).then(loadYears).then(function(){return window.loadMe();}).then(function(){dbModeRefresh();return loadYear(YEAR);}).then(function(){return loadLedger();}).then(function(){return loadPrefs();}).then(function(){return loadGPrefs();}).then(function(){return loadSources();}).then(function(){renderAuditApi();restoreNavState();})
     .then(function(){return api('GET','/api/version');}).then(function(r){SYNC.ver=r.v;SYNC.on=true;syncStart();syncMark('自动同步开 · '+_hhmm());}).catch(function(){});
 }).catch(function(){/* 无后端：本地空态模式 */});
 })();
@@ -3174,9 +3370,14 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
   var KB3VALID={};try{KB3VALID=JSON.parse(localStorage.getItem('hcfb_kb3valid')||'{}');}catch(e){}
   window.KB3VALID=KB3VALID;
   var BUILTIN_OPTS={cls:['国内','海外'],st:KB3_ST_OPTS.slice()};
-  function dropOptions(field){if(BUILTIN_OPTS[field])return BUILTIN_OPTS[field];var v=KB3VALID[field];return (v&&v.type==='list'&&v.dropdown!==false&&v.options&&v.options.length)?v.options:null;}
-  window.kb3DropOptions=function(field){return dropOptions(field);};
-  function isDropCol(c){var d=colDef(c);return !!(d&&dropOptions(d.f));}
+  /* dept/c 两列的选项来自【组织表】且随行联动（中心=该行部门下的中心），故不能放进静态 BUILTIN_OPTS。
+     传 rid 才能取到该行部门；不传 rid（如仅判断该列是否为下拉列）时也返回非空，保证下拉入口照常出现。*/
+  function dropOptions(field,rid){
+    if(field==='dept')return (typeof kb3DeptOpts==='function')?kb3DeptOpts():null;
+    if(field==='c')return (typeof kb3CenterOptsOf==='function')?kb3CenterOptsOf(rid?ledgerVal(rid,'dept'):''):null;
+    if(BUILTIN_OPTS[field])return BUILTIN_OPTS[field];var v=KB3VALID[field];return (v&&v.type==='list'&&v.dropdown!==false&&v.options&&v.options.length)?v.options:null;}
+  window.kb3DropOptions=function(field,rid){return dropOptions(field,rid);};
+  function isDropCol(c){var d=colDef(c);return !!(d&&(d.f==='dept'||d.f==='c'||dropOptions(d.f)));}
   /* 锁定单元格/可编辑区域：col:字段=整列锁；cell:rid:字段=单格锁；存 localStorage。锁定格拒绝编辑/填充/粘贴/清空 */
   var KB3LOCK={};try{KB3LOCK=JSON.parse(localStorage.getItem('hcfb_kb3lock')||'{}');}catch(e){}
   function isLocked(rid,field){return !!(KB3LOCK['col:'+field]||KB3LOCK['cell:'+rid+':'+field]);}
@@ -3303,11 +3504,16 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
   function openDrop(td){
     if(!USE_API)return alert('连接后端后可用');if(RO)return alert('当前账号为只读权限');
     var tr=td.closest('tr'),rid=tr&&tr.getAttribute('data-rid');if(!rid||rid==='draft')return;
-    var c=td.cellIndex,d=colDef(c);if(!d)return;var opts=dropOptions(d.f);if(!opts)return;
+    var c=td.cellIndex,d=colDef(c);if(!d)return;var opts=dropOptions(d.f,rid);if(!opts)return;
     if(isLocked(rid,d.f)){if(typeof toast==='function')toast('该格已锁定，先解锁再改');return;}
     var cur=td.textContent.trim();
+    if(d.f==='c'&&!opts.length){if(typeof toast==='function')toast('请先选该行「部门」，再选中心');return;}
     var items=[{t:'（清空）',fn:function(){STAGE.stage([{rid:rid,field:d.f,value:''}]);}}];
-    opts.forEach(function(o){items.push({t:(o===cur?'● ':'○ ')+o,fn:function(){STAGE.stage([{rid:rid,field:d.f,value:o}]);}});});
+    // 改部门时一并清空中心：原中心多半不属于新部门，留着会串层级（用户重选即可）
+    opts.forEach(function(o){items.push({t:(o===cur?'● ':'○ ')+o,fn:function(){
+      var chg=[{rid:rid,field:d.f,value:o}];
+      if(d.f==='dept'&&o!==cur&&kb3CenterOptsOf(o).indexOf(ledgerVal(rid,'c'))<0)chg.push({rid:rid,field:'c',value:''});
+      STAGE.stage(chg);}});});
     var r=td.getBoundingClientRect();ctxShow(items,r.left,r.bottom);
   }
   function startInline(td){td.dispatchEvent(new MouseEvent('dblclick',{bubbles:true,cancelable:true}));}

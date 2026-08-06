@@ -1,0 +1,57 @@
+{
+  "_说明": "组织架构数据源配置示例。真实文件复制为 backend/org_config.json（已在 .gitignore，不会进仓库）。凭据属高敏感信息，只放服务端，切勿贴进聊天或提交。",
+  "_三档兜底": "① 无 org_config.json → 系统沿用库内组织数据，行为与现在完全一致（不报错、不清空、不编造）；② 配mock → 用mock 数据本地演练改名/调动；③ 配 endpoint → 真实接口（待权限开通）。",
+
+  "source": "hrcore",
+  "_source可选值": "hrcore=核心人事(内网·推荐) / wecom=企业微信通讯录 / mock=本地演练",
+
+  "_方案A_核心人事getOrgUnit_推荐": {
+    "_优点": "内网接口(AnyDev可直连，不受公网回调限制)；orgId 天然稳定 ID；orgLevelId 可直接区分「部」与「中心」，不用靠层数猜；orgFullPath 支持前缀匹配子树；还能按时间切片查历史组织快照",
+    "endpoint": "https://hr-core.woa.com/api/organizationStructure/getOrgUnit",
+    "auth": {"type": "header", "header": "Authorization", "value": "（申请到的票据/令牌，勿提交）"},
+    "params": {"parentOrgId": "（CSIG 根组织 orgId·需向对接人索取）", "parentOrgIncludeChild": true},
+    "field_map": {
+      "ext_id": "orgId",
+      "name": "orgName",
+      "parent_ext_id": "parentOrgId",
+      "level": "orgLevelName",
+      "order_no": "orgOrder",
+      "active": "recordStatus"
+    },
+    "level_map": {"dept": "（部级orgLevelName/Id，如 部门）", "center": "（中心级 orgLevelName/Id，如 中心）"}
+  },
+
+  "_方案B_企业微信通讯录": {
+    "_注意": "需企业微信管理员开通「通讯录同步 Secret」(等于全公司通讯录读权限，HRBP 通常申请不到)；且回调需公网可达，AnyDev 是 woa.com 内网域名收不到回调 → 只能定时轮询",
+    "corpid": "（企业ID，勿提交）",
+    "contacts_secret": "（通讯录同步 Secret，高敏感，勿提交）",
+    "token_url": "https://qyapi.weixin.qq.com/cgi-bin/gettoken",
+    "_token缓存": "有效期 7200 秒必须缓存复用，仅在 errcode 40014/42001 时被动刷新，禁止每次请求都取(会触发频率限制)",
+    "dept_list_url": "https://qyapi.weixin.qq.com/cgi-bin/department/simplelist",
+    "dept_get_url": "https://qyapi.weixin.qq.com/cgi-bin/department/get",
+    "_接口选择": "用「获取部门ID列表 95350」+「获取单个部门详情 95351」，不要用已废弃的 department/list（2022-08-15 后新增的同步IP已禁止调用且性能差）",
+    "root_dept_id": 0,
+    "_建树": "返回是扁平列表(id/name/parentid/order)，根部门 parentid=1，order 越大越靠前；按 parentid 归组、order 降序建树",
+    "dept_depth": 1,
+    "center_depth": 2
+  },
+
+  "mock": {
+    "_用途": "本地演练：把下面这份当成外部组织快照喂给 POST /api/departments/sync?dry_run=true 看预览。ext_id 是识别实体的唯一依据——ext_id 不变而 name 变了就判定为「改名」而不是「删除+新增」，这是历史数据不失联的关键。",
+    "depts": [
+      {
+        "name": "云产品五部",
+        "ext_id": "wx-1001",
+        "centers": [
+          {"name": "直播产品中心", "ext_id": "wx-2001"},
+          {"name": "媒体AI产品中心", "ext_id": "wx-2002"}
+        ]
+      },
+      {
+        "name": "云产品六部",
+        "ext_id": "wx-1002",
+        "centers": []
+      }
+    ]
+  }
+}
