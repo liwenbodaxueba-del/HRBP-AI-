@@ -2678,6 +2678,10 @@ ORIG.kb3Import=kb3Import;
 function loadLedger(){return api('GET','/api/ledger').then(function(r){LEDGER=r.rows||[];renderKb3();});}
 /* 260724 看板视图偏好持久化：后端为准，落 localStorage 作离线缓存；变更透明镜像到后端 */
 function savePref(k,val){if(!USE_API)return;api('PUT','/api/prefs/'+k,{value:val}).catch(function(){});}
+/* 全局视觉层（排版/锁定/有效性）：所有人共享，落 /api/gpref。暴露到 window 供 kb3 IIFE 内的 saveFmt/saveLock/saveValid 调用 */
+function saveGPref(k,val){if(!USE_API)return;api('PUT','/api/gpref/'+k,{value:val}).catch(function(){});}
+window.saveGPref=saveGPref;
+function loadGPrefs(){if(!USE_API)return Promise.resolve();return api('GET','/api/gpref').then(function(p){if(p&&window.kb3SetViewPrefs)window.kb3SetViewPrefs(p);if(typeof renderKb3==='function')renderKb3();}).catch(function(){});}
 (function(){var _set=localStorage.setItem.bind(localStorage),BK={hcfb_colw:1,hcfb_kb3pin:1,hcfb_kb3colhide:1,hcfb_kb3hide:1};
   localStorage.setItem=function(k,v){_set(k,v);if(BK[k]&&window.USE_API){try{savePref(k,JSON.parse(v));}catch(e){}}};})();
 function loadPrefs(){return api('GET','/api/prefs').then(function(p){
@@ -2945,7 +2949,7 @@ fetch('/api/health').then(function(r){return r.json();}).then(function(h){
   USE_API=true;
   apiTag();
   addImportBtn();
-  return loadCfg().then(loadYears).then(function(){return window.loadMe();}).then(function(){dbModeRefresh();return loadYear(YEAR);}).then(function(){return loadLedger();}).then(function(){return loadPrefs();}).then(function(){return loadSources();}).then(function(){renderAuditApi();restoreNavState();})
+  return loadCfg().then(loadYears).then(function(){return window.loadMe();}).then(function(){dbModeRefresh();return loadYear(YEAR);}).then(function(){return loadLedger();}).then(function(){return loadPrefs();}).then(function(){return loadGPrefs();}).then(function(){return loadSources();}).then(function(){renderAuditApi();restoreNavState();})
     .then(function(){return api('GET','/api/version');}).then(function(r){SYNC.ver=r.v;SYNC.on=true;syncStart();syncMark('自动同步开 · '+_hhmm());}).catch(function(){});
 }).catch(function(){/* 无后端：本地空态模式 */});
 })();
@@ -3177,10 +3181,16 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
   var KB3LOCK={};try{KB3LOCK=JSON.parse(localStorage.getItem('hcfb_kb3lock')||'{}');}catch(e){}
   function isLocked(rid,field){return !!(KB3LOCK['col:'+field]||KB3LOCK['cell:'+rid+':'+field]);}
   window.kb3IsLocked=function(rid,field){return isLocked(rid,field);};
-  function saveLock(){try{localStorage.setItem('hcfb_kb3lock',JSON.stringify(KB3LOCK));}catch(e){}}
+  function saveLock(){try{localStorage.setItem('hcfb_kb3lock',JSON.stringify(KB3LOCK));}catch(e){}if(window.saveGPref)window.saveGPref('hcfb_kb3lock',KB3LOCK);}
   /* 单元格排版(纯视觉·存本地·不入库)：字体色/填充色/加粗/对齐/换行；cell:rid:字段 覆盖 col:字段 */
   var KB3FMT={};try{KB3FMT=JSON.parse(localStorage.getItem('hcfb_kb3fmt')||'{}');}catch(e){}
-  function saveFmt(){try{localStorage.setItem('hcfb_kb3fmt',JSON.stringify(KB3FMT));}catch(e){}}
+  function saveFmt(){try{localStorage.setItem('hcfb_kb3fmt',JSON.stringify(KB3FMT));}catch(e){}if(window.saveGPref)window.saveGPref('hcfb_kb3fmt',KB3FMT);}
+  /* 全局视觉层落库后回灌：把后端下发的排版/锁定/有效性写回本地对象并重绘（供 loadGPrefs 调用；KB3FMT/KB3LOCK 为本 IIFE 私有，外部够不着，故在此暴露钩子） */
+  window.kb3SetViewPrefs=function(o){if(!o)return;
+    if(o.hcfb_kb3fmt&&typeof o.hcfb_kb3fmt==='object'){KB3FMT=o.hcfb_kb3fmt;try{localStorage.setItem('hcfb_kb3fmt',JSON.stringify(KB3FMT));}catch(e){}}
+    if(o.hcfb_kb3lock&&typeof o.hcfb_kb3lock==='object'){KB3LOCK=o.hcfb_kb3lock;try{localStorage.setItem('hcfb_kb3lock',JSON.stringify(KB3LOCK));}catch(e){}}
+    if(o.hcfb_kb3valid&&typeof o.hcfb_kb3valid==='object'){KB3VALID=o.hcfb_kb3valid;window.KB3VALID=KB3VALID;try{localStorage.setItem('hcfb_kb3valid',JSON.stringify(KB3VALID));}catch(e){}}
+    try{if(typeof paintFmt==='function')paintFmt();if(typeof paintLocks==='function')paintLocks();}catch(e){}};
   function fmtOf(rid,field){var col=KB3FMT['col:'+field]||{},cell=KB3FMT['cell:'+rid+':'+field]||{},m={},k;for(k in col)m[k]=col[k];for(k in cell)m[k]=cell[k];return m;}
   function cellAt(r,c){var b=body();if(!b||r<0||r>=b.rows.length)return null;var row=b.rows[r];return (c<0||c>=row.cells.length)?null:row.cells[c];}
   function coordOf(td){var b=body();if(!b||!td)return null;var tr=td.closest('tr');var r=Array.prototype.indexOf.call(b.rows,tr);if(r<0)return null;return {r:r,c:td.cellIndex};}
@@ -3433,7 +3443,7 @@ function kb3ToggleAll(){kb3Open=!kb3Open;kb3ApplyClamp();}
   function valOf(rowEl,field){if(!rowEl||!field)return '';var rid=rowEl.getAttribute('data-rid');if(!rid||rid==='draft')return '';return STAGE.eff(rid,field);}
   /* 数据有效性设置弹窗（仿 WPS：允许=序列/日期/任何值，序列填来源+下拉箭头） */
   var VP=null,vpField=null;
-  function saveValid(){try{localStorage.setItem('hcfb_kb3valid',JSON.stringify(KB3VALID));}catch(e){}}
+  function saveValid(){try{localStorage.setItem('hcfb_kb3valid',JSON.stringify(KB3VALID));}catch(e){}if(window.saveGPref)window.saveGPref('hcfb_kb3valid',KB3VALID);}
   function syncVP(){var list=VP.querySelector('#kb3vType').value==='list';VP.querySelector('#kb3vSrcRow').style.display=list?'flex':'none';VP.querySelector('#kb3vDdRow').style.display=list?'flex':'none';}
   function buildValidPanel(){
     VP=document.createElement('div');VP.id='kb3ValidPanel';

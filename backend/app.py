@@ -1351,6 +1351,9 @@ def ledger_template():
 
 # ---------------- 看板视图偏好（列宽/固定列/隐藏列/隐藏行）：按用户存后端，换设备也在 ----------------
 UI_PREF_KEYS = {"hcfb_colw", "hcfb_kb3pin", "hcfb_kb3colhide", "hcfb_kb3hide"}
+# 全局视觉层设置（所有人/所有设备共享）：看板3 台账排版/锁定/有效性。复用 ui_prefs 表，user_id 用 __global__ 哨兵
+GLOBAL_PREF_KEYS = {"hcfb_kb3fmt", "hcfb_kb3lock", "hcfb_kb3valid"}
+GLOBAL_PREF_UID = "__global__"
 
 
 @app.get("/api/prefs")
@@ -1380,6 +1383,34 @@ def put_pref(key: str, p: PrefSet, x_user: str = Header("bonniewbli")):
             "ON CONFLICT(user_id,k) DO UPDATE SET v=excluded.v,updated_at=excluded.updated_at",
             (x_user, key, json.dumps(p.value, ensure_ascii=False), now()),
         )
+    return {"ok": True}
+
+
+@app.get("/api/gpref")
+def get_gpref():
+    """全局视觉层设置（排版/锁定/有效性）：所有人共享，无需登录即可读。"""
+    with db() as c:
+        out = {}
+        for r in c.execute("SELECT k,v FROM ui_prefs WHERE user_id=?", (GLOBAL_PREF_UID,)):
+            try:
+                out[r["k"]] = json.loads(r["v"])
+            except (ValueError, TypeError):
+                pass
+        return out
+
+
+@app.put("/api/gpref/{key}")
+def put_gpref(key: str, p: PrefSet, x_user: str = Header("bonniewbli")):
+    if key not in GLOBAL_PREF_KEYS:
+        raise HTTPException(422, f"未知全局偏好键「{key}」（可存：{','.join(sorted(GLOBAL_PREF_KEYS))}）")
+    with db() as c:
+        require_writer(c, x_user)  # 写权限按真实用户校验；存储落 __global__ 哨兵（全员共享）
+        c.execute(
+            "INSERT INTO ui_prefs(user_id,k,v,updated_at) VALUES(?,?,?,?) "
+            "ON CONFLICT(user_id,k) DO UPDATE SET v=excluded.v,updated_at=excluded.updated_at",
+            (GLOBAL_PREF_UID, key, json.dumps(p.value, ensure_ascii=False), now()),
+        )
+        _audit(c, x_user, "全局视觉设置", f"更新「{key}」（全员共享·{ {'hcfb_kb3fmt':'排版','hcfb_kb3lock':'锁定','hcfb_kb3valid':'有效性'}.get(key, key) }）")
     return {"ok": True}
 
 
