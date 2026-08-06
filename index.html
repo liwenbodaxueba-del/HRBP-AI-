@@ -1343,7 +1343,7 @@ function tr(cls,label,arr,opt){
     var anchorMonth=opt.editMonths&&opt.editMonths.indexOf(m)>=0;  // editMonths=硬约束:只放开指定月(如法定HC锚定月),并豁免已发生月锁定；即便整行编辑态也不放开其他月
     var monthOK=opt.editMonths?anchorMonth:true;
     var _deptAnchorOK=opt.deptAnchor&&anchorMonth&&(window.CUR_DEPT||'集团')!=='集团';  // 期初锚定(如看板2法定HC·1月)属部门级BP录入：含中心的部也放开，仅集团(各部门加总)保持只读
-    var editable=opt.edit&&monthOK&&(anchorMonth||m>=lock||(rowEdit&&!opt.editMonths&&!opt.futureOnly))&&!RO&&(!isDeptAgg()||_deptAnchorOK);  // 行编辑态放宽全月可填；部级汇总(含中心)只读，唯期初锚定豁免
+    var editable=opt.edit&&monthOK&&(anchorMonth||(opt.pastOnly?m<lock:(m>=lock||(rowEdit&&!opt.editMonths&&!opt.futureOnly))))&&!RO&&(!isDeptAgg()||_deptAnchorOK);  // pastOnly=仅实际月(m<lock)可编；否则未发生月/行编辑态放宽；部级汇总只读唯期初锚定豁免
     var mut=(opt.mute==='past'&&m<lock)||(opt.mute==='future'&&m>=lock);  // 估/实双轨标灰
     var cl=(m<lock&&opt.lockShade?'lock ':'')+(editable?'edit adj ':'')+(opt.neg&&v<0?'neg ':'')+(mut?'mut ':'');
     var disp=(v===''||(v===0&&opt.hideZero))?'':(opt.negRow&&v!==0?'−'+v:(opt.plus&&v>0?'+'+v:v));
@@ -1429,8 +1429,8 @@ function render(){
     // 预估口径
     if(cfgOn('o_sys'))h+=tr('sub',cfgName('o_sys','待流出 · 系统明确'),D.o_sys,{src:'o_sys',hideZero:true,tot:sum(D.o_sys),lockShade:true,mute:'past'});
     if(cfgOn('o_nat'))h+=tr('sub',cfgName('o_nat','待流出 · 自然流失预估')+natBadge(),D.o_nat,{src:'o_nat',hideZero:true,tot:sum(D.o_nat),lockShade:true,mute:'past'});
-    if(cfgOn('o_bp')){var eObp=cfgEdit('o_bp','all');h+=tr('sub',cfgName('o_bp','待流出 · 已明确非系统（BP）')+(eObp!=='no'?pen('o_bp'):''),D.o_bp,{src:'o_bp',key:'o_bp',edit:eObp!=='no',futureOnly:eObp==='future',hideZero:true,tot:sum(D.o_bp),lockShade:true,mute:'past'});}
-    if(cfgOn('o_act')){var eOact=cfgEdit('o_act','all');h+=tr('sub',cfgName('o_act','待流出 · 主动动作（BP）（调节项）')+(eOact!=='no'?pen('o_act'):''),D.o_act,{src:'o_act',key:'o_act',edit:eOact!=='no',futureOnly:eOact==='future',hideZero:true,tot:sum(D.o_act),lockShade:true,mute:'past'});}
+    if(cfgOn('o_bp')){var eObp=cfgEdit('o_bp','all');h+=tr('sub',cfgName('o_bp','待流出 · 已明确非系统（BP）')+(eObp!=='no'?pen('o_bp'):''),D.o_bp,{src:'o_bp',key:'o_bp',edit:eObp!=='no',futureOnly:eObp==='future',pastOnly:eObp==='past',hideZero:true,tot:sum(D.o_bp),lockShade:true,mute:'past'});}
+    if(cfgOn('o_act')){var eOact=cfgEdit('o_act','all');h+=tr('sub',cfgName('o_act','待流出 · 主动动作（BP）（调节项）')+(eOact!=='no'?pen('o_act'):''),D.o_act,{src:'o_act',key:'o_act',edit:eOact!=='no',futureOnly:eOact==='future',pastOnly:eOact==='past',hideZero:true,tot:sum(D.o_act),lockShade:true,mute:'past'});}
     h+=customRows('out');
     h+=extraRows('总流出（−）');
     if(!RO&&!isDeptAgg()&&secAllow('总流出（−）'))h+=addRowTr('out');  // 汇总部门只读·不可加分支(请在中心录入)
@@ -1466,9 +1466,9 @@ function render(){
       var campLbl=cfgName('camp','待流入 · 校招')
         +' <span class="badge snap" style="cursor:help" title="数仓下发·校招已offer待入职总数·实时刷新（待接入时显 —）">系统总数 '+(isN(campTgt)?campTgt:'—')+'</span>'
         +(eCamp!=='no'?pen('camp_off'):'');  // 🖊：右侧预估月 BP 手填分配（可手改权限见后台）
-      h+=tr('sub',campLbl,D.camp_off,{src:'camp',key:'camp_off',edit:eCamp!=='no',futureOnly:eCamp==='future',hideZero:true,tot:campTotDisp,lockShade:true,mute:'past'});
+      h+=tr('sub',campLbl,D.camp_off,{src:'camp',key:'camp_off',edit:eCamp!=='no',futureOnly:eCamp==='future',pastOnly:eCamp==='past',hideZero:true,tot:campTotDisp,lockShade:true,mute:'past'});
     }
-    if(cfgOn('i_incr')){var eIincr=cfgEdit('i_incr','all');h+=tr('sub',cfgName('i_incr','待流入 · 增量需求（BP）（调节项）')+(eIincr!=='no'?pen('i_incr'):''),D.i_incr,{src:'i_incr',key:'i_incr',edit:eIincr!=='no',futureOnly:eIincr==='future',hideZero:true,tot:sum(D.i_incr),lockShade:true,mute:'past'});}
+    if(cfgOn('i_incr')){var eIincr=cfgEdit('i_incr','all');h+=tr('sub',cfgName('i_incr','待流入 · 增量需求（BP）（调节项）')+(eIincr!=='no'?pen('i_incr'):''),D.i_incr,{src:'i_incr',key:'i_incr',edit:eIincr!=='no',futureOnly:eIincr==='future',pastOnly:eIincr==='past',hideZero:true,tot:sum(D.i_incr),lockShade:true,mute:'past'});}
     h+=customRows('inn');
     h+=extraRows('总流入（＋）');
     if(!RO&&!isDeptAgg()&&secAllow('总流入（＋）'))h+=addRowTr('inn');  // 汇总部门只读·不可加分支(请在中心录入)

@@ -819,7 +819,7 @@ function renderProjs(){
       var editableRow=(p.srcCls==='bp'||p.key==='camp');  // BP行 + 待流入·校招(分配·手填)
       var em=p.edit||(editableRow?(p.key==='camp'?'future':'all'):'no');
       var editCell=editableRow
-        ? '<select onchange="pjEdit('+i+',this.value)"><option value="no"'+(em==='no'?' selected':'')+'>不可改</option><option value="all"'+(em==='all'?' selected':'')+'>全年可改</option><option value="future"'+(em==='future'?' selected':'')+'>仅未发生月可改</option></select>'
+        ? '<select onchange="pjEdit('+i+',this.value)"><option value="no"'+(em==='no'?' selected':'')+'>不可改</option><option value="all"'+(em==='all'?' selected':'')+'>全年可改</option><option value="past"'+(em==='past'?' selected':'')+'>仅实际月可改</option><option value="future"'+(em==='future'?' selected':'')+'>仅预估月可改</option></select>'
         : '<span style="color:#94A3B8;font-size:12px" title="系统取数项，不开放手改">系统取数·—</span>';
       h+='<tr><td><input type="text" value="'+esc(p.name)+'" onchange="pjName('+i+',this.value)">'+(p.sys?'':' <span class="chip demo">自增</span>')+'</td>'
         +'<td><span class="chip '+p.srcCls+'">'+esc(p.src)+'</span></td>'
@@ -834,7 +834,7 @@ function renderProjs(){
 }
 function pjName(i,v){var o=projs[i].name;v=v.trim();if(!v){renderProjs();return;}projs[i].name=v;log('改项目名称','「'+o+'」→「'+v+'」'+(projs[i].unbind?'（已解绑：不回溯已发生月，历史快照保持原口径）':'（联动刷新历史）'));}
 function pjAdd(i,v){projs[i].add=v;log('改可手动添加','「'+projs[i].name+'」→ '+(v?'允许 ⊕ 分支':'禁止手动添加'));}
-function pjEdit(i,v){projs[i].edit=v;var lbl={no:'不可改（收起🖊）',all:'全年可改（行上出🖊）','future':'仅未发生月可改（行上出🖊）'};log('改可手改权限','「'+projs[i].name+'」→ '+(lbl[v]||v));}
+function pjEdit(i,v){projs[i].edit=v;var lbl={no:'不可改（收起🖊）',all:'全年可改（行上出🖊）','past':'仅实际月(已发生月)可改','future':'仅预估月(未发生月)可改'};log('改可手改权限','「'+projs[i].name+'」→ '+(lbl[v]||v));}
 function pjUnb(i,v){projs[i].unbind=v;log('改前期数据解绑','「'+projs[i].name+'」→ '+(v?'解绑（变更不回溯已发生月）':'联动（变更刷新全部历史）'));}
 function pjOn(i,v){projs[i].on=v;log(v?'启用项目':'停用项目','「'+projs[i].name+'」'+(v?'':(projs[i].unbind?'（前期数据封存于历史快照）':'（含历史一并隐藏）')));}
 function pjDel(i){var p=projs[i];projs.splice(i,1);log('删除项目','「'+p.name+'」'+(p.unbind?'（前期数据封存）':''));renderProjs();}
