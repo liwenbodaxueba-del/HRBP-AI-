@@ -605,7 +605,7 @@ var LINES_DEFAULT=[
 ];
 var lines;try{lines=JSON.parse(localStorage.getItem('hcfb_lines')||'null');}catch(e){lines=null;}
 if(!lines||!lines.length){lines=JSON.parse(JSON.stringify(LINES_DEFAULT));try{localStorage.setItem('hcfb_lines',JSON.stringify(lines));}catch(e){}}
-lines.forEach(function(l){if(!l.bps){var d=LINES_DEFAULT.filter(function(x){return x.name===l.name;})[0];l.bps=(d&&d.bps)?d.bps.slice():[];}});  // 旧数据回填线级BP
+(function(){var ch=false;lines.forEach(function(l){if(!l.bps){var d=LINES_DEFAULT.filter(function(x){return x.name===l.name;})[0];l.bps=(d&&d.bps)?d.bps.slice():[];ch=true;}});if(ch)try{localStorage.setItem('hcfb_lines',JSON.stringify(lines));}catch(e){}})();  // 旧数据回填线级BP并持久化(板端同源读取)
 function saveLines(){try{localStorage.setItem('hcfb_lines',JSON.stringify(lines));}catch(e){}}
 function allDepts(){return DEPT_TREE.filter(function(n){return n.name!=='集团';}).map(function(n){return n.name;});}
 function lnAssigned(){var m={};lines.forEach(function(l){(l.depts||[]).forEach(function(d){(m[d]=m[d]||[]).push(l.name);});});return m;}  // dept→[线名...]（可重复归线·线间无加总关系）
