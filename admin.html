@@ -418,7 +418,7 @@ function acctRow(a,depth){
   var me=(a.id==='bonniewbli'),meLock=me&&!a.is_sysadmin;  // 本人权限不可自改；系统管理员例外(可配自己)
   var roleSel=meLock?('<span style="font-size:13px;color:var(--ink2)" title="本人角色不可自改，须由系统管理员配置">'+esc(a.role)+'</span>')
     :'<select onchange="accRole('+i+',this.value)"><option'+(a.role==='管理员'?' selected':'')+'>管理员</option><option'+(a.role==='HRBP·可编辑'?' selected':'')+'>HRBP·可编辑</option><option'+(a.role==='领导·只读'?' selected':'')+'>领导·只读</option></select>';
-  return '<tr><td style="padding-left:'+(depth*20+24)+'px">'+esc(a.id)+(a.demo?' <span class="chip demo">示例</span>':'')+(a.is_head?' <span class="chip ok">部门BP</span>':'')+'</td>'
+  return '<tr><td style="padding-left:'+(depth*20+24)+'px">'+esc(a.id)+(a.demo?' <span class="chip demo">示例</span>':'')+(a.is_head&&!a.is_sysadmin?' <span class="chip ok">部门BP</span>':'')+'</td>'
     +'<td>'+esc(a.name)+(a.is_sysadmin?' <span class="chip" style="background:#DBEAFE;color:#1E40AF;font-weight:600" title="系统管理员：全部可编辑（含改自己）">系统管理员</span>':'')+'</td>'
     +'<td>'+roleSel+'</td><td>'+pmCellByDept(a.dept)+'</td>'
     +'<td class="c">'+kbPermCell(a,i)+'</td>'
