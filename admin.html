@@ -268,7 +268,7 @@ body.navfold .navtg{left:8px;}
 <!-- 中心清单 modal -->
 <div class="mask" id="maskCenters"><div class="modal" style="width:660px;max-height:82vh;display:flex;flex-direction:column">
   <h3 id="vcTitle">部门中心清单</h3>
-  <div class="meta">部门为一级层级，中心为二级层级；已建子PM组的中心在该 BP 下降为三级。清单正式版由 iOA 组织架构同步。</div>
+  <div class="meta" id="vcMeta">部门为一级层级，中心为二级层级；已建子PM组的中心在该 BP 下降为三级。清单正式版由 iOA 组织架构同步。</div>
   <div class="row" style="justify-content:flex-end;margin:-2px 0 8px"><button class="btn gray" id="vcSortBtn" onclick="vcToggleSort()" style="font-size:12px;padding:4px 12px">拼音升序 A→Z</button></div>
   <div class="ctrgrid" id="vcGrid"></div>
   <div class="row" style="justify-content:space-between;align-items:center;border-top:1px solid var(--b100);padding-top:14px"><span class="hint" id="vcCount" style="margin:0"></span><button class="btn gray" onclick="closeCenters()">关闭</button></div>
@@ -282,7 +282,7 @@ body.navfold .navtg{left:8px;}
     <div class="pmcol"><h4>部门清单（勾选归入本线级）</h4>
       <div class="pmtools"><input type="text" class="pmsearch" id="lnSearch" placeholder="搜索部门…" oninput="boxFilter('lnGrid',this.value,'lnAll')"><label class="pmall"><input type="checkbox" id="lnAll" onchange="boxToggleAll('lnGrid',this.checked);lnPreview()">全选</label></div>
       <div class="pmlist" id="lnGrid"></div>
-      <div class="pmmk"><input type="text" id="lnName" placeholder="线级看板名称，如：云产品线"><button class="btn" id="lnBtn" onclick="lnSubmit()">创建</button></div>
+      <div class="pmmk"><input type="text" id="lnName" placeholder="线级看板名称，如：云产品线"><button class="btn" id="lnBtn" onclick="lnSubmit()">创建</button><button class="btn" id="lnDelBtn" style="display:none;margin-left:8px;background:#FDECEC;color:#8C2B2B;border:1px solid #F3B4B4" onclick="lnDelFromModal()">解散线级</button></div>
       <label class="pmsum"><input type="checkbox" id="lnSum" onchange="lnPreview()"> 展示求和（看板顶层线名可点击 · 汇总线内各部门 · 只读）</label>
       <div class="hint" id="lnErr" style="display:none;color:var(--red);margin-top:6px">请填写线级名称并至少勾选一个部门</div>
     </div>
@@ -493,17 +493,23 @@ function boxSyncAll(listId,allId){var all=document.getElementById(allId);if(!all
   boxLabels(listId).forEach(function(l){if(l.style.display==='none')return;var c=l.querySelector('input[type=checkbox]');if(c&&!c.disabled){tot++;if(c.checked)on++;}});
   all.checked=(tot>0&&on===tot);}
 function deptCenters(dept){for(var i=0;i<DEPT_TREE.length;i++)if(DEPT_TREE[i].name===dept)return (DEPT_TREE[i].children||[]).slice();return [];}
-var vcDept='',vcSortMode='asc';  // 中心清单排序：asc=拼音升序 / desc=降序（localeCompare 'zh' 拼音序·统一口径）
+// 清单弹窗（中心清单 / 部门清单 共用，只读展示 + 拼音升降序，与部门维度架构一致）
+var vcItems=[],vcSortMode='asc',vcUnit='个中心',vcEmpty='该部门尚未录入中心清单（待接入 iOA 组织架构后同步）。';
 function _vcSortLabel(){return vcSortMode==='asc'?'拼音升序 A→Z':'拼音降序 Z→A';}
-function _vcRender(){var list=deptCenters(vcDept).slice().sort(function(x,y){return String(x).localeCompare(String(y),'zh-Hans-CN');});if(vcSortMode==='desc')list.reverse();
-  document.getElementById('vcGrid').innerHTML=list.length?list.map(function(c){return '<label style="cursor:default">· '+esc(c)+'</label>';}).join(''):'<div class="hint" style="grid-column:1/-1;padding:10px 4px;margin:0">该部门尚未录入中心清单（待接入 iOA 组织架构后同步）。</div>';
-  document.getElementById('vcCount').textContent=list.length?('共 '+list.length+' 个中心'):'待同步';}
+function _vcRender(){var list=vcItems.slice().sort(function(x,y){return String(x).localeCompare(String(y),'zh-Hans-CN');});if(vcSortMode==='desc')list.reverse();
+  document.getElementById('vcGrid').innerHTML=list.length?list.map(function(c){return '<label style="cursor:default">· '+esc(c)+'</label>';}).join(''):'<div class="hint" style="grid-column:1/-1;padding:10px 4px;margin:0">'+vcEmpty+'</div>';
+  document.getElementById('vcCount').textContent=list.length?('共 '+list.length+' '+vcUnit):'待同步';}
 function vcToggleSort(){vcSortMode=(vcSortMode==='asc')?'desc':'asc';var b=document.getElementById('vcSortBtn');if(b)b.textContent=_vcSortLabel();_vcRender();}
-function viewCenters(dept,e){if(e)e.stopPropagation();vcDept=dept;
-  document.getElementById('vcTitle').textContent=dept+' · 中心清单';
+function _vcShow(title,meta,items,unit,empty){vcItems=(items||[]).slice();vcUnit=unit;vcEmpty=empty;
+  document.getElementById('vcTitle').textContent=title;
+  var mt=document.getElementById('vcMeta');if(mt)mt.textContent=meta;
   var b=document.getElementById('vcSortBtn');if(b)b.textContent=_vcSortLabel();
   _vcRender();
   document.getElementById('maskCenters').classList.add('on');}
+function viewCenters(dept,e){if(e)e.stopPropagation();
+  _vcShow(dept+' · 中心清单','部门为一级层级，中心为二级层级；已建子PM组的中心在该 BP 下降为三级。清单正式版由 iOA 组织架构同步。',deptCenters(dept),'个中心','该部门尚未录入中心清单（待接入 iOA 组织架构后同步）。');}
+function viewLineDepts(i,e){if(e)e.stopPropagation();var l=lines[i];if(!l)return;
+  _vcShow(l.name+' · 部门清单','线级为一级层级，线内部门为二级层级。清单正式版由 iOA 组织架构同步。',l.depts,'个部门','该线级尚未归入部门。');}
 function closeCenters(){document.getElementById('maskCenters').classList.remove('on');}
 var pmIdx=-1,pmDept='',pmCenters=[],pmGroups=[];
 function openPm(dept){pmDept=(dept==='集团'?'':dept)||'';pmCenters=deptCenters(pmDept).slice().sort(function(a,b){return String(a).localeCompare(String(b),'zh-Hans-CN');});  // 子PM建组·中心清单同按拼音序（与查看中心清单统一）
@@ -562,6 +568,7 @@ function openLn(idx){
     return '<label><input type="checkbox" value="'+esc(d)+'" '+(mine?'checked ':'')+'>'+esc(d)+(others.length?' <span style="font-size:10.5px;color:var(--ink3);background:#EEF2F8;border-radius:8px;padding:1px 7px;margin-left:6px">也在「'+others.map(esc).join('、')+'」</span>':'')+'</label>';}).join('');
   document.getElementById('lnTitle').textContent=cur?('编辑线级看板 · '+cur.name):'创建线级看板';
   document.getElementById('lnBtn').textContent=cur?'保存修改':'创建';
+  document.getElementById('lnDelBtn').style.display=cur?'':'none';  // 解散仅编辑态可见（操作移出列表行）
   document.getElementById('lnName').value=cur?cur.name:'';document.getElementById('lnErr').style.display='none';
   document.getElementById('lnSum').checked=cur?(cur.sum!==false):true;  // 兼容旧数据：未设过 sum 的线视为开
   document.getElementById('lnSearch').value='';document.getElementById('lnAll').checked=false;
@@ -585,13 +592,14 @@ function lnSubmit(){
 }
 function lnDel(i){if(!window.confirm('解散线级「'+lines[i].name+'」？线内部门恢复为一级。'))return;var nm=lines[i].name;lines.splice(i,1);saveLines();if(typeof log==='function')log('线级看板','解散 '+nm+'· 已同步看板线导航');lnRender();}
 function lnEditOpen(i,e){if(e)e.stopPropagation();openLn(i);}
+function lnDelFromModal(){var i=lnEdit;if(i<0)return;closeLn();lnDel(i);}  // 编辑弹窗内解散：先关弹窗再走 lnDel(带确认)
 function lnRender(){
   var body=document.getElementById('lnBody');if(!body)return;
   if(!lines.length){body.innerHTML='<tr><td colspan="7"><span class="hint" style="margin:0">尚未创建线级看板——当前所有部门均为一级层级，不出现在层级预览。</span></td></tr>';}
   else{
     body.innerHTML=lines.map(function(l,i){var nd=(l.depts||[]).length,nm=String(l.name).replace(/'/g,'');
       return '<tr class="grp"><td colspan="7" style="padding:7px 12px;cursor:pointer" onclick="lnEditOpen('+i+',event)">'+esc(l.name)+'<span style="color:var(--ink3);font-weight:400;font-size:12px;margin-left:8px">'+nd+' 个部门</span>'+(l.sum!==false?'<span class="chip" style="background:#E7F6EF;color:var(--green);margin-left:6px">求和</span>':'<span class="chip" style="background:#F1F5F9;color:var(--ink3);margin-left:6px">无求和</span>')
-        +'<span class="rowdel" style="margin-left:12px" onclick="event.stopPropagation();lnDel('+i+')">解散线级</span></td></tr>'
+        +'<span class="addp" onclick="event.stopPropagation();viewLineDepts('+i+')" title="查看本线级包含的部门清单">部门清单</span></td></tr>'
         +'<tr><td class="sub" style="padding-left:30px;color:var(--ink3)">未指定 <span class="chip bp">线级BP</span></td>'
         +'<td><span style="color:var(--ink3)">—</span></td>'
         +'<td><span style="color:var(--ink3)">—</span></td>'
