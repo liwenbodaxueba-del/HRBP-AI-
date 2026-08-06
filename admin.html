@@ -170,8 +170,8 @@ body.navfold .navtg{left:8px;}
 <!-- ================= 账号与权限 ================= -->
 <div class="view on" id="v-acct">
   <h2 class="sec">部门维度权限设置（iOA 统一登录）</h2>
-  <div class="note"><b>角色模型</b>：管理员 = 全部配置+全看板读写；HRBP·可编辑 = 本部门空间看板读写（调节录入/导入/导出）；领导·只读 = 本部门空间看板只读。
-  权限按<b>部门空间</b>隔离；看板0-3 可按账号单独勾选。带 <span class="chip demo">示例</span> 的为演示行，正式版从 iOA 组织架构同步。</div>
+  <div class="note"><b>权限模型</b>：系统管理员 = 全部配置 + 全看板读写；<b>部门BP = 该部门管理员</b>，可看整个部门（各中心数据求和）并修改本部门空间看板。
+  细粒度由右侧<b>「看板权限」</b>列按 看板1-4 单独设「编辑 / 查阅 / 无」（已取代原「角色」列）；权限按<b>部门空间</b>隔离。带 <span class="chip demo">示例</span> 的为演示行，正式版从 iOA 组织架构同步。</div>
   <div class="bar">
     <button class="btn" onclick="openAcct()">＋ 添加账号</button>
     <button class="btn gray" onclick="readBpRelations()" title="从 iOA 读取 BP 名单→所属部门→部门权限关系链（预留窗口·待接入）">🔗 读取BP关系链（iOA）<span id="bpRelState" class="chip" style="background:var(--gold);color:#92400E;margin-left:6px">待接入</span></button>
@@ -415,12 +415,9 @@ function saveKbPerm(){var i=acctIdx(_kpId);if(i<0){closeKbPerm();return;}
 function closeKbPerm(){document.getElementById('maskKbPerm').classList.remove('on');_kpId=null;}
 function acctRow(a,depth){
   var i=acctIdx(a.id);
-  var me=(a.id==='bonniewbli'),meLock=me&&!a.is_sysadmin;  // 本人权限不可自改；系统管理员例外(可配自己)
-  var roleSel=meLock?('<span style="font-size:13px;color:var(--ink2)" title="本人角色不可自改，须由系统管理员配置">'+esc(a.role)+'</span>')
-    :'<select onchange="accRole('+i+',this.value)"><option'+(a.role==='管理员'?' selected':'')+'>管理员</option><option'+(a.role==='HRBP·可编辑'?' selected':'')+'>HRBP·可编辑</option><option'+(a.role==='领导·只读'?' selected':'')+'>领导·只读</option></select>';
   return '<tr><td style="padding-left:'+(depth*20+24)+'px">'+esc(a.id)+(a.demo?' <span class="chip demo">示例</span>':'')+(a.is_head&&!a.is_sysadmin?' <span class="chip ok">部门BP</span>':'')+'</td>'
     +'<td>'+esc(a.name)+(a.is_sysadmin?' <span class="chip" style="background:#DBEAFE;color:#1E40AF;font-weight:600" title="系统管理员：全部可编辑（含改自己）">系统管理员</span>':'')+'</td>'
-    +'<td>'+roleSel+'</td><td>'+pmCellByDept(a.dept)+'</td>'
+    +'<td>'+pmCellByDept(a.dept)+'</td>'
     +'<td class="c">'+kbPermCell(a,i)+'</td>'
     +'<td class="c">'+(a.id==='bonniewbli'?'<span style="font-size:12px;color:var(--ink3)">启用</span>':'<label class="sw"><input type="checkbox" '+(a.on?'checked':'')+' onchange="accOn('+i+',this.checked)"><span class="tk"></span></label>')+'</td>'
     +'<td class="c"><button class="btn gray" style="padding:2px 8px;font-size:12px" onclick="ioaSync(\''+a.id.replace(/'/g,'')+'\')" title="按 iOA 组织架构回填 org_path/职级/上级（正式版）">iOA同步</button> '
@@ -430,13 +427,13 @@ function renderAccts(){
   var byDept={},ungrouped=[];
   accts.forEach(function(a){var d=a.dept;if(!d||d==='集团')ungrouped.push(a);else (byDept[d]=byDept[d]||[]).push(a);});
   var _deptN=DEPT_TREE.filter(function(n){return n.name!=='集团';}).length;
-  var h='<thead><tr><th>部门/账号 <span style="font-weight:400;font-size:12px;color:var(--ink3)">· 共 '+_deptN+' 个部门</span></th><th style="width:160px">姓名</th><th style="width:140px">角色</th><th style="width:200px">设置子PM看板</th><th class="c" style="width:190px">看板权限（编辑/查阅）</th><th class="c">启用</th><th class="c" style="width:120px">操作</th></tr></thead><tbody>';
+  var h='<thead><tr><th>部门/账号 <span style="font-weight:400;font-size:12px;color:var(--ink3)">· 共 '+_deptN+' 个部门</span></th><th style="width:160px">姓名</th><th style="width:200px">设置子PM看板</th><th class="c" style="width:190px">看板权限（编辑/查阅）</th><th class="c">启用</th><th class="c" style="width:120px">操作</th></tr></thead><tbody>';
   ungrouped.forEach(function(a){h+=acctRow(a,0);});  // 系统管理员/全局(集团) 置顶
   var seen={};
   function deptBlock(dept){
     if(seen[dept])return;seen[dept]=1;
     var list=byDept[dept]||[],collapsed=ACCT_COLLAPSE[dept],dq=dept.replace(/'/g,'');
-    h+='<tr><td colspan="7" style="background:#F1F5F9;padding:6px 8px;cursor:pointer;font-weight:600" onclick="acctToggle(\''+dq+'\')">'
+    h+='<tr><td colspan="6" style="background:#F1F5F9;padding:6px 8px;cursor:pointer;font-weight:600" onclick="acctToggle(\''+dq+'\')">'
       +(collapsed?'▸':'▾')+' '+esc(dept)+' <span class="chip'+(list.length?'':' off')+'">'+(list.length?list.length+' 人':'待指定部门BP')+'</span>'
       +'<button class="btn gray" style="margin-left:10px;padding:1px 8px;font-size:11px;font-weight:400" onclick="event.stopPropagation();openAcctInDept(\''+dq+'\')" title="在本部门添加人员">＋加人</button>'
       +'<span class="addp" onclick="event.stopPropagation();viewCenters(\''+dq+'\')" title="查看本部门中心清单">中心清单</span></td></tr>';
@@ -444,7 +441,6 @@ function renderAccts(){
       if(list.length){list.forEach(function(a){h+=acctRow(a,1);});}
       else{h+='<tr>'
         +'<td class="sub" style="padding-left:44px;color:var(--ink3)">未指定 <span class="chip bp">部门BP</span></td>'
-        +'<td><span style="color:var(--ink3)">—</span></td>'
         +'<td><span style="color:var(--ink3)">—</span></td>'
         +'<td>'+pmCellByDept(dept)+'</td>'
         +'<td class="c"><span style="font-size:12px;color:var(--ink3)">—（未指定BP）</span></td>'
