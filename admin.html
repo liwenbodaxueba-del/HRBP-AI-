@@ -429,7 +429,8 @@ function acctRow(a,depth){
 function renderAccts(){
   var byDept={},ungrouped=[];
   accts.forEach(function(a){var d=a.dept;if(!d||d==='集团')ungrouped.push(a);else (byDept[d]=byDept[d]||[]).push(a);});
-  var h='<thead><tr><th>部门/账号</th><th style="width:160px">姓名</th><th style="width:140px">角色</th><th style="width:200px">设置子PM看板</th><th class="c" style="width:190px">看板权限（编辑/查阅）</th><th class="c">启用</th><th class="c" style="width:120px">操作</th></tr></thead><tbody>';
+  var _deptN=DEPT_TREE.filter(function(n){return n.name!=='集团';}).length;
+  var h='<thead><tr><th>部门/账号 <span style="font-weight:400;font-size:12px;color:var(--ink3)">· 共 '+_deptN+' 个部门</span></th><th style="width:160px">姓名</th><th style="width:140px">角色</th><th style="width:200px">设置子PM看板</th><th class="c" style="width:190px">看板权限（编辑/查阅）</th><th class="c">启用</th><th class="c" style="width:120px">操作</th></tr></thead><tbody>';
   ungrouped.forEach(function(a){h+=acctRow(a,0);});  // 系统管理员/全局(集团) 置顶
   var seen={};
   function deptBlock(dept){
@@ -589,8 +590,7 @@ function lnRender(){
   if(!lines.length){body.innerHTML='<tr><td colspan="7"><span class="hint" style="margin:0">尚未创建线级看板——当前所有部门均为一级层级，不出现在层级预览。</span></td></tr>';}
   else{
     body.innerHTML=lines.map(function(l,i){var nd=(l.depts||[]).length,nm=String(l.name).replace(/'/g,'');
-      return '<tr class="grp"><td colspan="7" style="padding:7px 12px;cursor:pointer" onclick="lnEditOpen('+i+',event)">'+esc(l.name)+'<span class="chip">'+nd+' 个部门</span>'+(l.sum!==false?'<span class="chip" style="background:#E7F6EF;color:var(--green);margin-left:6px">求和</span>':'<span class="chip" style="background:#F1F5F9;color:var(--ink3);margin-left:6px">无求和</span>')
-        +'<span class="addp" onclick="event.stopPropagation();lnEditOpen('+i+',event)">部门清单 · 编辑</span>'
+      return '<tr class="grp"><td colspan="7" style="padding:7px 12px;cursor:pointer" onclick="lnEditOpen('+i+',event)">'+esc(l.name)+'<span style="color:var(--ink3);font-weight:400;font-size:12px;margin-left:8px">'+nd+' 个部门</span>'+(l.sum!==false?'<span class="chip" style="background:#E7F6EF;color:var(--green);margin-left:6px">求和</span>':'<span class="chip" style="background:#F1F5F9;color:var(--ink3);margin-left:6px">无求和</span>')
         +'<span class="rowdel" style="margin-left:12px" onclick="event.stopPropagation();lnDel('+i+')">解散线级</span></td></tr>'
         +'<tr><td class="sub" style="padding-left:30px;color:var(--ink3)">未指定 <span class="chip bp">线级BP</span></td>'
         +'<td><span style="color:var(--ink3)">—</span></td>'
