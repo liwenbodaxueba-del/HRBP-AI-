@@ -235,9 +235,9 @@ def init_db():
                 c.execute(f'ALTER TABLE accounts ADD COLUMN {_col} TEXT DEFAULT \'["集团"]\'')
             except sqlite3.OperationalError:
                 pass  # 列已存在
-        _ALLD = '["集团","云产品一部","云产品二部","云产品三部","云产品四部","云产品五部"]'
-        # 内置管理员两处都看全；demo：hrhead 看板1看全、看板0只看部分（演示"看板1能看·看板0不需要"）
-        c.execute("UPDATE accounts SET kb1_depts=?, kb0_depts=? WHERE id='bonniewbli' AND (kb0_depts IS NULL OR kb0_depts='' OR kb0_depts='[\"集团\"]')",
+        # bonniewbli（内置系统管理员）= 全部部门：集团 + ALL_DEPTS 动态生成（部门增补自动跟随），无条件覆盖 → 现有库重启即更新，不只新库
+        _ALLD = '[' + ','.join('"' + d + '"' for d in (["集团"] + list(ALL_DEPTS))) + ']'
+        c.execute("UPDATE accounts SET kb1_depts=?, kb0_depts=? WHERE id='bonniewbli'",
                   (_ALLD, _ALLD))
         c.execute("UPDATE accounts SET kb1_depts=?, kb0_depts=? WHERE id='demo-bp1'", ('["云产品一部"]', '["云产品一部"]'))
         c.execute("UPDATE accounts SET kb1_depts=?, kb0_depts=? WHERE id='demo-bp2'", ('["云产品一部"]', '["云产品一部"]'))
@@ -376,9 +376,6 @@ def manageable_ids(c, granter_id):
             if can_manage(c, granter_id, r["id"])]
 
 
-init_db()
-
-
 # ---------------- 识空取数（服务端·与前端同口径） ----------------
 # 部门→中心（与前端 index.html/admin.html DEPT_TREE 一致）。部级看板数据 = 其各中心加总（部为只读汇总，数据在中心录入）
 _DEPT_CHILDREN = {
@@ -398,6 +395,9 @@ ALL_DEPTS = ["云产品一部", "云产品二部", "云产品三部", "云产品
              "企业中台产品部", "社交协作产品部", "ima产品中心",
              "云产品技术支持部", "云技术运营服务部", "云运营管理部", "云采购供应管理部",
              "港澳台及国际业务部", "CSIG产品管理支持中心"]
+
+# 建库/迁移须在 ALL_DEPTS 定义之后（init_db 内用 ALL_DEPTS 给 bonniewbli 赋全部门权限）
+init_db()
 
 
 def is_agg_dept(dept):
