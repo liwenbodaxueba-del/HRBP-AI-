@@ -669,7 +669,10 @@ def edit_cell(year: int, e: CellEdit, dept: str = "集团", x_user: str = Header
         if not e.metric.startswith("branch:") and e.metric not in EXTRA_METRICS:
             proj = c.execute("SELECT * FROM projects WHERE key=?", (e.metric,)).fetchone()
         proj_edit = (proj["edit"] if proj is not None and "edit" in proj.keys() else "") or ""
-        locked = base_metric not in PLAN_METRICS and e.month <= yr["lock_month"] and proj_edit != "all"
+        # 'past'=仅实际月(已发生/锁定月)可改·未发生月拒改；'all'=全年；'future'/''=仅预估月/默认(实际月锁定)
+        if proj_edit == "past" and base_metric not in PLAN_METRICS and e.month > yr["lock_month"]:
+            raise HTTPException(422, f"「{proj['name'] if proj is not None else e.metric}」仅『实际月』(已发生月)可改，{e.month}月为预估月，不可改")
+        locked = base_metric not in PLAN_METRICS and e.month <= yr["lock_month"] and proj_edit not in ("all", "past")
         if locked and e.metric.startswith("branch:"):
             pb = c.execute("SELECT sec FROM branches WHERE id=?", (int(e.metric.split(":", 1)[1]),)).fetchone()
             if pb and pb["sec"] in PLAN_BRANCH_SECS:
