@@ -189,7 +189,7 @@ body.navfold .navtg{left:8px;}
     <span class="hint" style="margin:0">从部门清单里勾选若干部门并命名，即生成一条线级看板；线内部门降为二级。</span>
   </div>
   <div class="tblwrap" style="margin-bottom:14px"><table class="adm">
-    <thead><tr><th>线级 / 账号</th><th style="width:160px">姓名</th><th style="width:140px">角色</th><th style="width:200px">设置线级看板</th><th class="c" style="width:150px">线级权限</th><th class="c">启用</th><th class="c" style="width:120px">操作</th></tr></thead>
+    <thead><tr><th>线级 / 账号</th><th style="width:200px">设置线级看板</th><th class="c" style="width:120px">操作</th></tr></thead>
     <tbody id="lnBody"></tbody>
   </table></div>
   <div class="hint" style="margin:0">层级预览在「设置线级看板」弹窗里（点行/⚙ 打开）——线级=一级、线内部门=二级，父级可收起。</div>
@@ -242,8 +242,8 @@ body.navfold .navtg{left:8px;}
   </div>
   <label>所属看板1部门（决定分组·看板1只见本部门）</label>
   <div style="padding:8px 12px;background:#F1F5F9;border-radius:8px;font-size:13px;font-weight:600;color:var(--navy)"><span id="aDeptShow">（未分配部门）</span></div>
-  <div class="meta" style="margin-top:2px">从部门行的「＋加人」进入会自动带入该部门；新人默认只见本部门、非部门BP。系统管理员可兼任多个部门的部门BP。</div>
-  <div class="err" id="aErr">iOA 账号与姓名必填，且账号不能重复</div>
+  <div class="meta" style="margin-top:2px">从部门行的「＋加人」进入会自动带入该部门；新人默认只见本部门、非部门BP。<b>同一账号可归属多个部门</b>：在另一个部门「＋加人」时输入同一账号，即把该账号追加到该部门（同一个人、多部门），会在每个部门各出一行。</div>
+  <div class="err" id="aErr">iOA 账号与姓名必填</div>
   <div class="row"><button class="btn gray" onclick="closeAcct()">取消</button><button class="btn" onclick="saveAcct()">保存并生效</button></div>
 </div></div>
 
@@ -291,7 +291,6 @@ body.navfold .navtg{left:8px;}
       <div class="pmtools"><input type="text" class="pmsearch" id="pmSearch" placeholder="搜索中心…" oninput="boxFilter('pmList',this.value,'pmAll')"><button class="btn gray" id="pmSortBtn" onclick="pmToggleSort()" style="font-size:12px;padding:4px 10px;white-space:nowrap;margin:0 8px">拼音升序 A→Z</button><label class="pmall"><input type="checkbox" id="pmAll" onchange="boxToggleAll('pmList',this.checked)">全选</label></div>
       <div class="pmlist" id="pmList"></div>
       <div class="pmmk"><input type="text" id="pmName" placeholder="子PM组名称，如：数据库子PM"><button class="btn" onclick="pmCreate()">创建子PM组</button></div>
-      <label class="pmsum"><input type="checkbox" id="pmSum"> 展示求和（看板目录可点击 · 汇总所选中心 · 可手调）</label>
       <div class="hint" id="pmErr" style="display:none;color:var(--red);margin-top:6px">请填写组名并至少勾选一个中心</div>
     </div>
     <div class="pmcol"><h4>层级预览</h4><div class="tree" id="pmTree"></div></div>
@@ -317,7 +316,6 @@ body.navfold .navtg{left:8px;}
       <div class="pmtools"><input type="text" class="pmsearch" id="lnSearch" placeholder="搜索部门…" oninput="boxFilter('lnGrid',this.value,'lnAll')"><label class="pmall"><input type="checkbox" id="lnAll" onchange="boxToggleAll('lnGrid',this.checked);lnPreview()">全选</label></div>
       <div class="pmlist" id="lnGrid"></div>
       <div class="pmmk"><input type="text" id="lnName" placeholder="线级看板名称，如：云产品线"><button class="btn" id="lnBtn" onclick="lnSubmit()">创建</button><button class="btn" id="lnDelBtn" style="display:none;margin-left:8px;background:#FDECEC;color:#8C2B2B;border:1px solid #F3B4B4" onclick="lnDelFromModal()">解散线级</button></div>
-      <label class="pmsum"><input type="checkbox" id="lnSum" onchange="lnPreview()"> 展示求和（看板顶层线名可点击 · 汇总线内各部门 · 只读）</label>
       <div class="hint" id="lnErr" style="display:none;color:var(--red);margin-top:6px">请填写线级名称并至少勾选一个部门</div>
     </div>
     <div class="pmcol"><h4>层级预览</h4><div class="tree" id="lnTree"></div></div>
@@ -478,36 +476,49 @@ function roleSave(){var a=accts[_roleEditIdx];if(!a)return;
   if(typeof saveCfg==='function')saveCfg();
   if(typeof log==='function')log('账号角色',a.id+'（'+a.name+'）→ '+roles.join('/'));
   closeRole();renderAccts();}
-function acctRow(a,depth){
-  var i=acctIdx(a.id);
-  return '<tr><td style="padding-left:'+(depth*20+24)+'px">'+esc(a.id)+(a.name?' <span style="color:var(--ink2)">（'+esc(a.name)+'）</span>':'')+(a.is_sysadmin?' <span class="chip" style="background:#DBEAFE;color:#1E40AF;font-weight:600" title="系统管理员：全部可编辑（含改自己）">系统管理员</span>':'')+(a.demo?' <span class="chip demo">示例</span>':'')+roleTagHtml(a,i)+'</td>'
-    +'<td>'+pmCellByDept(a.dept)+'</td>'
+function acctDepts(a){var m=(a.kb1_depts||[]).filter(function(d){return d&&d!=='集团';});  // 账号归属的部门（可多个）
+  if(!m.length&&a.dept&&a.dept!=='集团')m=[a.dept];
+  return m;}
+function acctRow(a,depth,gd){
+  var i=acctIdx(a.id);gd=gd||a.dept;  // gd=本行所在部门分组（同一账号可归多部门·在每个部门各出一行）
+  var multi=acctDepts(a);
+  var multiTag=(multi.length>1)?' <span class="chip" style="background:#EEF2F8;color:var(--ink3)" title="该账号归属多个部门：'+esc(multi.join('、'))+'">多部门·'+multi.length+'</span>':'';
+  return '<tr><td style="padding-left:'+(depth*20+24)+'px">'+esc(a.id)+(a.name?' <span style="color:var(--ink2)">（'+esc(a.name)+'）</span>':'')+(a.is_sysadmin?' <span class="chip" style="background:#DBEAFE;color:#1E40AF;font-weight:600" title="系统管理员：全部可编辑（含改自己）">系统管理员</span>':'')+(a.demo?' <span class="chip demo">示例</span>':'')+multiTag+roleTagHtml(a,i)+'</td>'
+    +'<td>'+pmCellByDept(gd)+'</td>'
     +'<td class="c">'+kbPermCell(a,i)+'</td>'
-    +'<td class="c">'+(a.id==='bonniewbli'?'<span style="font-size:12px;color:var(--ink3)">启用</span>':'<label class="sw"><input type="checkbox" '+(a.on?'checked':'')+' onchange="accOn('+i+',this.checked)"><span class="tk"></span></label>')+'</td>'
     +'<td class="c"><button class="btn gray" style="padding:2px 8px;font-size:12px" onclick="ioaSync(\''+a.id.replace(/'/g,'')+'\')" title="按 iOA 组织架构回填 org_path/职级/上级（正式版）">iOA同步</button> '
-    +(a.id==='bonniewbli'?'<span class="chip ok">当前</span>'+(a.role==='管理员'?' <span class="rowdel" style="color:var(--blue)" onclick="openTransfer()" title="把管理员职位移交给他人，自己降为可编辑">转移管理员</span>':''):'<span class="rowdel" onclick="accDel('+i+')">移除</span>')+'</td></tr>';
+    +(a.id==='bonniewbli'?'<span class="chip ok">当前</span>'+(a.role==='管理员'?' <span class="rowdel" style="color:var(--blue)" onclick="openTransfer()" title="把管理员职位移交给他人，自己降为可编辑">转移管理员</span>':''):'<span class="rowdel" onclick="acctRemoveFromDept('+i+',\''+String(gd).replace(/'/g,'')+'\')" title="'+(multi.length>1?'仅从本部门移出（其他部门保留）':'移除该账号')+'">移除</span>')+'</td></tr>';
+}
+function acctRemoveFromDept(i,dept){var a=accts[i];if(!a)return;
+  var others=acctDepts(a).filter(function(d){return d!==dept;});
+  if(others.length){  // 还归属其他部门→仅从本部门移出
+    a.kb1_depts=(a.kb1_depts||[]).filter(function(d){return d!==dept;});
+    a.kb0_depts=(a.kb0_depts||[]).filter(function(d){return d!==dept;});
+    if(a.dept===dept)a.dept=others[0];
+    if(typeof saveCfg==='function')saveCfg();
+    if(typeof log==='function')log('账号多部门',a.id+'（'+a.name+'）从「'+dept+'」移出（仍属 '+others.join('、')+'）');
+    renderAccts();
+  }else{accDel(i);}  // 最后一个部门→整体移除
 }
 function renderAccts(){
   var byDept={},ungrouped=[];
-  accts.forEach(function(a){var d=a.dept;if(!d||d==='集团')ungrouped.push(a);else (byDept[d]=byDept[d]||[]).push(a);});
+  accts.forEach(function(a){var ds=acctDepts(a);if(!ds.length)ungrouped.push(a);else ds.forEach(function(d){(byDept[d]=byDept[d]||[]).push(a);});});  // 一个账号归几个部门就在几个部门各出一行
   var _deptN=DEPT_TREE.filter(function(n){return n.name!=='集团';}).length;
-  var h='<thead><tr><th>部门/账号 <span style="font-weight:400;font-size:12px;color:var(--ink3)">· 共 '+_deptN+' 个部门</span></th><th style="width:200px">设置子PM看板</th><th class="c" style="width:190px">看板权限（编辑/查阅）</th><th class="c">启用</th><th class="c" style="width:120px">操作</th></tr></thead><tbody>';
+  var h='<thead><tr><th>部门/账号 <span style="font-weight:400;font-size:12px;color:var(--ink3)">· 共 '+_deptN+' 个部门</span></th><th style="width:200px">设置子PM看板</th><th class="c" style="width:190px">看板权限（编辑/查阅）</th><th class="c" style="width:120px">操作</th></tr></thead><tbody>';
   ungrouped.forEach(function(a){h+=acctRow(a,0);});  // 系统管理员/全局(集团) 置顶
   var seen={};
   function deptBlock(dept){
     if(seen[dept])return;seen[dept]=1;
     var list=byDept[dept]||[],collapsed=ACCT_COLLAPSE[dept],dq=dept.replace(/'/g,'');
-    h+='<tr><td colspan="5" style="background:#F1F5F9;padding:6px 8px;cursor:pointer;font-weight:600" onclick="acctToggle(\''+dq+'\')">'
+    h+='<tr><td colspan="4" style="background:#F1F5F9;padding:6px 8px;cursor:pointer;font-weight:600" onclick="acctToggle(\''+dq+'\')">'
       +(collapsed?'▸':'▾')+' '+esc(dept)+' <span class="chip'+(list.length?'':' off')+'">'+(list.length?list.length+' 人':'待指定部门BP')+'</span>'
-      +'<button class="btn gray" style="margin-left:10px;padding:1px 8px;font-size:11px;font-weight:400" onclick="event.stopPropagation();openAcctInDept(\''+dq+'\')" title="在本部门添加人员">＋加人</button>'
-      +'<span class="addp" onclick="event.stopPropagation();viewCenters(\''+dq+'\')" title="查看本部门中心清单">中心清单</span></td></tr>';
+      +'<button class="btn gray" style="margin-left:10px;padding:1px 8px;font-size:11px;font-weight:400" onclick="event.stopPropagation();openAcctInDept(\''+dq+'\')" title="在本部门添加人员">＋加人</button></td></tr>';
     if(!collapsed){
-      if(list.length){list.forEach(function(a){h+=acctRow(a,1);});}
+      if(list.length){list.forEach(function(a){h+=acctRow(a,1,dept);});}
       else{h+='<tr>'
         +'<td class="sub" style="padding-left:44px;color:var(--ink3)">未指定 <span class="chip bp">部门BP</span></td>'
         +'<td>'+pmCellByDept(dept)+'</td>'
         +'<td class="c"><span style="font-size:12px;color:var(--ink3)">—（未指定BP）</span></td>'
-        +'<td class="c"><span style="color:var(--ink3)">—</span></td>'
         +'<td class="c"><span class="rowdel" style="color:var(--blue)" onclick="openAcctInDept(\''+dq+'\')">指定部门BP</span></td>'
         +'</tr>';}
     }
@@ -541,6 +552,7 @@ function readBpRelations(){
 /* ===== 中心清单 / 设置子PM看板（组=二级、组内中心=三级；与看板 index.html DEPT_TREE 中心一致） ===== */
 var PM_GROUPS={};try{PM_GROUPS=JSON.parse(localStorage.getItem('hcfb_pm_groups')||'{}')||{};}catch(e){PM_GROUPS={};}  // 部门→子PM组，与看板端(index.html)共用同一份(同源 localStorage)
 function savePmGroups(){try{localStorage.setItem('hcfb_pm_groups',JSON.stringify(PM_GROUPS));}catch(e){}}
+(function(){var ch=false;Object.keys(PM_GROUPS).forEach(function(d){(PM_GROUPS[d]||[]).forEach(function(g){if(g.sum!==true){g.sum=true;ch=true;}});});if(ch)savePmGroups();})();  // 全部子PM组默认求和
 /* ===== 清单选择框通用交互（子PM/线级两个架构框统一）：搜索过滤 + 全选/全不选 ===== */
 function boxLabels(listId){var b=document.getElementById(listId);return b?[].slice.call(b.querySelectorAll('label')):[];}
 function boxFilter(listId,q,allId){q=(q||'').trim().toLowerCase();
@@ -575,7 +587,6 @@ function openPm(dept){pmDept=(dept==='集团'?'':dept)||'';pmCenters=deptCenters
   pmGroups=JSON.parse(JSON.stringify(PM_GROUPS[pmDept]||[]));
   document.getElementById('pmMeta').textContent=(pmDept||'（集团/未归属含中心的部门）')+' —— 从该部门中心里选择若干中心并命名，创建子PM看板：组为二级层级，组内中心降为三级，未进组的中心仍为二级。改动同步到看板1-4 侧栏层级。';
   document.getElementById('pmName').value='';document.getElementById('pmErr').style.display='none';
-  document.getElementById('pmSum').checked=false;
   document.getElementById('pmSearch').value='';document.getElementById('pmAll').checked=false;
   pmSortMode='asc';var _psb=document.getElementById('pmSortBtn');if(_psb)_psb.textContent='拼音升序 A→Z';
   document.getElementById('pmList').onchange=function(){boxSyncAll('pmList','pmAll');};
@@ -603,8 +614,7 @@ function pmCreate(){var name=document.getElementById('pmName').value.trim();
   var sel=[].map.call(document.querySelectorAll('#pmList input:checked'),function(i){return i.value;});
   if(!name||!sel.length){document.getElementById('pmErr').style.display='block';return;}
   document.getElementById('pmErr').style.display='none';
-  var sum=document.getElementById('pmSum').checked;
-  pmGroups.push({name:name,centers:sel,sum:sum});document.getElementById('pmName').value='';document.getElementById('pmSum').checked=false;pmRender();}
+  pmGroups.push({name:name,centers:sel,sum:true});document.getElementById('pmName').value='';pmRender();}  // 全部默认求和
 function pmDel(i){pmGroups.splice(i,1);pmRender();}
 function savePm(){var dept=pmDept;
   if(pmGroups.length)PM_GROUPS[dept]=pmGroups;else delete PM_GROUPS[dept];
@@ -622,6 +632,7 @@ var LINES_DEFAULT=[
 var lines;try{lines=JSON.parse(localStorage.getItem('hcfb_lines')||'null');}catch(e){lines=null;}
 if(!lines||!lines.length){lines=JSON.parse(JSON.stringify(LINES_DEFAULT));try{localStorage.setItem('hcfb_lines',JSON.stringify(lines));}catch(e){}}
 (function(){var ch=false;lines.forEach(function(l){if(!l.bps){var d=LINES_DEFAULT.filter(function(x){return x.name===l.name;})[0];l.bps=(d&&d.bps)?d.bps.slice():[];ch=true;}});if(ch)try{localStorage.setItem('hcfb_lines',JSON.stringify(lines));}catch(e){}})();  // 旧数据回填线级BP并持久化(板端同源读取)
+(function(){var ch=false;lines.forEach(function(l){if(l.sum===false){l.sum=true;ch=true;}});if(ch)try{localStorage.setItem('hcfb_lines',JSON.stringify(lines));}catch(e){}})();  // 全部默认求和：清历史"无求和"线
 function saveLines(){try{localStorage.setItem('hcfb_lines',JSON.stringify(lines));}catch(e){}}
 function allDepts(){return DEPT_TREE.filter(function(n){return n.name!=='集团';}).map(function(n){return n.name;});}
 function lnAssigned(){var m={};lines.forEach(function(l){(l.depts||[]).forEach(function(d){(m[d]=m[d]||[]).push(l.name);});});return m;}  // dept→[线名...]（可重复归线·线间无加总关系）
@@ -637,7 +648,6 @@ function openLn(idx){
   document.getElementById('lnBtn').textContent=cur?'保存修改':'创建';
   document.getElementById('lnDelBtn').style.display=cur?'':'none';  // 解散仅编辑态可见（操作移出列表行）
   document.getElementById('lnName').value=cur?cur.name:'';document.getElementById('lnErr').style.display='none';
-  document.getElementById('lnSum').checked=cur?(cur.sum!==false):true;  // 兼容旧数据：未设过 sum 的线视为开
   document.getElementById('lnSearch').value='';document.getElementById('lnAll').checked=false;
   document.getElementById('lnCount').textContent='已建 '+lines.length+' 条线级 · 已归线部门 '+Object.keys(as).length+' / '+all.length;
   document.getElementById('lnGrid').oninput=lnPreview;document.getElementById('lnName').oninput=lnPreview;  // 勾选/命名变化→实时更新层级预览
@@ -650,9 +660,9 @@ function lnSubmit(){
   var name=document.getElementById('lnName').value.trim();
   var sel=[].map.call(document.querySelectorAll('#lnGrid input:checked'),function(i){return i.value;});
   if(!name||!sel.length){document.getElementById('lnErr').style.display='block';return;}
-  var sum=document.getElementById('lnSum').checked;
-  if(lnEdit>-1){lines[lnEdit]={name:name,head:lines[lnEdit].head||'',depts:sel,sum:sum};}
-  else{lines.push({name:name,head:'',depts:sel,sum:sum});}
+  var sum=true;  // 全部默认求和
+  if(lnEdit>-1){lines[lnEdit]={name:name,head:lines[lnEdit].head||'',depts:sel,sum:sum,bps:lines[lnEdit].bps||[]};}
+  else{lines.push({name:name,head:'',depts:sel,sum:sum,bps:[]});}
   saveLines();if(typeof log==='function')log('线级看板',(lnEdit>-1?'编辑':'创建')+' '+name+'（'+sel.length+' 部门）· 已同步看板线导航');
   lnRender();
   if(lnEdit>-1)closeLn();else openLn();  // 新建后停留继续建；编辑后关闭
@@ -662,23 +672,18 @@ function lnEditOpen(i,e){if(e)e.stopPropagation();openLn(i);}
 function lnDelFromModal(){var i=lnEdit;if(i<0)return;closeLn();lnDel(i);}  // 编辑弹窗内解散：先关弹窗再走 lnDel(带确认)
 function lnRender(){
   var body=document.getElementById('lnBody');if(!body)return;
-  if(!lines.length){body.innerHTML='<tr><td colspan="7"><span class="hint" style="margin:0">尚未创建线级看板——当前所有部门均为一级层级，不出现在层级预览。</span></td></tr>';}
+  if(!lines.length){body.innerHTML='<tr><td colspan="3"><span class="hint" style="margin:0">尚未创建线级看板——当前所有部门均为一级层级，不出现在层级预览。</span></td></tr>';}
   else{
     body.innerHTML=lines.map(function(l,i){var nd=(l.depts||[]).length,nm=String(l.name).replace(/'/g,'');
-      var mid='<td><span class="ctr" onclick="lnEditOpen('+i+',event)">'+esc(l.name)+'（'+nd+'） <span class="gear">⚙</span></span></td>'
-        +'<td class="c"><span style="font-size:12px;color:var(--ink3)">线级·'+nd+' / 看板·'+nd+'</span></td>'
-        +'<td class="c"><span style="color:var(--ink3)">—</span></td>';
+      var mid='<td><span class="ctr" onclick="lnEditOpen('+i+',event)">'+esc(l.name)+'（'+nd+'） <span class="gear">⚙</span></span></td>';
       var bpRows=(l.bps&&l.bps.length)
         ? l.bps.map(function(bid){var a=accts.filter(function(x){return x.id===bid;})[0];
-            return '<tr><td class="sub" style="padding-left:30px">'+esc(bid)+' <span class="chip ok">线级BP</span></td>'
-              +'<td>'+esc(a?a.name:bid)+'</td><td><span style="color:var(--ink3)">—</span></td>'+mid
+            return '<tr><td class="sub" style="padding-left:30px">'+esc(bid)+(a&&a.name?' <span style="color:var(--ink2)">（'+esc(a.name)+'）</span>':'')+' <span class="chip ok">线级BP</span></td>'+mid
               +'<td class="c"><span class="rowdel" onclick="lnBpRemove('+i+',\''+bid.replace(/'/g,'')+'\')">移除</span></td></tr>';}).join('')
-        : '<tr><td class="sub" style="padding-left:30px;color:var(--ink3)">未指定 <span class="chip bp">线级BP</span></td>'
-              +'<td><span style="color:var(--ink3)">—</span></td><td><span style="color:var(--ink3)">—</span></td>'+mid
+        : '<tr><td class="sub" style="padding-left:30px;color:var(--ink3)">未指定 <span class="chip bp">线级BP</span></td>'+mid
               +'<td class="c"><span class="rowdel" style="color:var(--blue)" onclick="lnAddBp('+i+')">指定线级BP</span></td></tr>';
-      return '<tr class="grp"><td colspan="7" style="padding:7px 12px;cursor:pointer" onclick="lnEditOpen('+i+',event)">'+esc(l.name)+'<span style="color:var(--ink3);font-weight:400;font-size:12px;margin-left:8px">'+nd+' 个部门</span>'+(l.sum!==false?'<span class="chip" style="background:#E7F6EF;color:var(--green);margin-left:6px">求和</span>':'<span class="chip" style="background:#F1F5F9;color:var(--ink3);margin-left:6px">无求和</span>')
-        +'<button class="btn gray" style="margin-left:10px;padding:1px 8px;font-size:11px;font-weight:400" onclick="event.stopPropagation();lnAddBp('+i+')" title="从现有账号里添加线级BP">＋加人</button>'
-        +'<span class="addp" onclick="event.stopPropagation();viewLineDepts('+i+')" title="查看本线级包含的部门清单">部门清单</span></td></tr>'
+      return '<tr class="grp"><td colspan="3" style="padding:7px 12px;cursor:pointer" onclick="lnEditOpen('+i+',event)">'+esc(l.name)+'<span style="color:var(--ink3);font-weight:400;font-size:12px;margin-left:8px">'+nd+' 个部门</span><span class="chip" style="background:#E7F6EF;color:var(--green);margin-left:6px">求和</span>'
+        +'<button class="btn gray" style="margin-left:10px;padding:1px 8px;font-size:11px;font-weight:400" onclick="event.stopPropagation();lnAddBp('+i+')" title="从现有账号里添加线级BP">＋加人</button></td></tr>'
         +bpRows;
     }).join('');
   }
@@ -718,7 +723,7 @@ function lnPreview(){
   boxSyncAll('lnGrid','lnAll');
   var sel=[].map.call(document.querySelectorAll('#lnGrid input:checked'),function(i){return i.value;});
   var nm=(document.getElementById('lnName').value||'').trim();
-  var curSum=document.getElementById('lnSum').checked;
+  var curSum=true;  // 全部默认求和
   var pv=lines.map(function(l){return {name:l.name,depts:(l.depts||[]).slice(),sum:l.sum!==false};});
   if(lnEdit>-1){pv[lnEdit]={name:nm||lines[lnEdit].name,depts:sel,sum:curSum};}
   else if(sel.length||nm){pv.push({name:nm||'（新线级·未命名）',depts:sel,sum:curSum});}
@@ -858,9 +863,21 @@ function openAcct(){_addDept='';_openAcctModal();}
 function openAcctInDept(dept){_addDept=dept||'';_openAcctModal();}  // ＋加人：加到指定看板1部门
 function closeAcct(){document.getElementById('maskAcct').classList.remove('on');}
 function saveAcct(){
-  var id=document.getElementById('aId').value.trim(),name=document.getElementById('aName').value.trim();
-  if(!id||!name||accts.some(function(a){return a.id===id;})){document.getElementById('aErr').style.display='block';return;}
+  var id=document.getElementById('aId').value.trim(),name=document.getElementById('aName').value.trim(),err=document.getElementById('aErr');
   var dept=_addDept;  // 所属看板1部门（决定分组 + 看板1只见本部门）
+  if(!id||!name){err.textContent='iOA 账号与姓名必填';err.style.display='block';return;}
+  var exist=accts.filter(function(a){return a.id===id;})[0];  // 同账号已存在→归属多部门（同一个人可属多个部门，不新建）
+  if(exist){
+    if(!dept){err.textContent='账号「'+id+'」已存在（请从某部门的「＋加人」进入，把该账号追加到该部门）';err.style.display='block';return;}
+    if(acctDepts(exist).indexOf(dept)>=0){err.textContent='账号「'+id+'」已在「'+dept+'」，无需重复添加';err.style.display='block';return;}
+    var m1=(exist.kb1_depts||[]).filter(function(d){return d&&d!=='集团';});m1.push(dept);exist.kb1_depts=m1;
+    var m0=(exist.kb0_depts||[]).filter(function(d){return d&&d!=='集团';});if(m0.indexOf(dept)<0)m0.push(dept);exist.kb0_depts=m0;
+    if(!exist.dept||exist.dept==='集团')exist.dept=dept;
+    if(name)exist.name=name;
+    if(typeof log==='function')log('账号多部门',id+'（'+name+'）追加归属部门「'+dept+'」（现属 '+acctDepts(exist).join('、')+'）');
+    if(typeof saveCfg==='function')saveCfg();
+    closeAcct();renderAccts();return;
+  }
   var _pri=(document.querySelector('#aRoleBox .aPri:checked')||{}).value||'HRBP';
   var _addons=[].map.call(document.querySelectorAll('#aRoleBox .aRoleCk:checked'),function(c){return c.value;});
   var _roles=[_pri].concat(_addons);
