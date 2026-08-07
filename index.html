@@ -1267,15 +1267,10 @@ function renderDeptNav(board){var host=document.getElementById(board+'DeptNav');
     return (node.children||[]).some(function(ch){return al.indexOf(node.name+'/'+ch)>=0;});}
   DEPT_TREE.forEach(function(node){if(node.name==='集团')return;  // 集团=看板本身(点看板名进)，树里不列
     var hasCh=node.children&&node.children.length;
-    if(board==='kb3'){  // 看板3：部门下可展开中心，但中心＝【页内锚点】（同页的 3.2 分表），不切部门空间
+    if(board==='kb3'){  // 看板3：只到部门级（中心级数据在看板1中心维度直接看，看板3不再分中心）
       if(!(hasCh?partVisible(node):wholeOK(node.name)))return;
-      var clk3='kb3GotoDept(\''+String(node.name).replace(/'/g,'')+'\')';   // 点部门＝切该部门 + 跳到最上方「部门总表」
-      if(!hasCh){h+=_navA(board,node.name,node.name,20,cur,'',null,clk3);return;}
-      var o3=KB1_OPEN['kb3:'+node.name];
-      var a3='<span onclick="event.stopPropagation();toggleDeptSub(\''+board+'\',\'kb3:'+node.name+'\')" style="float:right;font-size:10px;padding:0 4px;color:var(--ink3)">'+(o3?'▾':'▸')+'</span>';
-      h+=_navA(board,node.name,node.name,20,cur,a3,o3?kbH:null,clk3);
-      if(o3)node.children.forEach(function(ch,ci){if(!centerOK(node.name,ch))return;
-        h+='<a onclick="kb3GotoCenter(\''+String(node.name).replace(/'/g,'')+'\','+ci+')" title="'+ch+'（跳到本页该中心的 3.2 分表）" style="display:block;padding:5px 10px 5px 38px;font-size:12.5px;border-radius:8px;margin-bottom:2px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink2)">· '+ch+'</a>';});
+      var clk3='kb3GotoDept(\''+String(node.name).replace(/'/g,'')+'\')';   // 点部门＝切该部门 + 跳到「部门总表」
+      h+=_navA(board,node.name,node.name,20,cur,'',null,clk3);
       return;
     }
     if(board!=='kb1'){  // 看板2/4：只到部门级（不拆中心）
@@ -2451,13 +2446,13 @@ function renderKb3(){
       var top=rc.top-kb3nt.offsetHeight-8;kb3nt.style.top=(top>4?top:rc.bottom+8)+'px';});
     td.addEventListener('mouseleave',function(){if(kb3nt)kb3nt.style.display='none';});
   });
-  document.getElementById('kb3SumNote').innerHTML='<b>取数口径</b>（悬停行名看详情）：<b>社招·已入职</b>=系统接口(HR数仓)、<b>待入职/活水已offer</b>=系统接口(社招系统+活水系统)——两者<b>非3.1台账</b>；<b>简历面试中</b>=读3.1台账。归月：已入职=实际入职月；已offer/面试中=预计到岗月；Hold/取消不计入。按行计数、不去重。此三项即<b>喂看板1</b>「待流入·社招」数据源：<b>看板1 中心级直读该中心的 3.2 分表；部门级＝其下各中心求和</b>（即本表）。本表按当前部门空间（<b>'+esc(window.CUR_DEPT||'集团')+'</b>）统计，<b>不随 3.1 的筛选/排序变</b>；台账行归属哪个中心，由 3.1「中心」列（下拉·取自组织表）决定。';
+  document.getElementById('kb3SumNote').innerHTML='<b>取数口径</b>（悬停行名看详情）：<b>社招·已入职</b>=系统接口(HR数仓)、<b>待入职/活水已offer</b>=系统接口(社招系统+活水系统)——两者<b>非3.1台账</b>；<b>简历面试中</b>=读3.1台账。归月：已入职=实际入职月；已offer/面试中=预计到岗月；Hold/取消不计入。按行计数、不去重。此三项即<b>喂看板1</b>「待流入·社招」数据源：<b>看板1 在中心维度直接展示该中心这三项（同一数据源）；部门级＝其下各中心求和</b>（即本表）。看板3 不再分中心分表——中心级明细在看板1 中心维度看即可。本表按当前部门空间（<b>'+esc(window.CUR_DEPT||'集团')+'</b>）统计，<b>不随 3.1 的筛选/排序变</b>；台账行归属哪个中心，由 3.1「中心」列（下拉·取自组织表）决定。';
   colResizable('kb3Tbl');colResizable('kb3Sum');
   // 部门总表标题标明当前是哪个部门（下方各中心分表之和＝本表），避免与中心分表混淆
   var _t3=document.getElementById('kb32DeptTitle');
   if(_t3){var _sp=String(window.CUR_DEPT||'集团');
     _t3.textContent='看板3.2 · '+deptDisp(_sp)+(_sp==='集团'?'（全部门合计）':(_sp.indexOf('/')>=0?'（中心维度）':'（部门总 · ＝其下各中心求和）'));}
-  kb32CentersEnsure();   // 追加渲染其下各中心的 3.2 分表（同页·供左侧目录锚点跳转）
+  kb32CentersEnsure();   // 清空中心分表容器：看板3 不再分中心（中心级看看板1 中心维度）
 }
 /* ===== 看板3.2 中心维度分表 =====
    页面结构（同一页，中心不再是独立页面）：看板3.1 部门台账 → 看板3.2 部门总表 → 其下各中心 3.2 分表。
@@ -2474,12 +2469,7 @@ function loadKb32(){
     KB32={dept:dp,year:j.year,centers:j.centers||[],loading:false};renderKb32Centers();return true;
   }).catch(function(){KB32.loading=false;return false;});
 }
-function kb32CentersEnsure(){
-  var dp=String(window.CUR_DEPT||'集团').split('/')[0];
-  if(dp==='集团'||dp.indexOf('PM:')===0){renderKb32Centers();return;}   // 集团/子PM组空间不出中心分表（看板3只有部门维度）
-  if(KB32.dept===dp&&KB32.year===YEAR){renderKb32Centers();return;}   // 缓存命中直接画，避免重复请求
-  if(!KB32.loading)loadKb32();
-}
+function kb32CentersEnsure(){var host=document.getElementById('kb3SumCenters');if(host)host.innerHTML='';}  // 看板3 不再分中心：中心级数据在看板1 中心维度直接展示（同一数据源，不再两步走）
 function renderKb32Centers(){
   var host=document.getElementById('kb3SumCenters');if(!host)return;
   var dp=String(window.CUR_DEPT||'集团').split('/')[0];
