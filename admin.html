@@ -188,7 +188,7 @@ body.navfold .navtg{left:8px;}
     <span class="hint" style="margin:0">从部门清单里勾选若干部门并命名，即生成一条线级看板；线内部门降为二级。</span>
   </div>
   <div class="tblwrap" style="margin-bottom:14px"><table class="adm">
-    <thead><tr><th>线级</th><th style="width:200px">设置线级看板</th><th class="c" style="width:120px">操作</th></tr></thead>
+    <thead><tr><th>线级 / 账号</th><th style="width:200px">设置线级看板</th><th class="c" style="width:120px">操作</th></tr></thead>
     <tbody id="lnBody"></tbody>
   </table></div>
   <div class="hint" style="margin:0">层级预览在「设置线级看板」弹窗里（点行/⚙ 打开）——线级=一级、线内部门=二级，父级可收起。</div>
@@ -255,8 +255,8 @@ body.navfold .navtg{left:8px;}
 
 <!-- 指定线级BP modal（从现有账号里加人） -->
 <div class="mask" id="maskLnBp"><div class="modal" style="width:460px">
-  <h3>指定线级BP · <span id="lbLine" style="color:var(--navy)"></span></h3>
-  <div class="meta">从<b>所有已注册账号</b>中选择（按部门结构查找，与部门无关也可加入），加入即为本线级 BP、可看本线级板块。</div>
+  <h3>添加线级成员 · <span id="lbLine" style="color:var(--navy)"></span></h3>
+  <div class="meta">从<b>所有已注册账号</b>中选择（按部门结构查找，与部门无关也可加入），加入即可查看本线级视图。</div>
   <input type="text" class="pmsearch" id="lnBpSearch" placeholder="搜索账号 / 姓名 / 部门…" oninput="_lnBpRender(this.value)" style="width:100%;margin:6px 0">
   <div class="pmlist" id="lnBpList" style="max-height:340px;overflow:auto;margin:4px 0"></div>
   <div class="row"><button class="btn gray" onclick="closeLnBp()">取消</button><button class="btn" onclick="lnBpSave()">添加</button></div>
@@ -662,9 +662,17 @@ function lnRender(){
   if(!lines.length){body.innerHTML='<tr><td colspan="3"><span class="hint" style="margin:0">尚未创建线级看板——当前所有部门均为一级层级，不出现在层级预览。</span></td></tr>';}
   else{
     body.innerHTML=lines.map(function(l,i){var nd=(l.depts||[]).length;
-      return '<tr><td style="cursor:pointer" onclick="lnEditOpen('+i+',event)"><b>'+esc(l.name)+'</b><span style="color:var(--ink3);font-weight:400;font-size:12px;margin-left:8px">'+nd+' 个部门</span><span class="chip" style="background:#E7F6EF;color:var(--green);margin-left:6px">求和</span></td>'
-        +'<td><span class="ctr" onclick="lnEditOpen('+i+',event)">'+esc(l.name)+'（'+nd+'） <span class="gear">⚙</span></span></td>'
-        +'<td class="c"><span class="rowdel" onclick="lnDel('+i+')">解散线级</span></td></tr>';
+      var mid='<td><span class="ctr" onclick="lnEditOpen('+i+',event)">'+esc(l.name)+'（'+nd+'） <span class="gear">⚙</span></span></td>';
+      var bpRows=(l.bps&&l.bps.length)
+        ? l.bps.map(function(bid){var a=accts.filter(function(x){return x.id===bid;})[0];
+            return '<tr><td class="sub" style="padding-left:30px">'+esc(bid)+(a&&a.name?' <span style="color:var(--ink2)">（'+esc(a.name)+'）</span>':'')+'</td>'+mid
+              +'<td class="c"><span class="rowdel" onclick="lnBpRemove('+i+',\''+bid.replace(/'/g,'')+'\')">移除</span></td></tr>';}).join('')
+        : '<tr><td class="sub" style="padding-left:30px;color:var(--ink3)">暂无成员</td>'+mid
+              +'<td class="c"><span class="rowdel" style="color:var(--blue)" onclick="lnAddBp('+i+')">＋加人</span></td></tr>';
+      return '<tr class="grp"><td colspan="3" style="padding:7px 12px;cursor:pointer" onclick="lnEditOpen('+i+',event)">'+esc(l.name)+'<span style="color:var(--ink3);font-weight:400;font-size:12px;margin-left:8px">'+nd+' 个部门</span><span class="chip" style="background:#E7F6EF;color:var(--green);margin-left:6px">求和</span>'
+        +'<button class="btn gray" style="margin-left:10px;padding:1px 8px;font-size:11px;font-weight:400" onclick="event.stopPropagation();lnAddBp('+i+')" title="从现有账号里添加成员（加入即可看本线级视图）">＋加人</button>'
+        +'<span class="rowdel" style="margin-left:12px;font-weight:400" onclick="event.stopPropagation();lnDel('+i+')">解散线级</span></td></tr>'
+        +bpRows;
     }).join('');
   }
 }
