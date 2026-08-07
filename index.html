@@ -294,6 +294,16 @@ th.sortable:hover{filter:brightness(1.08);}
 .bsc td.hasnote{position:relative;}
 #noteTip{display:none;position:fixed;z-index:96;background:#5B21B6;color:#fff;font-size:11.5px;line-height:1.5;padding:7px 11px;white-space:pre-line;max-width:240px;text-align:left;box-shadow:0 4px 14px rgba(91,33,182,.35);pointer-events:none;}
 #noteTip .nt-h{font-weight:700;margin-bottom:2px;font-size:11px;opacity:.85;}
+td.drillcell{cursor:pointer;}
+td.drillcell:hover{outline:1px solid var(--blue-l);outline-offset:-1px;background:rgba(37,99,235,.07);}
+#cellDrill{display:none;position:fixed;z-index:98;background:#fff;border:1px solid var(--b100);border-radius:10px;box-shadow:0 10px 30px rgba(10,46,110,.20);font-size:12px;color:var(--ink);max-width:min(560px,92vw);max-height:62vh;overflow:auto;}
+#cellDrill .drill-h{position:sticky;top:0;background:var(--navy);color:#fff;font-weight:600;padding:8px 12px;font-size:12.5px;}
+#cellDrill .drill-x{float:right;cursor:pointer;opacity:.85;margin-left:12px;}
+#cellDrill .drilltbl{border-collapse:collapse;width:100%;}
+#cellDrill .drilltbl th,#cellDrill .drilltbl td{border-bottom:1px solid var(--b100);padding:5px 10px;text-align:left;white-space:nowrap;}
+#cellDrill .drilltbl th{background:var(--b50);color:var(--ink2);font-weight:600;position:sticky;top:35px;}
+#cellDrill .drillempty{padding:18px 20px;text-align:center;color:var(--ink2);line-height:1.8;}
+#cellDrill .drill-src{padding:7px 12px;color:var(--ink3);border-top:1px solid var(--b100);background:var(--b50);}
 .bsc td.neg{color:var(--gray);}
 .bsc tr[data-drill]{cursor:pointer;}
 .bsc tr[data-drill]:hover td:first-child{color:var(--blue);}
@@ -886,6 +896,7 @@ function kb1CellMenu(td,ev){
 
 <!-- 备注独立悬浮气泡（悬停紫角标格显示；与来源信息卡分离，后者未来可整体移除） -->
 <div id="noteTip"></div>
+<div id="cellDrill"></div>
 
 <!-- 看板3 编辑行的固定浮条已移除：保存/取消 直接用行内操作列按钮（操作列已加宽 124px 常显两键） -->
 
@@ -1450,7 +1461,8 @@ function tr(cls,label,arr,opt){
     var noteTxt=(opt.notes&&opt.notes[m])?opt.notes[m]:memos[(opt.key||'')+'_'+m];  // opt.notes：外部注入的逐月一句话备注（如看板3.2 简历面试中）优先
     var noteAttr=noteTxt?' data-note="'+esc(noteTxt).replace(/"/g,'&quot;')+'"':'';
     var memo=noteTxt?'<span class="memo"></span>':'';
-    t+='<td class="'+cl+(noteTxt?' hasnote':'')+'"'+noteAttr+' data-src="'+(opt.src||'')+'" data-m="'+m+'"'+(opt.key?' data-k="'+opt.key+'"':'')+(editable?' data-edit="'+opt.key+'"':'')+'>'+disp+memo+'</td>';
+    var drill=(disp!==''&&!editable&&typeof drillInfo==='function'&&drillInfo(opt.src));  // 数仓/系统取数·有值·非编辑格→可点开看明细
+    t+='<td class="'+cl+(noteTxt?' hasnote':'')+(drill?' drillcell':'')+'"'+noteAttr+' data-src="'+(opt.src||'')+'" data-m="'+m+'"'+(opt.key?' data-k="'+opt.key+'"':'')+(editable?' data-edit="'+opt.key+'"':'')+'>'+disp+memo+'</td>';
   }
   var lastTd=(opt.key&&ROWEDIT===opt.key)
     ?'<td style="white-space:nowrap"><button class="btn" style="padding:2px 8px;font-size:11px" onclick="rowEditSave(\''+opt.key+'\')">保存</button><button class="btn gray" style="padding:2px 8px;font-size:11px;margin-left:4px" onclick="rowEditCancel()">取消</button></td>'
@@ -1458,6 +1470,55 @@ function tr(cls,label,arr,opt){
   t+='<td class="'+(opt.avgCls||'')+'">'+(opt.avg!==undefined?opt.avg:'')+'</td>'+lastTd+'</tr>';
   return t;
 }
+/* ===== 数仓/系统取数格·点开看明细 =====
+   台账取数(简历面试中)=真实3.1台账人员记录(岗位/姓名/到岗时间…)；数仓系统接口(已入职/待入职/离职/在岗/预算…)未连接=空态占位，不编造。 */
+var _DW_SRC={
+  soc_join:'HR数仓 · 实际社招已入职（按实际入职月）', soc_wait:'社招系统 ＋ 活水系统 · 已offer待入职（按预计到岗月）',
+  soc_sys:'社招系统 · 候选人已接offer待入职', soc_hs:'活水系统 · 已确认活水调动待到岗',
+  i_soc:'招聘系统 ＋ 需求系统 · 社招待流入', i_yy:'HR数仓 · 校招预约入职', i_bs:'HR数仓 · 校招毕业生转聘',
+  ai_soc:'招聘系统 · 每月1号读上月实际社招入职', ai_camp:'招聘系统 · 每月实际校招入职',
+  o_sys:'HR数仓 · 已发起离职/活水调出', actual:'员工信息宽表 / 招聘系统 · 月末在岗快照', ao_comb:'ER报表 / HR数仓 · 实际离职·调出'
+};
+function drillInfo(src){
+  if(!src)return null;
+  if(src==='i_soc_intv')return {ledger:true,cat:2,name:'社招·简历面试中',source:'看板3.1 社招台账（BP 维护）'};  // 唯一真实台账明细
+  if(_DW_SRC[src])return {ledger:false,source:_DW_SRC[src]};
+  var meta=(typeof srcMap!=='undefined')?srcMap[src]:null;
+  if(meta&&(meta[2]==='snap'||meta[2]==='src'))return {ledger:false,source:meta[0]+'（'+meta[1]+'）'};  // 其它数仓/系统取数格
+  return null;  // BP手填/运算格 非数仓·不下钻
+}
+function _drillLedger(cat,m){var space=window.CUR_DEPT||'集团',out=[];
+  (typeof LEDGER!=='undefined'?LEDGER:[]).forEach(function(r){
+    if(typeof _ledSpaceOK==='function'&&!_ledSpaceOK(r,space))return;
+    if(kb3cat(r.st)!==KB3CATS[cat].key)return;
+    var mo=kb3mo(r);if(!mo||mo.slice(0,4)!==String(YEAR))return;
+    if(+mo.slice(5,7)-1===m)out.push(r);});
+  return out;}
+function showCellDrill(td){var box=document.getElementById('cellDrill');if(!box||!td)return;
+  var src=td.getAttribute('data-src'),m=+td.getAttribute('data-m'),info=drillInfo(src);if(!info){hideCellDrill();return;}
+  var rowName=info.name||((td.parentNode&&td.parentNode.cells[0])?td.parentNode.cells[0].textContent.replace(/\s+/g,' ').replace(/[▸▾✎].*$/,'').trim().slice(0,24):'');
+  var mLbl=(typeof moLbl==='function')?moLbl(YEAR+'-'+String(m+1).padStart(2,'0')):(YEAR+'-'+(m+1));
+  var space=window.CUR_DEPT||'集团';
+  var title=esc(rowName)+' · '+esc(mLbl)+' · '+esc((typeof deptDisp==='function')?deptDisp(space):space);
+  var body,srcLine='';
+  if(info.ledger){var rows=_drillLedger(info.cat,m);
+    if(rows.length){body='<table class="drilltbl"><tr><th>岗位</th><th>姓名</th><th>预计到岗</th><th>地点</th><th>一句话备注</th></tr>'
+      +rows.map(function(r){return '<tr><td>'+esc(r.job||'')+'</td><td>'+esc(r.who||'')+'</td><td>'+esc(r.eta||'')+'</td><td>'+esc(r.loc||'')+'</td><td>'+esc(r.memo||'')+'</td></tr>';}).join('')+'</table>';}
+    else body='<div class="drillempty">本月 · 本空间 无台账记录。</div>';
+    srcLine='来源：'+esc(info.source)+'（可在看板3.1 增改）';
+  }else{body='<div class="drillempty">🔌 <b>数仓接口待接入</b><br>来源：'+esc(info.source)+'<br>接通后此处按 <b>岗位 / 姓名 / 到岗时间</b> 等列逐条展示明细。<br><span style="color:var(--ink3)">当前空态 · 不编造</span></div>';}
+  box.innerHTML='<div class="drill-h">'+title+'<span class="drill-x" onclick="hideCellDrill()">✕</span></div>'+body+(srcLine?'<div class="drill-src">'+srcLine+'</div>':'');
+  box.style.display='block';box.style.left='-9999px';box.style.top='0';
+  var rc=td.getBoundingClientRect(),bw=box.offsetWidth,bh=box.offsetHeight;
+  box.style.left=Math.max(8,Math.min(rc.left,window.innerWidth-bw-8))+'px';
+  var top=rc.bottom+6;if(top+bh>window.innerHeight-8)top=Math.max(8,rc.top-bh-6);
+  box.style.top=top+'px';}
+function hideCellDrill(){var b=document.getElementById('cellDrill');if(b)b.style.display='none';}
+document.addEventListener('click',function(e){
+  var td=e.target.closest?e.target.closest('td.drillcell'):null;
+  if(td){if(td.querySelector('input'))return;showCellDrill(td);e.stopPropagation();return;}
+  if(!(e.target.closest&&e.target.closest('#cellDrill')))hideCellDrill();
+});
 function customRows(sec,extra){
   extra=extra||{};var out='';
   custom[sec].forEach(function(r){
