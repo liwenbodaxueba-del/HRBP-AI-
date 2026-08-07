@@ -1036,9 +1036,7 @@ function _pmGroupHead(g,padLeft,dept){
   if(g&&(g.sum||admSee)){
     var nm=String(g.name).replace(/'/g,''),dq=String(dept||'').replace(/'/g,'');
     var isCur=(typeof PMG_ON!=='undefined'&&PMG_ON&&PMG&&String(PMG.dept)===String(dept)&&String(PMG.name)===String(g.name));  // 当前空间=本子PM组→整块高亮
-    var tag=g.sum?'<span style="font-size:10px;font-weight:400;color:var(--green);background:#E7F6EF;border-radius:8px;padding:0 6px">求和</span>'
-                 :'<span style="font-size:10px;font-weight:400;color:#B45309;background:#FEF3C7;border-radius:8px;padding:0 6px" title="该组未勾选「展示求和」，仅管理员可见">未开·管理员可见</span>';
-    return '<a onclick="pickPmGroup(\''+dq+'\',\''+nm+'\')" title="点击查看所选中心求和（可手调）" style="display:block;padding:5px 10px 5px '+padLeft+'px;font-size:12px;font-weight:600;color:var(--blue);cursor:pointer;border-radius:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis'+(isCur?';background:#E8F1FF':'')+'">'+esc(g.name)+' '+tag+'</a>';
+    return '<a onclick="pickPmGroup(\''+dq+'\',\''+nm+'\')" title="点击查看所选中心求和（可手调）" style="display:block;padding:5px 10px 5px '+padLeft+'px;font-size:12px;font-weight:600;color:var(--blue);cursor:pointer;border-radius:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis'+(isCur?';background:#E8F1FF':'')+'">'+esc(g.name)+'</a>';
   }
   var label=(g&&g.name)?esc(g.name):esc(g);
   return '<div style="padding:5px 10px 5px '+padLeft+'px;font-size:12px;font-weight:600;color:var(--navy)">'+label+' <span style="font-size:10px;font-weight:400;color:var(--ink3);background:#EEF2F8;border-radius:8px;padding:0 6px">子PM组</span></div>';}
@@ -1157,12 +1155,8 @@ function _lineVisible(){var my=window.MY||{};
   return DEPT_LINES.filter(function(l){return (l.bps||[]).indexOf(my.id)>=0;});}
 /* 顶层线导航项动态生成（跟随线级看板增删改·按可见性过滤） */
 function renderLineEntries(){var box=document.getElementById('lineNavBox');if(!box)return;
-  box.innerHTML=_lineVisible().map(function(l){var nm=String(l.name).replace(/'/g,'').replace(/"/g,'');var sum=(l.sum!==false);  // 未设过 sum 的线视为开（兼容旧数据）
-    var admSee=isAdminAll();  // 未开求和的线：管理员也能进汇总看板（系统管理员要能看到所有信息）
-    var badge=sum?' <span style="font-size:9px;font-weight:400;color:var(--green);background:#E7F6EF;border-radius:7px;padding:0 5px;margin-left:4px">求和</span>'
-                 :(admSee?' <span style="font-size:9px;font-weight:400;color:#B45309;background:#FEF3C7;border-radius:7px;padding:0 5px;margin-left:4px" title="该线未开求和展示，仅管理员可进">未开</span>':'');
-    var onclick=(sum||admSee)?('goLineView(\''+nm+'\')'):('toggleLineNav(\''+nm+'\')');  // 求和开(或管理员)→点线名进汇总看板；否则仅展开线内部门
-    return '<a id="lineLink_'+nm+'" onclick="'+onclick+'" style="font-weight:600">'+nm+badge+'<span id="lineArrow_'+nm+'" onclick="event.stopPropagation();toggleLineNav(\''+nm+'\')" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>'
+  box.innerHTML=_lineVisible().map(function(l){var nm=String(l.name).replace(/'/g,'').replace(/"/g,'');  // 线级恒为求和视图
+    return '<a id="lineLink_'+nm+'" onclick="goLineView(\''+nm+'\')" style="font-weight:600">'+nm+'<span id="lineArrow_'+nm+'" onclick="event.stopPropagation();toggleLineNav(\''+nm+'\')" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>'
       +'<div id="lineNav_'+nm+'" style="display:none;margin:-2px 0 4px 0"></div>';}).join('');}
 window.addEventListener('storage',function(e){if(e.key==='hcfb_lines'){loadLines();renderLineEntries();if(window.renderKb1Nav)renderKb1Nav();}});
 renderLineEntries();  // 首次生成顶层线导航项

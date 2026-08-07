@@ -590,7 +590,7 @@ function pmRender(){
   list.innerHTML=pmCenters.length?pmCenters.map(function(c){return '<label'+(grouped[c]?' style="opacity:.5"':'')+'><input type="checkbox" value="'+esc(c)+'" '+(grouped[c]?'disabled':'')+'>'+esc(c)+(grouped[c]?' <span class="lvl">已在「'+esc(grouped[c])+'」</span>':'')+'</label>';}).join(''):'<div class="hint" style="padding:10px 6px;margin:0">该部门暂无中心清单（待接入 iOA 组织架构后同步）。</div>';
   var t='<div class="l1">'+esc(pmDept||'总部')+' <span class="lvl">一级</span></div>';
   pmGroups.forEach(function(g,i){
-    t+='<div class="l2"><span class="gname">'+esc(g.name)+'</span> <span class="lvl">二级 · 子PM组</span>'+(g.sum?' <span class="lvl" style="background:#E7F6EF;color:var(--green)">求和·可点击</span>':'')+'<span class="del" onclick="pmDel('+i+')">解散</span></div>';
+    t+='<div class="l2"><span class="gname">'+esc(g.name)+'</span> <span class="lvl">二级 · 子PM组</span><span class="del" onclick="pmDel('+i+')">解散</span></div>';
     (g.centers||[]).forEach(function(c){t+='<div class="l3">'+esc(c)+' <span class="lvl">三级</span></div>';});
   });
   pmCenters.filter(function(c){return !grouped[c];}).forEach(function(c){t+='<div class="l2">'+esc(c)+' <span class="lvl">二级</span></div>';});
@@ -669,7 +669,7 @@ function lnRender(){
               +'<td class="c"><span class="rowdel" onclick="lnBpRemove('+i+',\''+bid.replace(/'/g,'')+'\')">移除</span></td></tr>';}).join('')
         : '<tr><td class="sub" style="padding-left:30px;color:var(--ink3)">暂无成员</td>'+mid
               +'<td class="c"><span class="rowdel" style="color:var(--blue)" onclick="lnAddBp('+i+')">＋加人</span></td></tr>';
-      return '<tr class="grp"><td colspan="3" style="padding:7px 12px;cursor:pointer" onclick="lnEditOpen('+i+',event)">'+esc(l.name)+'<span style="color:var(--ink3);font-weight:400;font-size:12px;margin-left:8px">'+nd+' 个部门</span><span class="chip" style="background:#E7F6EF;color:var(--green);margin-left:6px">求和</span>'
+      return '<tr class="grp"><td colspan="3" style="padding:7px 12px;cursor:pointer" onclick="lnEditOpen('+i+',event)">'+esc(l.name)+'<span style="color:var(--ink3);font-weight:400;font-size:12px;margin-left:8px">'+nd+' 个部门</span>'
         +'<button class="btn gray" style="margin-left:10px;padding:1px 8px;font-size:11px;font-weight:400" onclick="event.stopPropagation();lnAddBp('+i+')" title="从现有账号里添加成员（加入即可看本线级视图）">＋加人</button>'
         +'<span class="rowdel" style="margin-left:12px;font-weight:400" onclick="event.stopPropagation();lnDel('+i+')">解散线级</span></td></tr>'
         +bpRows;
@@ -720,7 +720,7 @@ function lnPreview(){
   var editIdx=(lnEdit>-1)?lnEdit:((sel.length||nm)?pv.length-1:-1);
   var t=pv.length?pv.map(function(l,i){
     var open=LINE_PVOPEN[l.name]!==false,nmq=String(l.name).replace(/'/g,''),hi=(i===editIdx);
-    var head='<div class="l1" style="cursor:pointer;user-select:none'+(hi?';background:var(--b50);border-radius:6px;padding:1px 4px':'')+'" onclick="toggleLnPv(\''+nmq+'\')"><span style="display:inline-block;color:var(--ink2);font-size:10px;margin-right:5px;transition:transform .15s'+(open?'':';transform:rotate(-90deg)')+'">▾</span>'+esc(l.name)+' <span class="lvl">一级 · 线级看板</span><span class="lvl">'+l.depts.length+' 部门</span>'+(l.sum?' <span class="lvl" style="background:#E7F6EF;color:var(--green)">求和·可点击</span>':'')+'</div>';
+    var head='<div class="l1" style="cursor:pointer;user-select:none'+(hi?';background:var(--b50);border-radius:6px;padding:1px 4px':'')+'" onclick="toggleLnPv(\''+nmq+'\')"><span style="display:inline-block;color:var(--ink2);font-size:10px;margin-right:5px;transition:transform .15s'+(open?'':';transform:rotate(-90deg)')+'">▾</span>'+esc(l.name)+' <span class="lvl">一级 · 线级看板</span><span class="lvl">'+l.depts.length+' 部门</span></div>';
     return head+(open?l.depts.map(function(d){return '<div class="l2">'+esc(d)+' <span class="lvl">二级</span></div>';}).join(''):'');
   }).join(''):'<div class="hint" style="margin:0">尚无线级看板。勾选部门并命名即可创建：线级=一级、线内部门=二级。</div>';
   t+='<div class="hint" style="margin-top:10px">未归线部门 '+free.length+' 个：仍为一级层级，不进入层级预览。</div>';
