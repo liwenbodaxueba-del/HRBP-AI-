@@ -228,11 +228,17 @@ body.navfold .navtg{left:8px;}
   <div class="meta">正式版输入 iOA 账号自动带出姓名与部门；权限保存后即时生效并写审计。</div>
   <label>iOA 账号</label><input type="text" id="aId" placeholder="如：alicewang">
   <label>姓名</label><input type="text" id="aName" placeholder="如：王小艺">
-  <label>角色（可多选）</label>
-  <div id="aRoleBox" style="display:flex;gap:18px;padding:4px 2px;flex-wrap:wrap">
-    <label style="font-weight:400;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" class="aRoleCk" value="HRBP" checked>HRBP <span style="color:var(--ink3);font-size:12px">正常员工</span></label>
-    <label style="font-weight:400;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" class="aRoleCk" value="部门BP">部门BP <span style="color:var(--ink3);font-size:12px">部门管理员</span></label>
-    <label style="font-weight:400;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" class="aRoleCk" value="PM">PM <span style="color:var(--ink3);font-size:12px">线级权限</span></label>
+  <label>角色 <span style="font-weight:400;color:var(--ink3);font-size:12px">主角色单选(定默认看板权限) + 附加角色可选</span></label>
+  <div id="aRoleBox" style="display:flex;flex-direction:column;gap:8px;padding:4px 2px">
+    <div style="display:flex;gap:16px;flex-wrap:wrap">
+      <label style="font-weight:400;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="radio" name="aPrimary" class="aPri" value="HRBP" checked>HRBP <span style="color:var(--ink3);font-size:12px">看板1/2/3/4 编辑</span></label>
+      <label style="font-weight:400;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="radio" name="aPrimary" class="aPri" value="招聘经理">招聘经理 <span style="color:var(--ink3);font-size:12px">看板3 编辑·其余查阅</span></label>
+      <label style="font-weight:400;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="radio" name="aPrimary" class="aPri" value="业务">业务 <span style="color:var(--ink3);font-size:12px">看板1/2/3/4 查看</span></label>
+    </div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;border-top:1px dashed var(--b100);padding-top:8px">
+      <label style="font-weight:400;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" class="aRoleCk" value="部门BP">部门BP <span style="color:var(--ink3);font-size:12px">部门管理员·附加</span></label>
+      <label style="font-weight:400;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" class="aRoleCk" value="PM">PM <span style="color:var(--ink3);font-size:12px">线级权限·附加</span></label>
+    </div>
   </div>
   <label>所属看板1部门（决定分组·看板1只见本部门）</label>
   <div style="padding:8px 12px;background:#F1F5F9;border-radius:8px;font-size:13px;font-weight:600;color:var(--navy)"><span id="aDeptShow">（未分配部门）</span></div>
@@ -244,11 +250,14 @@ body.navfold .navtg{left:8px;}
 <!-- 角色编辑 modal（点账号旁角色 tag 打开·可多选/删除） -->
 <div class="mask" id="maskRole"><div class="modal" style="width:420px">
   <h3>角色 · <span id="reWho" style="color:var(--navy)"></span></h3>
-  <div class="meta">角色可多选：<b>HRBP</b>=正常员工、<b>部门BP</b>=部门管理员（看整个部门各中心求和·可改）、<b>PM</b>=线级权限。取消勾选即删除该角色。</div>
+  <div class="meta"><b>主角色</b>（单选·定默认看板权限）：<b>HRBP</b>=看板1/2/3/4编辑、<b>招聘经理</b>=看板3编辑·其余查阅、<b>业务</b>=看板1/2/3/4查看。<b>附加角色</b>（可选）：<b>部门BP</b>=部门管理员（看整部门各中心求和·可改）、<b>PM</b>=线级权限。改主角色即采用其默认看板权限（可再用⚙微调）。</div>
   <div id="reBox" style="display:flex;flex-direction:column;gap:10px;margin:10px 0">
-    <label style="font-weight:400;display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" class="reCk" value="HRBP">HRBP <span style="color:var(--ink3);font-size:12px">正常员工</span></label>
-    <label style="font-weight:400;display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" class="reCk" value="部门BP">部门BP <span style="color:var(--ink3);font-size:12px">部门管理员</span></label>
-    <label style="font-weight:400;display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" class="reCk" value="PM">PM <span style="color:var(--ink3);font-size:12px">线级权限</span></label>
+    <label style="font-weight:400;display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rePrimary" class="rePri" value="HRBP">HRBP <span style="color:var(--ink3);font-size:12px">看板1/2/3/4 编辑</span></label>
+    <label style="font-weight:400;display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rePrimary" class="rePri" value="招聘经理">招聘经理 <span style="color:var(--ink3);font-size:12px">看板3 编辑·其余查阅</span></label>
+    <label style="font-weight:400;display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rePrimary" class="rePri" value="业务">业务 <span style="color:var(--ink3);font-size:12px">看板1/2/3/4 查看</span></label>
+    <div style="border-top:1px dashed var(--b100);margin:2px 0"></div>
+    <label style="font-weight:400;display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" class="reCk" value="部门BP">部门BP <span style="color:var(--ink3);font-size:12px">部门管理员·附加</span></label>
+    <label style="font-weight:400;display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" class="reCk" value="PM">PM <span style="color:var(--ink3);font-size:12px">线级权限·附加</span></label>
   </div>
   <div class="row"><button class="btn gray" onclick="closeRole()">取消</button><button class="btn" onclick="roleSave()">保存并生效</button></div>
 </div></div>
@@ -411,8 +420,9 @@ var BOARDS4=['看板1','看板2','看板3','看板4'],PERM_LABEL=['无','查阅'
 function ME_SYS(){return window.ACCT_ME?!!window.ACCT_ME.is_sysadmin:true;}  // 本地 demo 默认 bonnie=系统管理员
 function kbPermOf(a){
   if(a.role==='管理员')return [2,2,2,2];  // 管理员=全看板编辑
-  var p=a.kbperm;if(p&&p.length===4)return p.map(function(x){return (x===0||x===1||x===2)?x:1;});
-  return a.role==='领导·只读'?[1,1,1,1]:[2,2,2,2];  // 默认：只读→查阅，可编辑→编辑
+  var p=a.kbperm;if(p&&p.length===4)return p.map(function(x){return (x===0||x===1||x===2)?x:1;});  // 显式配置优先
+  if(a.role==='领导·只读')return [1,1,1,1];
+  return (ROLE_KB[primaryRole(a)]||[2,2,2,2]).slice();  // 未显式配置→按主角色默认（HRBP全编/招聘经理看板3编/业务全查）
 }
 function kbPermCell(a,i){
   var p=kbPermOf(a),PC=['#EEF2F8','#DBEAFE','#E7F6EF'],FC=['var(--ink3)','#1E40AF','var(--green)'];
@@ -438,33 +448,39 @@ function saveKbPerm(){var i=acctIdx(_kpId);if(i<0){closeKbPerm();return;}
   closeKbPerm();renderAccts();  // log()→saveCfg()→PUT /api/config 落库
 }
 function closeKbPerm(){document.getElementById('maskKbPerm').classList.remove('on');_kpId=null;}
-var ROLE_OPTS=['HRBP','部门BP','PM'];  // 角色多选：HRBP正常员工/部门BP部门管理员/PM线级权限
-function acctRoles(a){var r=String(a.role||''),set=ROLE_OPTS.filter(function(x){return r.split(',').indexOf(x)>=0;});
-  if(!set.length)set=a.is_head?['部门BP']:['HRBP'];  // 旧数据兜底：is_head→部门BP，否则 HRBP
+var ROLE_OPTS=['HRBP','招聘经理','业务','部门BP','PM'];  // 主角色(看板权限档)：HRBP=全编辑 / 招聘经理=看板3编辑其余查阅 / 业务=全查阅；附加角色：部门BP部门管理员 / PM线级权限
+var ROLE_KB={'HRBP':[2,2,2,2],'招聘经理':[1,1,2,1],'业务':[1,1,1,1]};  // 主角色→默认看板1/2/3/4权限(0无/1查/2编)
+function primaryRole(a){var rs=acctRoles(a);for(var i=0;i<rs.length;i++)if(ROLE_KB[rs[i]])return rs[i];return 'HRBP';}
+function acctRoles(a){var r=String(a.role||''),parts=r.split(','),set=ROLE_OPTS.filter(function(x){return parts.indexOf(x)>=0;});
+  if(!set.length)set=a.is_head?['HRBP','部门BP']:['HRBP'];  // 旧数据兜底
+  if(!set.some(function(x){return ROLE_KB[x];}))set.unshift('HRBP');  // 保证有一个主角色(看板权限档)
   return set;}
-function roleTagHtml(a,i){if(a.is_sysadmin)return '';  // 系统管理员单独徽标(姓名列)，不出3角色tag
-  var bg={'HRBP':'#F1F5F9','部门BP':'#E7F6EF','PM':'#F3E8FF'},fg={'HRBP':'#475569','部门BP':'#127A50','PM':'#7C3AED'};
-  var t=acctRoles(a).map(function(rn){return ' <span class="chip" style="cursor:pointer;background:'+bg[rn]+';color:'+fg[rn]+'" onclick="editRoles('+i+')" title="点击改/删角色">'+rn+'</span>';}).join('');
+function roleTagHtml(a,i){if(a.is_sysadmin)return '';  // 系统管理员单独徽标，不出角色tag
+  var bg={'HRBP':'#F1F5F9','招聘经理':'#FEF3C7','业务':'#E0E7FF','部门BP':'#E7F6EF','PM':'#F3E8FF'},fg={'HRBP':'#475569','招聘经理':'#92400E','业务':'#3730A3','部门BP':'#127A50','PM':'#7C3AED'};
+  var t=acctRoles(a).map(function(rn){return ' <span class="chip" style="cursor:pointer;background:'+(bg[rn]||'#F1F5F9')+';color:'+(fg[rn]||'#475569')+'" onclick="editRoles('+i+')" title="点击改/删角色">'+rn+'</span>';}).join('');
   if(typeof lines!=='undefined'&&lines.some(function(l){return (l.bps||[]).indexOf(a.id)>=0;}))t+=' <span class="chip" style="background:#FEF3C7;color:#92400E" title="该账号是某线级的BP（在线维权限设置里指派）·可看线级板块">线维BP</span>';
   return t+' <span class="chip" style="cursor:pointer;background:#EEF2F8;color:var(--ink3);padding:1px 6px" onclick="editRoles('+i+')" title="编辑角色">✎</span>';}
 var _roleEditIdx=-1;
 function editRoles(i){_roleEditIdx=i;var a=accts[i];if(!a)return;
   document.getElementById('reWho').textContent=a.name+'（'+a.id+'）';
-  var cur=acctRoles(a);
+  var cur=acctRoles(a),pri=primaryRole(a);
+  [].forEach.call(document.querySelectorAll('#reBox .rePri'),function(r){r.checked=(r.value===pri);});
   [].forEach.call(document.querySelectorAll('#reBox .reCk'),function(c){c.checked=cur.indexOf(c.value)>=0;});
   document.getElementById('maskRole').classList.add('on');}
 function closeRole(){document.getElementById('maskRole').classList.remove('on');}
 function roleSave(){var a=accts[_roleEditIdx];if(!a)return;
-  var roles=[].map.call(document.querySelectorAll('#reBox .reCk:checked'),function(c){return c.value;});
-  if(!roles.length)roles=['HRBP'];
-  a.role=roles.join(',');a.is_head=roles.indexOf('部门BP')>=0;
+  var oldPri=primaryRole(a);
+  var pri=(document.querySelector('#reBox .rePri:checked')||{}).value||'HRBP';
+  var addons=[].map.call(document.querySelectorAll('#reBox .reCk:checked'),function(c){return c.value;});
+  var roles=[pri].concat(addons);
+  a.role=roles.join(',');a.is_head=addons.indexOf('部门BP')>=0;
+  if(pri!==oldPri)a.kbperm='';  // 主角色变更→采用新角色默认看板权限（清自定义，改由派生）
   if(typeof saveCfg==='function')saveCfg();
   if(typeof log==='function')log('账号角色',a.id+'（'+a.name+'）→ '+roles.join('/'));
   closeRole();renderAccts();}
 function acctRow(a,depth){
   var i=acctIdx(a.id);
-  return '<tr><td style="padding-left:'+(depth*20+24)+'px">'+esc(a.id)+(a.demo?' <span class="chip demo">示例</span>':'')+roleTagHtml(a,i)+'</td>'
-    +'<td>'+esc(a.name)+(a.is_sysadmin?' <span class="chip" style="background:#DBEAFE;color:#1E40AF;font-weight:600" title="系统管理员：全部可编辑（含改自己）">系统管理员</span>':'')+'</td>'
+  return '<tr><td style="padding-left:'+(depth*20+24)+'px">'+esc(a.id)+(a.name?' <span style="color:var(--ink2)">（'+esc(a.name)+'）</span>':'')+(a.is_sysadmin?' <span class="chip" style="background:#DBEAFE;color:#1E40AF;font-weight:600" title="系统管理员：全部可编辑（含改自己）">系统管理员</span>':'')+(a.demo?' <span class="chip demo">示例</span>':'')+roleTagHtml(a,i)+'</td>'
     +'<td>'+pmCellByDept(a.dept)+'</td>'
     +'<td class="c">'+kbPermCell(a,i)+'</td>'
     +'<td class="c">'+(a.id==='bonniewbli'?'<span style="font-size:12px;color:var(--ink3)">启用</span>':'<label class="sw"><input type="checkbox" '+(a.on?'checked':'')+' onchange="accOn('+i+',this.checked)"><span class="tk"></span></label>')+'</td>'
@@ -475,13 +491,13 @@ function renderAccts(){
   var byDept={},ungrouped=[];
   accts.forEach(function(a){var d=a.dept;if(!d||d==='集团')ungrouped.push(a);else (byDept[d]=byDept[d]||[]).push(a);});
   var _deptN=DEPT_TREE.filter(function(n){return n.name!=='集团';}).length;
-  var h='<thead><tr><th>部门/账号 <span style="font-weight:400;font-size:12px;color:var(--ink3)">· 共 '+_deptN+' 个部门</span></th><th style="width:160px">姓名</th><th style="width:200px">设置子PM看板</th><th class="c" style="width:190px">看板权限（编辑/查阅）</th><th class="c">启用</th><th class="c" style="width:120px">操作</th></tr></thead><tbody>';
+  var h='<thead><tr><th>部门/账号 <span style="font-weight:400;font-size:12px;color:var(--ink3)">· 共 '+_deptN+' 个部门</span></th><th style="width:200px">设置子PM看板</th><th class="c" style="width:190px">看板权限（编辑/查阅）</th><th class="c">启用</th><th class="c" style="width:120px">操作</th></tr></thead><tbody>';
   ungrouped.forEach(function(a){h+=acctRow(a,0);});  // 系统管理员/全局(集团) 置顶
   var seen={};
   function deptBlock(dept){
     if(seen[dept])return;seen[dept]=1;
     var list=byDept[dept]||[],collapsed=ACCT_COLLAPSE[dept],dq=dept.replace(/'/g,'');
-    h+='<tr><td colspan="6" style="background:#F1F5F9;padding:6px 8px;cursor:pointer;font-weight:600" onclick="acctToggle(\''+dq+'\')">'
+    h+='<tr><td colspan="5" style="background:#F1F5F9;padding:6px 8px;cursor:pointer;font-weight:600" onclick="acctToggle(\''+dq+'\')">'
       +(collapsed?'▸':'▾')+' '+esc(dept)+' <span class="chip'+(list.length?'':' off')+'">'+(list.length?list.length+' 人':'待指定部门BP')+'</span>'
       +'<button class="btn gray" style="margin-left:10px;padding:1px 8px;font-size:11px;font-weight:400" onclick="event.stopPropagation();openAcctInDept(\''+dq+'\')" title="在本部门添加人员">＋加人</button>'
       +'<span class="addp" onclick="event.stopPropagation();viewCenters(\''+dq+'\')" title="查看本部门中心清单">中心清单</span></td></tr>';
@@ -489,7 +505,6 @@ function renderAccts(){
       if(list.length){list.forEach(function(a){h+=acctRow(a,1);});}
       else{h+='<tr>'
         +'<td class="sub" style="padding-left:44px;color:var(--ink3)">未指定 <span class="chip bp">部门BP</span></td>'
-        +'<td><span style="color:var(--ink3)">—</span></td>'
         +'<td>'+pmCellByDept(dept)+'</td>'
         +'<td class="c"><span style="font-size:12px;color:var(--ink3)">—（未指定BP）</span></td>'
         +'<td class="c"><span style="color:var(--ink3)">—</span></td>'
@@ -835,7 +850,8 @@ function accOn(i,v){if(accts[i].id==='bonniewbli'){renderAccts();return;}accts[i
 function accDel(i){var a=accts[i];accts.splice(i,1);log('移除账号',a.id+'（'+a.name+'）');renderAccts();}
 var _addDept='';
 function _openAcctModal(){document.getElementById('aId').value='';document.getElementById('aName').value='';document.getElementById('aErr').style.display='none';
-  [].forEach.call(document.querySelectorAll('#aRoleBox .aRoleCk'),function(c){c.checked=(c.value==='HRBP');});
+  var _pr=document.querySelector('#aRoleBox .aPri[value="HRBP"]');if(_pr)_pr.checked=true;
+  [].forEach.call(document.querySelectorAll('#aRoleBox .aRoleCk'),function(c){c.checked=false;});
   var el=document.getElementById('aDeptShow');if(el)el.textContent=_addDept||'（未分配部门）';
   document.getElementById('maskAcct').classList.add('on');}
 function openAcct(){_addDept='';_openAcctModal();}
@@ -845,9 +861,10 @@ function saveAcct(){
   var id=document.getElementById('aId').value.trim(),name=document.getElementById('aName').value.trim();
   if(!id||!name||accts.some(function(a){return a.id===id;})){document.getElementById('aErr').style.display='block';return;}
   var dept=_addDept;  // 所属看板1部门（决定分组 + 看板1只见本部门）
-  var _roles=[].map.call(document.querySelectorAll('#aRoleBox .aRoleCk:checked'),function(c){return c.value;});
-  if(!_roles.length)_roles=['HRBP'];
-  accts.push({id:id,name:name,role:_roles.join(','),dept:dept,is_head:_roles.indexOf('部门BP')>=0,
+  var _pri=(document.querySelector('#aRoleBox .aPri:checked')||{}).value||'HRBP';
+  var _addons=[].map.call(document.querySelectorAll('#aRoleBox .aRoleCk:checked'),function(c){return c.value;});
+  var _roles=[_pri].concat(_addons);
+  accts.push({id:id,name:name,role:_roles.join(','),dept:dept,is_head:_addons.indexOf('部门BP')>=0,
     kb1_depts:dept?[dept]:['集团'],kb0_depts:dept?[dept]:['集团'],
     org_path:'',level:'',manager_id:'',
     kb:[1,1,1,1],on:true,demo:false});
