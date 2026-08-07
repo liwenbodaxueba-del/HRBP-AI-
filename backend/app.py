@@ -34,7 +34,8 @@ from meta import (CANON_PROJECTS, OUT_KEYS, CAMP_KEYS, IN_DIRECT_KEYS, BP_EDITAB
                   IMPORTABLE, VALUE_ABS_MAX, PLAN_METRICS, PLAN_BRANCH_SECS, EXTRA_METRICS, NAT_N_DEFAULT)
 from store import (DB_PATH, is_demo_db, db_mode_state, set_db_mode, db, init_db, now, _audit, _write_cell, get_account,
                    require_writer, require_admin, can_manage, manageable_ids, is_agg_dept, DEPT_CENTERS, ALL_DEPTS,
-                   refresh_org_cache, _kb0_adjust, _grid, _branches)
+                   refresh_org_cache, _kb0_adjust, _grid, _branches,
+                   is_vspace, _grid_members, _branches_members)
 import org_store as og  # 组织架构三层（部门/中心/个人）：稳定 ID + 改名/调动留痕
 from calc_kb1 import compute
 from sources import SOURCE_METRICS, load_sources_cfg, fetch_source, _month_completed
@@ -166,10 +167,12 @@ def get_me(x_user: str = Header("bonniewbli")):
         a = get_account(c, x_user)
         if not a:
             raise HTTPException(403, f"账号 {x_user} 未配置")
+        # 可见范围走统一的 _user_depts：管理员/系统管理员未显式配置时兜底【集团+全部门】（读组织表实时生成），
+        # 而不是只给「集团」——否则系统管理员反而成了可见范围最小的账号。
         return {"id": a["id"], "name": a["name"], "role": a["role"], "dept": a.get("dept", "") or "",
                 "is_head": bool(a.get("is_head", 0)), "is_sysadmin": bool(a.get("is_sysadmin", 0)),
-                "kb1_depts": json.loads((a.get("kb1_depts") or "") or '["集团"]'),
-                "kb0_depts": json.loads((a.get("kb0_depts") or "") or '["集团"]'),
+                "kb1_depts": _user_depts(c, x_user, "kb1_depts"),
+                "kb0_depts": _user_depts(c, x_user, "kb0_depts"),
                 "kbperm": json.loads((a.get("kbperm") or "") or "[]")}
 
 
@@ -480,17 +483,44 @@ def _prev_dec_ending(c, year, dept="集团", _depth=0):
     return pcomp["chain"][11]
 
 
+def _prev_dec_ending_members(c, year, members):
+    """虚拟空间（子PM组/业务线）跨年链首种子 = 其各成员种子之和（识空不补0）。"""
+    out = None
+    for sp in members:
+        v = _prev_dec_ending(c, year, sp)
+        if isinstance(v, (int, float)):
+            out = (out or 0) + v
+    return out
+
+
 @app.get("/api/board/{year}")
-def get_board(year: int, dept: str = "集团"):
+def get_board(year: int, dept: str = "集团", centers: str = ""):
+    """看板1 取数。dept 可以是：集团 / 部门 / 「部门/中心」/ 【虚拟空间】。
+
+    虚拟空间（子PM组 PM:部:组名、业务线 LINE:线名）：组织表里没有这一层，成员清单由
+    管理后台配置、随 centers= 传入（逗号分隔的成员空间键）。此时全部指标 = 各成员求和，
+    从而子PM组页面能直接复用看板1 的完整架构（预算当量/期末在岗/总流出·总流入全展开/GAP/流失率），
+    而不再是单独的简化表。虚拟空间为只读求和：不落自己的 cells，唯一自有数据是「本组调节项」。
+    """
+    members = [x.strip() for x in centers.split(",") if x.strip()] if centers else []
+    vspace = bool(members) and is_vspace(dept)
     with db() as c:
         yr = c.execute("SELECT * FROM years WHERE year=?", (year,)).fetchone()
         if not yr:
             raise HTTPException(404, "年份不存在")
-        vals, notes = _grid(c, year, dept)
-        brs = _branches(c, year, dept)
-        prev_er = _grid(c, year - 1, dept)[0].get("er_out")
+        if vspace:
+            vals, notes = _grid_members(c, year, members)   # 虚拟空间无自己的看板2 → 预算基线也求和
+            brs = _branches_members(c, year, members)
+            prev_er = _grid_members(c, year - 1, members)[0].get("er_out")
+        else:
+            vals, notes = _grid(c, year, dept)
+            brs = _branches(c, year, dept)
+            prev_er = _grid(c, year - 1, dept)[0].get("er_out")
         nat_n = yr["nat_n"] if "nat_n" in yr.keys() else NAT_N_DEFAULT
-        seed = _prev_dec_ending(c, year, dept) if yr["lock_month"] == 0 else None
+        if yr["lock_month"] == 0:
+            seed = _prev_dec_ending_members(c, year, members) if vspace else _prev_dec_ending(c, year, dept)
+        else:
+            seed = None
         comp = compute(vals, brs, yr["lock_month"], prev_er=prev_er, nat_n=nat_n, seed=seed)
         metrics = {k: {"vals": vals.get(k, [None] * 12), "notes": notes.get(k, {})} for k, *_ in CANON_PROJECTS}
         for k in EXTRA_METRICS:  # 看板2 期初基线（fa_hc/q_init）一并下发
@@ -504,13 +534,26 @@ def get_board(year: int, dept: str = "集团"):
                 av[m] = comp["chain"][m]
         metrics["actual"]["vals"] = av
         # 假数库(hcfb_demo.db)：整库皆示例 → 直接置 demo 横幅；真库则按 source='demo' 兜底判断
+        # 虚拟空间自己没有 cells → 按其成员判断，否则组页面会漏掉示例数据提示
+        _dchk = members if vspace else [dept]
+        _ph = ",".join("?" * len(_dchk))
         demo = bool(is_demo_db()
-                    or c.execute("SELECT 1 FROM cells WHERE year=? AND dept=? AND source='demo' LIMIT 1", (year, dept)).fetchone()
-                    or c.execute("SELECT 1 FROM branches WHERE year=? AND dept=? AND created_by='demo' LIMIT 1", (year, dept)).fetchone()
+                    or c.execute(f"SELECT 1 FROM cells WHERE year=? AND dept IN ({_ph}) AND source='demo' LIMIT 1",
+                                 (year, *_dchk)).fetchone()
+                    or c.execute(f"SELECT 1 FROM branches WHERE year=? AND dept IN ({_ph}) AND created_by='demo' LIMIT 1",
+                                 (year, *_dchk)).fetchone()
                     or (dept == "集团" and c.execute("SELECT 1 FROM ledger_rows WHERE batch=-999 LIMIT 1").fetchone()))
+        # 虚拟空间自有的「本组/本线调节项」（存kb0_adjust·dept=虚拟键）：不碰成员源数据，随看板1一起下发
+        vspace_adjust, vspace_adjust_note = None, {}
+        if vspace:
+            vspace_adjust = _kb0_adjust(c, year, dept)
+            for r in c.execute("SELECT month,note FROM kb0_adjust WHERE year=? AND dept=? AND metric='chain' "
+                               "AND note IS NOT NULL AND note!=''", (year, dept)):
+                vspace_adjust_note[str(r["month"])] = r["note"]
     # 含中心的部：各中心预算当量之和（供与系统取数=看板2部门维度对比·纯参考·不上卷不影响）
+    # 虚拟空间不需要这行——它的预算当量本身就是成员求和，两行会完全重复
     budget_centers_sum = None
-    if dept in DEPT_CENTERS:
+    if not vspace and dept in DEPT_CENTERS:
         budget_centers_sum = [None] * 12
         for center in DEPT_CENTERS[dept]:
             cb = get_board(year, center)["metrics"]["budget"]["vals"]
@@ -519,15 +562,23 @@ def get_board(year: int, dept: str = "集团"):
                     budget_centers_sum[m] = (budget_centers_sum[m] if isinstance(budget_centers_sum[m], (int, float)) else 0) + cb[m]
     return {"year": year, "dept": dept, "status": yr["status"], "lock": yr["lock_month"], "seed": seed,
             "metrics": metrics, "branches": brs, "computed": comp, "nat": comp["nat"],
-            "budget_centers_sum": budget_centers_sum, "demo": demo, "ts": int(time.time() * 1000)}
+            "budget_centers_sum": budget_centers_sum, "demo": demo, "ts": int(time.time() * 1000),
+            "vspace": vspace, "vspace_members": members if vspace else [],
+            "vspace_adjust": vspace_adjust, "vspace_adjust_note": vspace_adjust_note}
 
 
-DEPTS_ALL = ["集团", "云产品一部", "云产品二部", "云产品三部", "云产品四部", "云产品五部"]
+def _all_spaces():
+    """管理员可见范围 = 集团 + 全部门（读组织表实时生成）。
+
+    ⚠ 原先这里是硬编码的 6 个部门（集团+云产品一~五部），管理员若未显式配置 kb1_depts
+    就只能看到 6 个部门 → 与「系统管理员看得到所有信息」相悖，且组织新增部门也不会跟随。
+    """
+    return ["集团"] + list(ALL_DEPTS)
 
 
 def _user_depts(c, user_id, field="kb0_depts"):
     """账号可见部门列表：field='kb0_depts'（PM速览·默认）或 'kb1_depts'（看板1）。
-    空则管理员看全部、其余看集团。"""
+    空则管理员看全部（集团+全部门·动态）、其余看集团。"""
     a = get_account(c, user_id)
     if not a:
         return []
@@ -537,7 +588,7 @@ def _user_depts(c, user_id, field="kb0_depts"):
         depts = []
     if depts:
         return depts  # 直接用配置的部门（可含「部/中心」中心路径）
-    return DEPTS_ALL if a.get("role") == "管理员" else ["集团"]
+    return _all_spaces() if (a.get("role") == "管理员" or a.get("is_sysadmin")) else ["集团"]
 
 
 
@@ -653,6 +704,10 @@ class CellEdit(BaseModel):
 def edit_cell(year: int, e: CellEdit, dept: str = "集团", x_user: str = Header("bonniewbli")):
     with db() as c:
         require_writer(c, x_user)
+        # 虚拟空间（子PM组/业务线）是纯求和视图，不落自己的 cells：若允许写会产生谁都读不到的孤儿数据。
+        # 它唯一可写的是「本组调节项」，走 POST /api/kb0/{year}/adjust（dept 传虚拟键）。
+        if is_vspace(dept):
+            raise HTTPException(403, f"「{dept}」为求和视图（只读），请在具体中心/部门录入；本组仅调节项可手调")
         if is_agg_dept(dept):
             # 期初法定HC(fa_hc) 是部门级 BP 录入·期初锚定（落部门自身 cells，_grid 按部门维度直取、不上卷）：
             # 含中心的部放开，仅集团（各部门加总）保持只读。其余项在含中心部仍只读（=各中心之和）。
@@ -725,6 +780,8 @@ def add_branch(year: int, b: BranchNew, dept: str = "集团", x_user: str = Head
         raise HTTPException(422, "分支名称必填")
     with db() as c:
         require_writer(c, x_user)
+        if is_vspace(dept):  # 求和视图不落自己的数据，否则成孤儿分支（本组只允许调节项）
+            raise HTTPException(403, f"「{dept}」为求和视图（只读），请在具体中心/部门新增分支")
         c.execute(
             "INSERT INTO branches(year,dept,sec,name,sign,on_ok,created_by,created_at) VALUES(?,?,?,?,?,1,?,?)",
             (year, dept, b.sec, b.name.strip(), b.sign, x_user, now()),

@@ -474,30 +474,75 @@ def is_agg_dept(dept):
     return dept in DEPT_CENTERS or dept == "集团"
 
 
+# ============ 虚拟空间（子PM组 / 业务线）============
+# 「集团 / 部门 / 中心」是组织表里真实存在的层级；而【子PM组】和【业务线】是人为分组，
+# 其成员清单由管理后台配置（前端 localStorage），随请求以 centers= 传入 → 故称虚拟空间。
+# 虚拟空间【只是求和视图】：不落自己的 cells，取数一律= 其成员求和；
+# 唯一属于它自己的数据是「本组/本线调节项」（存kb0_adjust，dept=虚拟键，不碰成员源数据）。
+VSPACE_PREFIXES = ("PM:", "LINE:")  # 子PM组键 = PM:部门:组名；业务线键 = LINE:线名
+
+
+def is_vspace(dept):
+    """是否虚拟空间键（子PM组 / 业务线）——只读求和视图，禁止写入cells。"""
+    return isinstance(dept, str) and dept.startswith(VSPACE_PREFIXES)
+
+
+def _sum_into(agg, arr):
+    """把一条 12 月数组累加进 agg（识空不补0：全空仍为 None，避免把「没数」变成 0）。"""
+    for m in range(12):
+        if isinstance(arr[m], (int, float)):
+            agg[m] = (agg[m] if isinstance(agg[m], (int, float)) else 0) + arr[m]
+    return agg
+
+
+def _grid_members(c, year, members, skip_direct=False):
+    """若干成员空间（中心/部门）的 cells 求和 → {metric: [v]*12}。
+
+    skip_direct=True：跳过 _DEPT_DIRECT（预算基线 q_init/fa_hc）——【部门级】用，
+        因为部门的预算当量是直读看板2 部门维度编制，不能由中心手填值加总。
+    skip_direct=False：【虚拟空间（子PM组/业务线）】用，它没有自己的看板2，
+        预算当量口径就是其成员求和。
+    """
+    agg = {}
+    for sp in members:
+        cv, _ = _grid(c, year, sp)
+        for k, arr in cv.items():
+            if skip_direct and k in _DEPT_DIRECT:
+                continue
+            _sum_into(agg.setdefault(k, [None] * 12), arr)
+    return agg, {}  # 求和视图不带备注（备注属于录入的那一级）
+
+
+def _kb0_adjust_members(c, year, members, metric="chain"):
+    """若干成员空间的调节项求和（识空不补 0）。"""
+    agg = [None] * 12
+    for sp in members:
+        _sum_into(agg, _kb0_adjust(c, year, sp, metric))
+    return agg
+
+
+def _branches_members(c, year, members):
+    """若干成员空间的手动分支汇总上来（标注来源成员·只读），计入求和运算。"""
+    out = []
+    for sp in members:
+        sn = sp.split("/")[-1]
+        for b in _read_branches(c, year, sp):
+            b = dict(b)
+            b["name"] = b["name"] + "（" + sn + "）"
+            b["center"] = sn
+            b["agg"] = True
+            out.append(b)
+    return out
+
+
 def _grid(c, year, dept="集团"):
     """cells → {metric: [v or None]*12}, notes → {metric: {m: note}}（按部门空间 dept）。
-    集团→各部门加总(合计·只读)；部级(含中心)→各中心加总(只读汇总)；其余→本 dept 直取。"""
+    集团→各部门加总(合计·只读)；部级(含中心)→各中心加总(只读汇总)；其余→本 dept 直取。
+    注：虚拟空间（子PM组/业务线）不走这里——它的成员清单来自请求参数，见 _grid_members。"""
     if dept == "集团":
-        agg = {}
-        for d in ALL_DEPTS:
-            cv, _ = _grid(c, year, d)
-            for k, arr in cv.items():
-                a = agg.setdefault(k, [None] * 12)
-                for m in range(12):
-                    if isinstance(arr[m], (int, float)):
-                        a[m] = (a[m] if isinstance(a[m], (int, float)) else 0) + arr[m]
-        return agg, {}  # 合计不带备注
+        return _grid_members(c, year, ALL_DEPTS)  # 合计不带备注
     if dept in DEPT_CENTERS:
-        agg = {}
-        for center in DEPT_CENTERS[dept]:
-            cv, _ = _grid(c, year, center)  # 中心不在 DEPT_CENTERS，直取
-            for k, arr in cv.items():
-                if k in _DEPT_DIRECT:  # 仅预算基线(q_init/fa_hc)：部门维度直取看板2，不从中心加总
-                    continue
-                a = agg.setdefault(k, [None] * 12)
-                for m in range(12):
-                    if isinstance(arr[m], (int, float)):
-                        a[m] = (a[m] if isinstance(a[m], (int, float)) else 0) + arr[m]
+        agg, _ = _grid_members(c, year, DEPT_CENTERS[dept], skip_direct=True)
         # 部门维度直取（仅看板2 预算基线）：取本部门自身 cells；中心维度由 BP 手填、不上卷。
         # 待流入·社招不在此列：中心级直读该中心看板3.2，部门级= 各中心求和（走上面的加总分支）。
         for r in c.execute("SELECT metric,month,value FROM cells WHERE year=? AND dept=? "
@@ -516,23 +561,12 @@ def _grid(c, year, dept="集团"):
 
 
 def _kb0_adjust(c, year, dept, metric="chain"):
-    """调节项 [v or None]*12：集团=各部门加总；部级(含中心)=各中心调节加总；其余=本 dept 直取（识空不补0）"""
+    """调节项 [v or None]*12：集团=各部门加总；部级(含中心)=各中心调节加总；其余=本 dept 直取（识空不补0）。
+    虚拟空间（子PM组/业务线）走本函数的直取分支——它的调节项就存在自己那个虚拟键上，不是求和。"""
     if dept == "集团":
-        agg = [None] * 12
-        for d in ALL_DEPTS:
-            cv = _kb0_adjust(c, year, d, metric)
-            for m in range(12):
-                if isinstance(cv[m], (int, float)):
-                    agg[m] = (agg[m] if isinstance(agg[m], (int, float)) else 0) + cv[m]
-        return agg
+        return _kb0_adjust_members(c, year, ALL_DEPTS, metric)
     if dept in DEPT_CENTERS:
-        agg = [None] * 12
-        for center in DEPT_CENTERS[dept]:
-            cv = _kb0_adjust(c, year, center, metric)
-            for m in range(12):
-                if isinstance(cv[m], (int, float)):
-                    agg[m] = (agg[m] if isinstance(agg[m], (int, float)) else 0) + cv[m]
-        return agg
+        return _kb0_adjust_members(c, year, DEPT_CENTERS[dept], metric)
     out = [None] * 12
     for r in c.execute("SELECT month,value FROM kb0_adjust WHERE year=? AND dept=? AND metric=?", (year, dept, metric)):
         if 1 <= r["month"] <= 12:
@@ -561,14 +595,5 @@ def _branches(c, year, dept="集团"):
             out.extend(_branches(c, year, d))
         return out
     if dept in DEPT_CENTERS:  # 含中心的部：把各中心手动分支汇总上来(标注中心·只读)，计入部门运算(表多出这几项)
-        out = []
-        for center in DEPT_CENTERS[dept]:
-            cn = center.split("/")[-1]
-            for b in _read_branches(c, year, center):
-                b = dict(b)
-                b["name"] = b["name"] + "（" + cn + "）"
-                b["center"] = cn
-                b["agg"] = True
-                out.append(b)
-        return out
+        return _branches_members(c, year, DEPT_CENTERS[dept])
     return _read_branches(c, year, dept)

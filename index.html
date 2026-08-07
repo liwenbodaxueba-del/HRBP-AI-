@@ -505,6 +505,7 @@ body.navfold .navtg{left:8px;}
   <div id="lineHost"></div>
 </div>
 <!-- 子PM组求和看板（勾了「展示求和」的子PM组·点目录进）：所选中心求和 + 可手调调节项 -->
+<!-- 子PM组已并入看板1（作为「求和空间」渲染完整架构），不再有独立页面；此处保留空容器仅为兼容旧的收藏/恢复态 -->
 <div class="view" id="v-pmg">
   <div id="pmgHost"></div>
 </div>
@@ -521,6 +522,8 @@ body.navfold .navtg{left:8px;}
     <span id="deptAggNote" style="font-size:12px;font-weight:600;color:#B45309;background:#FEF3C7;padding:2px 10px;border-radius:12px">各部门汇总 · 只读（请在具体部门/中心录入）</span>
     <span style="font-size:12.5px;color:var(--ink3)">（左侧「看板1」展开可切换部门）</span>
   </div>
+  <!-- 子PM组空间专用信息条：含中心清单 + 各中心明细（部门/中心空间下隐藏） -->
+  <div id="kb1PmgBar" style="display:none;margin:-8px 0 12px"></div>
   <div class="banner" id="demoBanner" style="background:#FDECEC;border-color:#F3B4B4;color:#8C2B2B">
     <span><b>【示例】演示数据（独立假数库 hcfb_demo.db）</b>——仅含<b>系统取数</b>假数，BP 手填项一律留空待你自己填；非真实口径，勿用于汇报。切真库：设 <code>HCFB_DB=hcfb.db</code> 或删除 hcfb_demo.db</span>
   </div>
@@ -1027,10 +1030,14 @@ var KB1_OPEN={};
 var PM_GROUPS={};try{PM_GROUPS=JSON.parse(localStorage.getItem('hcfb_pm_groups')||'{}')||{};}catch(e){PM_GROUPS={};}
 window.addEventListener('storage',function(e){if(e.key==='hcfb_pm_groups'){try{PM_GROUPS=JSON.parse(e.newValue||'{}')||{};}catch(_){PM_GROUPS={};}if(window.renderKb1Nav)renderKb1Nav();}});
 function _pmGroupHead(g,padLeft,dept){
-  if(g&&g.sum){  // 勾了「展示求和」：目录项可点击→进求和看板
+  // 勾了「展示求和」→ 目录项可点击进求和看板；未勾时【管理员仍可点】（系统管理员要能看到所有信息），并标注状态
+  var admSee=(typeof isAdminAll==='function'&&isAdminAll());
+  if(g&&(g.sum||admSee)){
     var nm=String(g.name).replace(/'/g,''),dq=String(dept||'').replace(/'/g,'');
     var isCur=(typeof PMG_ON!=='undefined'&&PMG_ON&&PMG&&String(PMG.dept)===String(dept)&&String(PMG.name)===String(g.name));  // 当前空间=本子PM组→整块高亮
-    return '<a onclick="pickPmGroup(\''+dq+'\',\''+nm+'\')" title="点击查看所选中心求和（可手调）" style="display:block;padding:5px 10px 5px '+padLeft+'px;font-size:12px;font-weight:600;color:var(--blue);cursor:pointer;border-radius:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis'+(isCur?';background:#E8F1FF':'')+'">'+esc(g.name)+' <span style="font-size:10px;font-weight:400;color:var(--green);background:#E7F6EF;border-radius:8px;padding:0 6px">求和</span></a>';
+    var tag=g.sum?'<span style="font-size:10px;font-weight:400;color:var(--green);background:#E7F6EF;border-radius:8px;padding:0 6px">求和</span>'
+                 :'<span style="font-size:10px;font-weight:400;color:#B45309;background:#FEF3C7;border-radius:8px;padding:0 6px" title="该组未勾选「展示求和」，仅管理员可见">未开·管理员可见</span>';
+    return '<a onclick="pickPmGroup(\''+dq+'\',\''+nm+'\')" title="点击查看所选中心求和（可手调）" style="display:block;padding:5px 10px 5px '+padLeft+'px;font-size:12px;font-weight:600;color:var(--blue);cursor:pointer;border-radius:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis'+(isCur?';background:#E8F1FF':'')+'">'+esc(g.name)+' '+tag+'</a>';
   }
   var label=(g&&g.name)?esc(g.name):esc(g);
   return '<div style="padding:5px 10px 5px '+padLeft+'px;font-size:12px;font-weight:600;color:var(--navy)">'+label+' <span style="font-size:10px;font-weight:400;color:var(--ink3);background:#EEF2F8;border-radius:8px;padding:0 6px">子PM组</span></div>';}
@@ -1041,80 +1048,89 @@ function _emitCenters(dept,centers,centerOK,headPad,deepPad,emit,emitHead){
   groups.forEach(function(g){emitHead(g,headPad);(g.centers||[]).forEach(function(c){if(centers.indexOf(c)>=0&&centerOK(dept,c))emit(c,deepPad);});});
   centers.forEach(function(c){if(!grouped[c]&&centerOK(dept,c))emit(c,headPad);});
 }
-/* ===== 子PM组求和看板：所选中心求和(预算当量/期末在岗) + 可手调调节项(存后端·不碰源) ===== */
-var PMG=null,PMG_ON=false;  // PMG_ON=当前"空间"是某子PM组→点看板1/2/3/4 都保持显示此组求和看板（同部门选择跨看板持续的道理）
+/* ===== 子PM组 = 看板1 的一个「求和空间」（架构与部门级完全一致） =====
+   2608 改造：子PM组页面不再是独立的简化 4 行表，而是【直接复用看板1 部门级的完整架构】——
+   GAP 卡、进度/流失率、预算当量、实际/预估期末在岗、总流出·总流入全部展开、各分支明细，一应俱全。
+   做法：把组当成一个虚拟部门空间（键 PM:部门:组名），成员中心清单随请求以 centers= 传给后端，
+   后端按「先加总后运算」求和（与部门级同一套 compute），故组页面口径与部门页天然一致。
+   组唯一自有的数据是「本组调节项」（存kb0_adjust·dept=虚拟键），不碰各中心源数据。*/
+var PMG=null,PMG_ON=false;  // PMG_ON=当前空间是某子PM组（DEPT 即为 PMG.key）
+function pmgKey(dept,name){return 'PM:'+dept+':'+name;}
+function isPmgSpace(d){return String(d||window.CUR_DEPT||'').indexOf('PM:')===0;}
 function pickPmGroup(dept,name){
   var groups=PM_GROUPS[dept]||[],g=null;
   for(var i=0;i<groups.length;i++)if(groups[i].name===name)g=groups[i];
-  if(!g||!g.sum)return;
+  if(!g)return;
+  if(!g.sum&&!isAdminAll())return;   // 未开「展示求和」的组：普通账号不可进；管理员可进（要看到所有信息）
   var centers=(g.centers||[]).map(function(c){return dept+'/'+c;});  // 中心部门空间键=部/中心
-  PMG={dept:dept,name:name,key:'PM:'+dept+':'+name,centers:centers};PMG_ON=true;
-  goView('pmg');document.getElementById('pmgHost').innerHTML='<div class="hint" style="padding:16px;color:var(--ink3)">加载中…</div>';
+  PMG={dept:dept,name:name,key:pmgKey(dept,name),centers:centers,sumOff:!g.sum};PMG_ON=true;
+  goView('kb1');
   if(window.renderKb1Nav)renderKb1Nav();  // 刷新侧栏→当前子PM组整块高亮
-  loadPmg();
+  if(window.setDept)window.setDept(PMG.key);  // → loadYear 拉 /api/board?dept=PM:…&centers=…
 }
-/* 看板名点击：某子PM组为当前空间时，看板1/2/3/4 都停在该组求和看板；否则正常切视图(保留当前部门空间) */
-function boardTab(v){if(PMG_ON&&PMG){goView('pmg');if(typeof renderPmg==='function')renderPmg();return;}goView(v);}
-function loadPmg(){
-  var P=PMG;if(!P)return Promise.resolve();
-  if(!window.USE_API){document.getElementById('pmgHost').innerHTML='<div class="hint" style="padding:16px">子PM组求和需连接后端</div>';return Promise.resolve();}
-  var url='/api/pmgroup/'+YEAR+'?centers='+encodeURIComponent(P.centers.join(','))+'&key='+encodeURIComponent(P.key);
-  return fetch(url,{headers:{'X-User':'bonniewbli'}}).then(function(r){return r.json();}).then(function(j){P.data=j;renderPmg();}).catch(function(){document.getElementById('pmgHost').innerHTML='<div class="hint" style="padding:16px;color:var(--red)">加载失败</div>';});
-}
-function renderPmg(){
-  var host=document.getElementById('pmgHost'),P=PMG;if(!host||!P||!P.data)return;
-  var d=P.data,yy=String(YEAR).slice(2);
-  function nv(v){return (v===null||v===undefined||v==='')?'':v;}
-  var h='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:4px 0 12px">'
-    +'<b style="font-size:18px;color:var(--navy)">'+esc(P.dept)+' · '+esc(P.name)+'</b>'
-    +'<span style="font-size:12px;font-weight:600;color:var(--green);background:#E7F6EF;padding:2px 10px;border-radius:12px">子PM组求和 · '+P.centers.length+' 个中心</span>'
-    +'<span style="font-size:12px;color:var(--ink3)">预算当量/期末在岗=所选中心求和（只读）· 调节项本组可手调（不影响源）</span></div>';
-  h+='<div style="font-size:12.5px;color:var(--ink2);margin:-4px 0 12px;line-height:1.7"><b style="color:var(--navy)">含中心（'+P.centers.length+'）：</b>'
-    +P.centers.map(function(c){var cn=String(c).split('/').pop();return '<a onclick="pickDeptNav(\'kb1\',\''+String(c).replace(/\x27/g,"")+'\')" style="color:var(--blue);cursor:pointer" title="进看板1 · '+esc(cn)+'">'+esc(cn)+'</a>';}).join('、')+'</div>';
-  h+='<div class="tblwrap"><table class="bsc kb0tbl"><tr><th>项目</th>';
-  for(var m=0;m<12;m++)h+='<th class="'+(m<LOCK?'':'fut')+'">'+M[m]+(m<LOCK?'<span class="lockic"></span>':'')+'</th>';
-  h+='<th>'+yy+'年均</th></tr>';
-  h+=tr('key','预算当量 <span class="badge calc">看板2</span>',(d.budget||[]).map(nv),{avg:(typeof f2==='function'?f2(d.budgetAvg):d.budgetAvg),lockShade:true,noTot:true});
-  h+=tr('key','实际/预估期末在岗 <span class="badge calc">链·各中心求和</span>',(d.chain||[]).map(nv),{avg:(typeof f2==='function'?f2(d.chainAvg):d.chainAvg),lockShade:true,noTot:true});
-  var adj=d.adjust||[];
-  h+='<tr class="sub"><td style="color:var(--navy);font-weight:600">➕ 调节项 <span style="color:var(--ink3);font-weight:400;font-size:11px">（本组·可手调）</span></td>';
-  for(var mj=0;mj<12;mj++){var av=nv(adj[mj]);
-    if(mj<LOCK){h+='<td class="mut" style="text-align:right">'+av+'</td>';}
-    else{h+='<td style="padding:0"><input type="number" step="1" value="'+av+'" onchange="pmgSave('+(mj+1)+',this.value)" style="width:100%;min-width:42px;border:1px solid transparent;padding:3px 4px;font:inherit;text-align:right;background:transparent;border-radius:4px" onfocus="this.style.borderColor=\'var(--blue-l)\';this.style.background=\'#fff\'" onblur="this.style.borderColor=\'transparent\';this.style.background=\'transparent\'"></td>';}}
-  h+='<td></td></tr>';
-  h+=tr('key','调整后期末在岗 <span class="badge calc">＝链＋调节</span>',(d.chainAdj||[]).map(nv),{avg:(typeof f2==='function'?f2(d.chainAdjAvg):d.chainAdjAvg),lockShade:true,noTot:true});
-  h+='</table></div>';
-  // 明细（各中心·可展开）：每个中心期末在岗一行，点中心名进看板1
-  var mem=d.members||[];
-  h+='<div style="margin-top:14px"><a onclick="togglePmgDetail()" style="cursor:pointer;font-size:13px;font-weight:600;color:var(--navy)">'+(P.openDetail?'▾':'▸')+' 明细（各中心 '+mem.length+'）</a>';
-  if(P.openDetail){
-    h+='<div class="tblwrap" style="margin-top:8px"><table class="bsc kb0tbl"><tr><th>中心 · 期末在岗</th>';
-    for(var m2=0;m2<12;m2++)h+='<th class="'+(m2<LOCK?'':'fut')+'">'+M[m2]+'</th>';
-    h+='<th>'+yy+'年均</th></tr>';
-    mem.forEach(function(mb){var cn=String(mb.name).split('/').pop();
-      h+='<tr><td><a onclick="pickDeptNav(\'kb1\',\''+String(mb.name).replace(/\x27/g,"")+'\')" style="color:var(--blue);cursor:pointer" title="进看板1 · '+esc(cn)+'">'+esc(cn)+'</a></td>';
-      for(var k=0;k<12;k++){var v=(mb.chain&&mb.chain[k]!=null)?mb.chain[k]:'';h+='<td class="'+(k<LOCK?'mut':'')+'" style="text-align:right">'+v+'</td>';}
-      h+='<td style="text-align:right;font-weight:600">'+(mb.chainAvg!=null?(typeof f2==='function'?f2(mb.chainAvg):mb.chainAvg):'')+'</td></tr>';
-    });
-    h+='</table></div>';
-  }
-  h+='</div>';
-  host.innerHTML=h;
-}
-function togglePmgDetail(){if(PMG){PMG.openDetail=!PMG.openDetail;renderPmg();}}
-function pmgSave(month,value){
+/* 看板名点击：看板2/3/4 只有部门维度 → 由 goView 统一回落到组所属部门（与「中心」同理） */
+function boardTab(v){goView(v);}
+/* 本组调节项写入（存 kb0_adjust·dept=组键）：只影响本组「调整后期末在岗」，不动任何中心源数据 */
+function pmgAdjSave(month,value){
   var P=PMG;if(!P)return;
   var v=(value===''||value===null||value===undefined)?null:parseFloat(value);
   if(v!==null&&isNaN(v))return;
-  fetch('/api/kb0/'+YEAR+'/adjust',{method:'POST',headers:{'Content-Type':'application/json','X-User':'bonniewbli'},body:JSON.stringify({dept:P.key,month:month,value:v,note:''})})
-    .then(function(r){return r.json();}).then(function(){return loadPmg();})
-    .then(function(){if(typeof toast==='function')toast('调节项已保存（子PM组·不影响源数据）');})
-    .catch(function(){});
+  fetch('/api/kb0/'+YEAR+'/adjust',{method:'POST',headers:{'Content-Type':'application/json','X-User':API_USER},body:JSON.stringify({dept:P.key,month:month,value:v,note:''})})
+    .then(function(r){return r.json();}).then(function(){return loadYear(YEAR);})
+    .then(function(){if(typeof toast==='function')toast('本组调节项已保存（不影响各中心源数据）');})
+    .catch(function(){if(typeof toast==='function')toast('保存失败');});
+}
+/* 组页顶部信息条：含中心清单（可点进该中心看板1）+「各中心明细」按需加载（复用 /api/pmgroup） */
+function renderPmgBar(){
+  var bar=document.getElementById('kb1PmgBar');if(!bar)return;
+  if(!isPmgSpace()||!PMG){bar.style.display='none';bar.innerHTML='';return;}
+  bar.style.display='block';
+  var h='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
+    +'<span style="font-size:12px;font-weight:600;color:var(--green);background:#E7F6EF;padding:2px 10px;border-radius:12px">子PM组求和 · '+PMG.centers.length+' 个中心</span>'
+    +(PMG.sumOff?'<span style="font-size:12px;font-weight:600;color:#B45309;background:#FEF3C7;padding:2px 10px;border-radius:12px" title="该组在管理后台未勾选「展示求和」">该组未开求和展示 · 仅管理员可见</span>':'')
+    +'<span style="font-size:12.5px;color:var(--ink3)">架构与部门级一致：各中心<b>先加总后运算</b>（与看板1 部门页同口径）· 源数据请在具体中心录入 · 调节项本组可手调</span></div>';
+  h+='<div style="font-size:12.5px;color:var(--ink2);margin-top:6px;line-height:1.7"><b style="color:var(--navy)">含中心（'+PMG.centers.length+'）：</b>'
+    +PMG.centers.map(function(c){var cn=String(c).split('/').pop();
+      return '<a onclick="pickDeptNav(\'kb1\',\''+String(c).replace(/\x27/g,"")+'\')" style="color:var(--blue);cursor:pointer" title="进看板1 · '+esc(cn)+'">'+esc(cn)+'</a>';}).join('、')
+    +'<a onclick="togglePmgDetail()" style="margin-left:8px;color:var(--navy);font-weight:600;cursor:pointer">'+(PMG.openDetail?'▾':'▸')+' 各中心明细</a></div>';
+  if(PMG.openDetail)h+=pmgDetailHtml();
+  bar.innerHTML=h;
+}
+function pmgDetailHtml(){
+  var d=PMG&&PMG.data;
+  if(!d)return '<div class="hint" style="margin-top:8px">加载中…</div>';
+  var yy=String(YEAR).slice(2),mem=d.members||[];
+  var h='<div class="tblwrap" style="margin-top:8px"><table class="bsc kb0tbl"><tr><th>中心 · 期末在岗</th>';
+  for(var m=0;m<12;m++)h+='<th class="'+(m<LOCK?'':'fut')+'">'+M[m]+'</th>';
+  h+='<th>'+yy+'年均</th></tr>';
+  mem.forEach(function(mb){var cn=String(mb.name).split('/').pop();
+    h+='<tr><td><a onclick="pickDeptNav(\'kb1\',\''+String(mb.name).replace(/\x27/g,"")+'\')" style="color:var(--blue);cursor:pointer" title="进看板1 · '+esc(cn)+'">'+esc(cn)+'</a></td>';
+    for(var k=0;k<12;k++){var v=(mb.chain&&mb.chain[k]!=null)?mb.chain[k]:'';h+='<td class="'+(k<LOCK?'mut':'')+'" style="text-align:right">'+v+'</td>';}
+    h+='<td style="text-align:right;font-weight:600">'+(mb.chainAvg!=null?(typeof f2==='function'?f2(mb.chainAvg):mb.chainAvg):'')+'</td></tr>';});
+  h+='</table></div><div class="hint">各中心「运算后再相加」= '+(function(){var s=null;mem.forEach(function(mb){var v=mb.chain&&mb.chain[11];if(isN(v))s=(s||0)+v;});return s===null?'—':s;})()
+    +'（12月）；上方组表为<b>先加总后运算</b>，自然流失预估按合计基数取整，故两者可有小差——与部门页对各中心的关系完全相同。</div>';
+  return h;
+}
+function togglePmgDetail(){
+  if(!PMG)return;
+  PMG.openDetail=!PMG.openDetail;
+  if(PMG.openDetail&&!PMG.data&&window.USE_API){   // 明细按需拉一次（避免每次进组都算N 个中心）
+    renderPmgBar();
+    fetch('/api/pmgroup/'+YEAR+'?centers='+encodeURIComponent(PMG.centers.join(','))+'&key='+encodeURIComponent(PMG.key),{headers:{'X-User':API_USER}})
+      .then(function(r){return r.json();}).then(function(j){if(PMG)PMG.data=j;renderPmgBar();}).catch(function(){renderPmgBar();});
+    return;
+  }
+  renderPmgBar();
 }
 /* 当前部门是否为『含中心的部』——各中心汇总·只读(不可直接录入，与后端一致) */
-function isDeptAgg(dept){dept=dept||window.CUR_DEPT||'集团';if(dept==='集团')return true;for(var i=0;i<DEPT_TREE.length;i++)if(DEPT_TREE[i].name===dept&&DEPT_TREE[i].children&&DEPT_TREE[i].children.length)return true;return false;}  // 集团=各部门加总(合计·只读)
-/* 顶层「集团」不是独立部门，而是各部门加总口径 —— 显示为「合计（各部门加总）」 */
-function deptDisp(d){return d==='集团'?'合计（各部门加总）':d;}
+function isDeptAgg(dept){dept=dept||window.CUR_DEPT||'集团';if(dept==='集团')return true;
+  if(String(dept).indexOf('PM:')===0)return true;  // 子PM组=各中心求和视图·只读（源数据在中心录入；本组仅调节项可手调）
+  for(var i=0;i<DEPT_TREE.length;i++)if(DEPT_TREE[i].name===dept&&DEPT_TREE[i].children&&DEPT_TREE[i].children.length)return true;return false;}  // 集团=各部门加总(合计·只读)
+/* 顶层「集团」不是独立部门，而是各部门加总口径 —— 显示为「合计（各部门加总）」；子PM组显示「部门 · 组名」 */
+function deptDisp(d){
+  if(d==='集团')return '合计（各部门加总）';
+  if(String(d).indexOf('PM:')===0){var p=String(d).split(':');return p[1]+' · '+p.slice(2).join(':')+'（子PM组）';}
+  return d;}
 /* 侧栏「看板1」下展开部门层级：部→中心，点任一节点即切看板1 该部门空间 */
 /* 业务线维度（顶层，与看板0同级）：线→部→中心。线=分组层，点线名仅展开/收起；点部门或中心=选中该部门空间并进看板1。 */
 var DEPT_LINES_DEFAULT=[
@@ -1126,16 +1142,25 @@ function loadLines(){try{var v=JSON.parse(localStorage.getItem('hcfb_lines')||'n
     DEPT_LINES.forEach(function(l){if(!l.bps){var d=DEPT_LINES_DEFAULT.filter(function(x){return x.name===l.name;})[0];l.bps=(d&&d.bps)?d.bps.slice():[];}});  // 回填线级BP(旧localStorage无bps)
   }catch(e){DEPT_LINES=DEPT_LINES_DEFAULT;}}
 loadLines();
+/* ===== 管理员全局可见（系统管理员诉求：看得到所有信息） =====
+   ⚠ 原先各处用的是 adm=!MY，判断的其实是「用户信息还没加载」而不是「我是管理员」：
+   一旦 /api/me 返回，管理员就退化成按 kb1_depts 白名单过滤 → 组织同步新增了部门/中心，
+   而白名单没跟着更新时，管理员反而看不到新部门。这里统一改成按【角色】判定，
+   管理员/系统管理员一律不受白名单与「展示求和」开关限制。*/
+function isAdminAll(){var m=window.MY;return !m||m.role==='管理员'||!!m.is_sysadmin;}
+window.isAdminAll=isAdminAll;
 /* 线级板块可见性：管理员/系统管理员 与 PM 看全部线；线级BP 只见自己是BP的线；普通 HRBP 看不到线级板块 */
 function _lineVisible(){var my=window.MY||{};
-  if(my.role==='管理员'||my.is_sysadmin)return DEPT_LINES;
+  if(isAdminAll())return DEPT_LINES;
   if(String(my.role||'').split(',').indexOf('PM')>=0)return DEPT_LINES;
   return DEPT_LINES.filter(function(l){return (l.bps||[]).indexOf(my.id)>=0;});}
 /* 顶层线导航项动态生成（跟随线级看板增删改·按可见性过滤） */
 function renderLineEntries(){var box=document.getElementById('lineNavBox');if(!box)return;
   box.innerHTML=_lineVisible().map(function(l){var nm=String(l.name).replace(/'/g,'').replace(/"/g,'');var sum=(l.sum!==false);  // 未设过 sum 的线视为开（兼容旧数据）
-    var badge=sum?' <span style="font-size:9px;font-weight:400;color:var(--green);background:#E7F6EF;border-radius:7px;padding:0 5px;margin-left:4px">求和</span>':'';
-    var onclick=sum?('goLineView(\''+nm+'\')'):('toggleLineNav(\''+nm+'\')');  // 求和开→点线名进汇总看板；关→仅展开线内部门
+    var admSee=isAdminAll();  // 未开求和的线：管理员也能进汇总看板（系统管理员要能看到所有信息）
+    var badge=sum?' <span style="font-size:9px;font-weight:400;color:var(--green);background:#E7F6EF;border-radius:7px;padding:0 5px;margin-left:4px">求和</span>'
+                 :(admSee?' <span style="font-size:9px;font-weight:400;color:#B45309;background:#FEF3C7;border-radius:7px;padding:0 5px;margin-left:4px" title="该线未开求和展示，仅管理员可进">未开</span>':'');
+    var onclick=(sum||admSee)?('goLineView(\''+nm+'\')'):('toggleLineNav(\''+nm+'\')');  // 求和开(或管理员)→点线名进汇总看板；否则仅展开线内部门
     return '<a id="lineLink_'+nm+'" onclick="'+onclick+'" style="font-weight:600">'+nm+badge+'<span id="lineArrow_'+nm+'" onclick="event.stopPropagation();toggleLineNav(\''+nm+'\')" style="float:right;font-size:11px;padding:0 2px;transition:transform .15s">▸</span></a>'
       +'<div id="lineNav_'+nm+'" style="display:none;margin:-2px 0 4px 0"></div>';}).join('');}
 window.addEventListener('storage',function(e){if(e.key==='hcfb_lines'){loadLines();renderLineEntries();if(window.renderKb1Nav)renderKb1Nav();}});
@@ -1146,7 +1171,7 @@ function _lineDeptA(deptKey,label,padLeft,cur,arrow){var on=(cur===deptKey);
 function renderLineNav(lineName){var host=document.getElementById('lineNav_'+lineName);if(!host)return;
   var line=null;for(var i=0;i<DEPT_LINES.length;i++)if(DEPT_LINES[i].name===lineName)line=DEPT_LINES[i];if(!line)return;
   var cur=window.CUR_DEPT||'集团',h='';
-  var MY=window.MY, adm=!MY, al=(MY&&MY.kb1_depts)||[];  // 按 kb1_depts 过滤（仅 MY 未加载时不过滤）
+  var MY=window.MY, adm=isAdminAll(), al=(MY&&MY.kb1_depts)||[];  // 按 kb1_depts 过滤（管理员/MY未加载 不过滤）
   function centerOK(n,ch){return adm||al.indexOf(n)>=0||al.indexOf(n+'/'+ch)>=0;}
   function partVisible(node){if(adm||al.indexOf(node.name)>=0)return true;
     return (node.children||[]).some(function(ch){return al.indexOf(node.name+'/'+ch)>=0;});}
@@ -1163,7 +1188,7 @@ var LINEBRD=null;
 function loadLineBoard(lineName){
   var line=null;for(var i=0;i<DEPT_LINES.length;i++)if(DEPT_LINES[i].name===lineName)line=DEPT_LINES[i];
   var host=document.getElementById('lineHost');if(!host)return;if(!line){host.innerHTML='';return;}
-  var MY=window.MY, adm=!MY, al=(MY&&MY.kb1_depts)||[];
+  var MY=window.MY, adm=isAdminAll(), al=(MY&&MY.kb1_depts)||[];
   function deptVisible(nm){var node=_deptNode(nm);if(adm||al.indexOf(nm)>=0)return true;return (node.children||[]).some(function(ch){return al.indexOf(nm+'/'+ch)>=0;});}
   var depts=line.depts.filter(deptVisible);
   var keepDetail=(LINEBRD&&LINEBRD.name===lineName)?LINEBRD.openDetail:false;
@@ -1222,7 +1247,7 @@ function lineAdjSave(month,value){var L=LINEBRD;if(!L)return;
 function renderLineView(lineName){loadLineBoard(lineName);}  // 兼容旧调用
 function goLineView(lineName){
   var _l=null;for(var _i=0;_i<DEPT_LINES.length;_i++)if(DEPT_LINES[_i].name===lineName)_l=DEPT_LINES[_i];
-  if(_l&&_l.sum===false){toggleLineNav(lineName);return;}  // 该线未开求和→不进汇总看板，仅展开线内部门
+  if(_l&&_l.sum===false&&!isAdminAll()){toggleLineNav(lineName);return;}  // 该线未开求和→普通账号不进汇总看板，仅展开线内部门；管理员可进
   PMG_ON=false;SEL_LINE=lineName;goView('line');loadLineBoard(lineName);
   document.querySelectorAll('nav.side a[id^="lineLink_"]').forEach(function(a){a.classList.remove('on');});
   var lnk=document.getElementById('lineLink_'+lineName);if(lnk)lnk.classList.add('on');}
@@ -1240,7 +1265,7 @@ function _navA(board,deptKey,label,padLeft,cur,arrow,stickyTop,clickJs){var on=(
   return '<a onclick="'+(clickJs||('pickDeptNav(\''+board+'\',\''+deptKey.replace(/'/g,"")+'\')'))+'" title="'+label+'" style="'+st+'display:block;padding:6px 10px 6px '+padLeft+'px;font-size:12.5px;border-radius:8px;margin-bottom:2px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:'+bg+';'+(on?'color:var(--blue);font-weight:600':'color:var(--ink2)')+'">'+label+arrow+'</a>';}
 function renderDeptNav(board){var host=document.getElementById(board+'DeptNav');if(!host)return;var cur=window.CUR_DEPT||'集团',h='';
   var kbH=(document.getElementById(board+'NavLink')||{}).offsetHeight||42;  // 部标题钉在该看板导航下方
-  var MY=window.MY, adm=!MY, al=(MY&&MY.kb1_depts)||[];  // 按 kb1_depts 过滤（仅 MY 未加载时不过滤）
+  var MY=window.MY, adm=isAdminAll(), al=(MY&&MY.kb1_depts)||[];  // 按 kb1_depts 过滤（管理员/MY未加载 不过滤）
   function wholeOK(n){return adm||al.indexOf(n)>=0;}
   function centerOK(n,ch){return adm||al.indexOf(n)>=0||al.indexOf(n+'/'+ch)>=0;}
   function partVisible(node){if(adm||al.indexOf(node.name)>=0)return true;
@@ -1379,7 +1404,11 @@ function agg(parts){var got=false,s=0;parts.forEach(function(p){if(isN(p)){s+=p;
 /* 看板3.2/看板1 社招·简历面试中读台账：按部门空间过滤（部门→匹配dept，中心→dept+中心，集团→全部），与看板3.1 同口径 */
 /* space 形如 '集团' | '云产品二部' | '云产品二部/WeData产品中心'。泛化出space 参数是为了让看板3.2
    能在同一页里既算部门总表、又算其下每个中心的分表（各中心口径 = 该中心自己的台账行）。*/
-function _ledSpaceOK(r,space){var d=String(space||'集团');if(d==='集团')return true;var p=d.split('/'),dp=p[0],ct=p[1];if(String(r.dept||'')!==dp)return false;return ct?String(r.c||'')===ct:true;}
+function _ledSpaceOK(r,space){var d=String(space||'集团');if(d==='集团')return true;
+  if(d.indexOf('PM:')===0){  // 子PM组空间：台账行属于该组任一中心即计入（组=其成员中心的并集）
+    if(!(PMG&&PMG.key===d))return false;
+    return PMG.centers.indexOf(String(r.dept||'')+'/'+String(r.c||''))>=0;}
+  var p=d.split('/'),dp=p[0],ct=p[1];if(String(r.dept||'')!==dp)return false;return ct?String(r.c||'')===ct:true;}
 function _ledDeptOK(r){return _ledSpaceOK(r,window.CUR_DEPT||'集团');}
 function socCatCntSpace(space,catKey,m){var c=0,any=false;if(typeof LEDGER!=='undefined')LEDGER.forEach(function(r){if(!_ledSpaceOK(r,space))return;if(kb3cat(r.st)!==catKey)return;var mo=kb3mo(r);if(!mo||mo.slice(0,4)!==String(YEAR))return;if(+mo.slice(5,7)-1===m){c++;any=true;}});return any?c:'';}
 function socCatNoteSpace(space,catKey,m){var lst=[];if(typeof LEDGER!=='undefined')LEDGER.forEach(function(r){if(!_ledSpaceOK(r,space))return;if(kb3cat(r.st)!==catKey)return;var mo=kb3mo(r);if(!mo||mo.slice(0,4)!==String(YEAR))return;if(+mo.slice(5,7)-1===m)lst.push((r.who?r.who+'·':'')+r.job+(r.loc?'('+r.loc+')':'')+'·'+(r.st==='已入职'?r.join+'已入职':'预计'+r.eta+'到岗')+(r.memo?'·'+r.memo:''));});return lst.length?lst.join('\n'):'';}
@@ -1484,6 +1513,8 @@ function render(){
     if(isCtr){  // 中心：预算当量直接在看板1 手填（中心无独立看板2），全年可填，存 q_init
       var QI=D.q_init.map(function(v){return isN(v)?v:'';});
       h+=tr('key',cfgName('budget','预算当量')+' <span class="badge bp">BP·手填</span>',QI,{src:'budget',key:'q_init',edit:true,editMonths:[0,1,2,3,4,5,6,7,8,9,10,11],avg:f2(avg(QI)),lockShade:true,noTot:false});
+    }else if(isPmgSpace()){  // 子PM组：无独立看板2 → 预算当量＝组内各中心手填之和（只读·不可下钻）
+      h+=tr('key',cfgName('budget','预算当量')+' <span class="badge calc">各中心求和</span>',BUD,{src:'budget',avg:f2(qa),lockShade:true,noTot:false});
     }else{  // 部门/合计：直接读看板2（系统取数），双击下钻看板2
       h+=tr('key',cfgName('budget','预算当量')+'<span class="drill"><t-icon name="arrow-down" size="10"></t-icon></span>',BUD,{src:'budget',avg:f2(qa),drill:'kb2',lockShade:true,noTot:false});
     }
@@ -1498,6 +1529,17 @@ function render(){
     var mgA=[];for(var mA=0;mA<12;mA++)mgA[mA]=(mA<LOCK)?D.actual[mA]:c[mA];
     var caA=avg(c),ovA=isN(caA)&&isN(qa)&&caA>qa+0.005;
     h+=tr('key',cfgName('actual','实际/预估期末在岗')+' <span class="badge calc">链</span>',mgA,{src:'chain',avg:f2(caA),avgCls:ovA?'neg':'',lockShade:true});
+    // 子PM组独有：本组调节项（存独立表·不改任何中心源数据）+ 调整后期末在岗。组内中心各自的调节仍在其看板1里。
+    if(isPmgSpace()){
+      var ADJ=(D.vspaceAdjust||[]).map(function(v){return isN(v)?v:'';});
+      h+='<tr class="sub"><td style="color:var(--navy);font-weight:600">➕ 调节项 <span style="color:var(--ink3);font-weight:400;font-size:11px">（本组·可手调·不影响各中心源数据）</span></td>';
+      for(var mj=0;mj<12;mj++){var av=ADJ[mj]===undefined?'':ADJ[mj];
+        if(mj<LOCK||RO){h+='<td class="mut" style="text-align:right">'+av+'</td>';}
+        else{h+='<td style="padding:0"><input type="number" step="1" value="'+av+'" onchange="pmgAdjSave('+(mj+1)+',this.value)" style="width:100%;min-width:42px;border:1px solid transparent;padding:3px 4px;font:inherit;text-align:right;background:transparent;border-radius:4px" onfocus="this.style.borderColor=\'var(--blue-l)\';this.style.background=\'#fff\'" onblur="this.style.borderColor=\'transparent\';this.style.background=\'transparent\'"></td>';}}
+      h+='<td></td><td></td></tr>';
+      var CADJ=[];for(var mc=0;mc<12;mc++)CADJ[mc]=agg([mgA[mc],ADJ[mc]]);
+      h+=tr('key','调整后期末在岗 <span class="badge calc">＝链＋调节</span>',CADJ,{avg:f2(avg(CADJ)),lockShade:true});
+    }
   }
   // 总流出（−）——260730 换回：待流出在待流入上面
   var outT=[];for(var m2=0;m2<12;m2++)outT[m2]=outflow(m2);
@@ -1651,7 +1693,7 @@ function rowNameFilter(tblId,inpId){
 }
 function kb1Filter(){rowNameFilter('bscTbl','kb1Flt');}
 function kb2Filter(){rowNameFilter('kb2Tbl','kb2Flt');}
-function renderAll(){cmap={};render();renderKb2();renderKb4();bindCells();renderProg();colResizable('bscTbl');colResizable('kb2Tbl');kb1Filter();kb2Filter();if(typeof bscPaintSelection==='function')bscPaintSelection();}
+function renderAll(){cmap={};render();renderPmgBar();renderKb2();renderKb4();bindCells();renderProg();colResizable('bscTbl');colResizable('kb2Tbl');kb1Filter();kb2Filter();if(typeof bscPaintSelection==='function')bscPaintSelection();}
 /* ===== 看板2 ===== （kb2base 由 bindYear 按年份重建） */
 /* 260723 口径：法定HC=累计滚动（当月=上月+本月调整，期初锚定）；预算当量=当月子项求和（期初+当月调整） */
 function kb2Total(sec,cum){var t=[];for(var m=0;m<12;m++){
@@ -2439,7 +2481,7 @@ function loadKb32(){
 }
 function kb32CentersEnsure(){
   var dp=String(window.CUR_DEPT||'集团').split('/')[0];
-  if(dp==='集团'){renderKb32Centers();return;}
+  if(dp==='集团'||dp.indexOf('PM:')===0){renderKb32Centers();return;}   // 集团/子PM组空间不出中心分表（看板3只有部门维度）
   if(KB32.dept===dp&&KB32.year===YEAR){renderKb32Centers();return;}   // 缓存命中直接画，避免重复请求
   if(!KB32.loading)loadKb32();
 }
@@ -2622,7 +2664,8 @@ function saveNavState(){
     if(!view)return;
     var st={view:view,dept:window.CUR_DEPT||''};
     if(view==='line')st.line=(typeof SEL_LINE!=='undefined')?SEL_LINE:'';
-    if(view==='pmg'&&typeof PMG!=='undefined'&&PMG)st.pmg={dept:PMG.dept,name:PMG.name};
+    // 子PM组现在渲染在看板1 里（view=kb1、dept=PM:…）：必须一并存组信息，否则刷新后拿不到成员中心清单→表会空
+    if(typeof PMG!=='undefined'&&PMG&&isPmgSpace())st.pmg={dept:PMG.dept,name:PMG.name};
     localStorage.setItem('hcfb_nav',JSON.stringify(st));
   }catch(e){}
 }
@@ -2631,7 +2674,8 @@ function restoreNavState(){
   if(!st||!st.view)return;
   _restoring=true;
   try{
-    if(st.view==='pmg'&&st.pmg&&typeof PM_GROUPS!=='undefined'&&(PM_GROUPS[st.pmg.dept]||[]).some(function(x){return x.name===st.pmg.name&&x.sum;})){
+    // 组空间恢复：旧态view='pmg' 与新态 view='kb1'+dept='PM:…' 都走pickPmGroup（组已并入看板1）
+    if(st.pmg&&(st.view==='pmg'||String(st.dept||'').indexOf('PM:')===0)&&typeof PM_GROUPS!=='undefined'&&(PM_GROUPS[st.pmg.dept]||[]).some(function(x){return x.name===st.pmg.name&&(x.sum||isAdminAll());})){
       pickPmGroup(st.pmg.dept,st.pmg.name);
     }else if(st.view==='line'&&st.line&&typeof DEPT_LINES!=='undefined'&&DEPT_LINES.some(function(l){return l.name===st.line;})){
       goLineView(st.line);
@@ -2645,8 +2689,11 @@ function restoreNavState(){
   _restoring=false;saveNavState();
 }
 function goView(v){
-  // 看板2/3/4 只有部门维度（中心仅存在于看板1）：若当前部门空间是中心，切过来时回落到其所属部门
-  if((v==='kb2'||v==='kb3'||v==='kb4')&&window.CUR_DEPT&&window.CUR_DEPT.indexOf('/')>=0&&window.setDept){window.setDept(window.CUR_DEPT.split('/')[0]);}
+  // 看板2/3/4 只有部门维度（中心、子PM组仅存在于看板1）：切过来时回落到其所属部门
+  if(v==='kb2'||v==='kb3'||v==='kb4'){
+    if(PMG_ON&&PMG&&isPmgSpace()){PMG_ON=false;if(window.renderKb1Nav)renderKb1Nav();if(window.setDept)window.setDept(PMG.dept);}
+    else if(window.CUR_DEPT&&window.CUR_DEPT.indexOf('/')>=0&&window.setDept){window.setDept(window.CUR_DEPT.split('/')[0]);}
+  }
   document.querySelectorAll('nav.side a').forEach(function(x){x.classList.toggle('on',x.getAttribute('data-v')===v);});document.querySelectorAll('.view').forEach(function(w){w.classList.remove('on');});var el=document.getElementById('v-'+v);if(el){el.classList.add('on');window.scrollTo(0,0);}saveNavState();}
 function go(a){goView(a.getAttribute('data-v'));}
 function tbToggle(id){document.querySelectorAll('.tbdrop').forEach(function(d){d.classList.toggle('on',!!(id&&d.id===id&&!d.classList.contains('on')));});}
@@ -2721,7 +2768,10 @@ window.loadMe=function(){return api('GET','/api/me').then(function(m){window.MY=
   var pl=document.getElementById('deptPickLbl');if(pl)pl.textContent=deptDisp(fd);
   var an=document.getElementById('deptAggNote');if(an){var ag=(typeof isDeptAgg==='function'&&isDeptAgg(fd));an.style.display=ag?'inline-block':'none';if(ag)an.textContent=(fd==='集团'?'各部门汇总 · 只读（请在具体部门/中心录入）':'各中心汇总 · 只读（请在具体中心录入）');}
   if(window.renderKb1Nav)renderKb1Nav();return m;}).catch(function(){});};
-function api(m,p,b){if(p.indexOf('/api/board/')===0)p+=(p.indexOf('?')<0?'?':'&')+'dept='+encodeURIComponent(DEPT);return fetch(p,{method:m,headers:{'Content-Type':'application/json','X-User':API_USER},body:b?JSON.stringify(b):undefined}).then(function(r){return r.json().then(function(j){if(!r.ok)throw j;return j;});});}
+function api(m,p,b){if(p.indexOf('/api/board/')===0){p+=(p.indexOf('?')<0?'?':'&')+'dept='+encodeURIComponent(DEPT);
+  // 子PM组是虚拟空间：组织表里没有这一层，成员中心清单（管理后台配置）必须随请求带上，后端才知道求和范围
+  if(isPmgSpace(DEPT)&&PMG&&PMG.key===DEPT)p+='&centers='+encodeURIComponent(PMG.centers.join(','));}
+  return fetch(p,{method:m,headers:{'Content-Type':'application/json','X-User':API_USER},body:b?JSON.stringify(b):undefined}).then(function(r){return r.json().then(function(j){if(!r.ok)throw j;return j;});});}
 var SEC2FRONT={'总流出（−）':'out','总流入（＋）':'inn','社招∇ 分列':'soc','校招∇ 分列':'camp','法定HC·其中':'hc','预算当量·其中':'quota','云智·总流入（＋）':'yz_inn','云智·总流出（−）':'yz_out','外包·总流入（＋）':'wb_inn','外包·总流出（−）':'wb_out'};
 var FRONT2SEC={out:'总流出（−）',inn:'总流入（＋）',soc:'社招∇ 分列',camp:'校招∇ 分列',hc:'法定HC·其中',quota:'预算当量·其中',yz_inn:'云智·总流入（＋）',yz_out:'云智·总流出（−）',wb_inn:'外包·总流入（＋）',wb_out:'外包·总流出（−）'};
 function nn(v){return (v===null||v===undefined)?'':v;}
@@ -2740,6 +2790,7 @@ function applyBoard(b){
   for(var ci=0;ci<coArr.length;ci++)if(coArr[ci]!=null){d.camp_off_tot=coArr[ci];break;}
   d.q_init=((b.metrics.q_init||{}).vals||[]).map(nn);while(d.q_init.length<12)d.q_init.push('');
   d.budgetCentersSum=b.budget_centers_sum||null;  // 含中心的部：各中心预算当量之和（对比用·纯看）
+  d.vspaceAdjust=b.vspace_adjust||null;           // 子PM组/线级本组独有调节项（不碰成员源数据）
   MEMOS[y]={};
   Object.keys(b.metrics).forEach(function(k){var ns=b.metrics[k].notes||{};Object.keys(ns).forEach(function(m){MEMOS[y][k+'_'+(m-1)]=ns[m];});});
   var cu=emptyCustom();
