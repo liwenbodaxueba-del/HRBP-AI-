@@ -662,18 +662,23 @@ def get_pmgroup(year: int, centers: str = "", key: str = "", x_user: str = Heade
     lock = 0
     demo = False
     members = []  # 各成员(部门/中心)明细：供线级/组页展开查看
+    fa_total = None  # 线级 集团HC = 各部门 看板2 期初法定HC 求和
     for ct in cl:
         b = get_board(year, ct)  # 复用看板1 运算求各成员 预算当量/期末在岗
         lock = b["lock"]
         demo = demo or b["demo"]
         bv = b["metrics"]["budget"]["vals"]
         cv = b["metrics"]["actual"]["vals"]
+        fa_vals = (b["metrics"].get("fa_hc", {}) or {}).get("vals", [])  # 期初法定HC(集团维度HC·看板2)
+        fa = next((x for x in fa_vals if isinstance(x, (int, float))), None)
+        if isinstance(fa, (int, float)):
+            fa_total = (fa_total if isinstance(fa_total, (int, float)) else 0) + fa
         for m in range(12):
             if isinstance(bv[m], (int, float)):
                 budget[m] = (budget[m] if isinstance(budget[m], (int, float)) else 0) + bv[m]
             if isinstance(cv[m], (int, float)):
                 chain[m] = (chain[m] if isinstance(chain[m], (int, float)) else 0) + cv[m]
-        members.append({"name": ct, "budget": bv, "chain": cv,
+        members.append({"name": ct, "budget": bv, "chain": cv, "faHC": fa,
                         "budgetAvg": b["computed"].get("budget_avg"), "chainAvg": b["computed"].get("chain_avg")})
     with db() as c:
         adj = _kb0_adjust(c, year, key) if key else [None] * 12
@@ -690,7 +695,7 @@ def get_pmgroup(year: int, centers: str = "", key: str = "", x_user: str = Heade
     return {"year": year, "key": key, "centers": cl, "lock": lock, "demo": demo,
             "budget": budget, "chain": chain, "adjust": adj, "adjustNote": anote, "chainAdj": chain_adj,
             "budgetAvg": _avg(budget), "chainAvg": _avg(chain), "chainAdjAvg": _avg(chain_adj),
-            "members": members}
+            "faHC": fa_total, "members": members}
 
 
 class CellEdit(BaseModel):
