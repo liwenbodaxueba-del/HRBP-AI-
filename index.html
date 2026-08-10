@@ -306,13 +306,14 @@ td.drillcell:hover{outline:1px solid var(--blue-l);outline-offset:-1px;backgroun
 #cellDrill .drill-src{padding:7px 12px;color:var(--ink3);border-top:1px solid var(--b100);background:var(--b50);}
 table.lineeq{min-width:1600px;border-collapse:collapse;font-size:12.5px;}
 table.lineeq th,table.lineeq td{border:1px solid var(--b100);padding:5px 8px;text-align:right;white-space:nowrap;}
-table.lineeq th{background:var(--b50);color:var(--ink2);font-weight:600;text-align:right;position:sticky;top:0;z-index:2;}
+table.lineeq th{background:var(--navy);color:#fff;font-weight:600;text-align:right;position:sticky;top:0;z-index:2;}
+table.lineeq th.fut{background:#2B57A8;}
 /* 冻结左侧两列（线级/部门 · 主体），横向滚动时始终能看出集团/云智/外包；系数列不固定 */
 table.lineeq th.c1,table.lineeq td.c1{text-align:left;width:130px;min-width:130px;max-width:130px;position:sticky;left:0;z-index:3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 table.lineeq th.c2,table.lineeq td.c2{text-align:left;width:130px;min-width:130px;max-width:130px;position:sticky;left:130px;z-index:3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-right:2px solid var(--b100);}
 table.lineeq th.c3,table.lineeq td.c3{text-align:right;min-width:56px;color:var(--ink3);}
 table.lineeq td.c1,table.lineeq td.c2{background:#fff;}
-table.lineeq th.c1,table.lineeq th.c2{background:var(--b50);z-index:6;}
+table.lineeq th.c1,table.lineeq th.c2{background:var(--navy);z-index:6;}
 table.lineeq tr.eqgrp>td.c1,table.lineeq tr.eqgrp>td.c2{background:#E8F1FF;}
 table.lineeq tr.eqgrp.dept>td.c1,table.lineeq tr.eqgrp.dept>td.c2{background:#FEF6E0;}
 table.lineeq td.mut{color:var(--ink3);background:#FbFcFe;}
@@ -1288,7 +1289,7 @@ function renderLineBoard(){
   if(!d){host.innerHTML=h+'<div class="hint" style="padding:12px">无数据</div>';return;}
   h+='<div class="tblwrap"><table class="bsc lineeq"><tr>'
     +'<th class="c1">线级 / 部门</th><th class="c2">实际/预估期末在岗</th><th class="c3">系数</th>';
-  for(var m=0;m<12;m++)h+='<th'+(m<LOCK?'':' class="fut"')+'>'+(m+1)+'月</th>';
+  for(var m=0;m<12;m++)h+='<th'+(m<LOCK?'':' class="fut"')+'>'+M[m]+(m<LOCK?'<span class="lockic"></span>':'')+'</th>';
   h+='<th>HC</th><th>HC超编</th><th>全年平均在岗</th><th>预算平均在岗</th><th>vs.预算平均在岗</th><th>预算12月底在岗</th><th>vs.预算12月在岗</th></tr>';
   // 云智/外包 期末在岗 取自看板4（每部门=看板4该主体期末在岗；线小计=各部门求和）；HC 取各部门看板4手填 HC
   var mem=d.members||[];
