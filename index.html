@@ -319,6 +319,10 @@ table.lineeq tr.eqsub td.c2.sub{color:var(--ink2);padding-left:16px;}
 table.lineeq tr.eqsub:hover>td{background:var(--b50);}
 table.lineeq a.linelink{color:var(--blue);cursor:pointer;}
 table.lineeq a.linelink:hover{text-decoration:underline;}
+table.kb4tbl td.fillcell{position:relative;}
+table.kb4tbl td.fillcell .fillh{position:absolute;right:0;bottom:0;width:8px;height:8px;background:var(--blue);border:1px solid #fff;cursor:crosshair;display:none;z-index:4;}
+table.kb4tbl td.fillcell:hover .fillh{display:block;}
+table.kb4tbl td.fillhi{background:rgba(37,99,235,.14) !important;outline:1px dashed var(--blue-l);outline-offset:-1px;}
 .bsc td.neg{color:var(--gray);}
 .bsc tr[data-drill]{cursor:pointer;}
 .bsc tr[data-drill]:hover td:first-child{color:var(--blue);}
@@ -1829,11 +1833,33 @@ var _kb4dm='<span style="background:#FEF3C7;color:#92400E;font-size:10px;font-we
 function _kb4store(){try{return JSON.parse(localStorage.getItem('hcfb_kb4')||'{}')||{};}catch(e){return {};}}
 function kb4Get(prefix,metric){var s=_kb4store(),sp=String(window.CUR_DEPT||'集团');return (s[sp]&&s[sp][prefix+'_'+metric])||nb();}
 function kb4CellSave(prefix,metric,m,val){var s=_kb4store(),sp=String(window.CUR_DEPT||'集团');s[sp]=s[sp]||{};var k=prefix+'_'+metric;var arr=(s[sp][k]||nb()).slice();var v=(val===''||val==null)?'':(isNaN(+val)?'':+val);arr[m]=v;s[sp][k]=arr;try{localStorage.setItem('hcfb_kb4',JSON.stringify(s));}catch(e){}renderKb4();}
+/* 看板4 手填格·右拉填充（Excel 式：从起始格向右拖到目标月，用起始值填充中间各月） */
+var KB4FILL=null;
+function kb4FillStart(e,prefix,metric,m){e.preventDefault();e.stopPropagation();
+  var cell=document.querySelector('#kb4Host td.fillcell[data-fp="'+prefix+'"][data-fm="'+metric+'"][data-fmonth="'+m+'"]');
+  var inp=cell&&cell.querySelector('input'),val=inp?inp.value.trim():'';
+  if(val===''){var a=kb4Get(prefix,metric);val=(a[m]!=null&&a[m]!=='')?String(a[m]):'';}
+  if(val==='')return;  // 空值不填
+  KB4FILL={prefix:prefix,metric:metric,src:m,val:val,to:m};
+  document.body.style.userSelect='none';
+  document.addEventListener('mousemove',kb4FillMove);document.addEventListener('mouseup',kb4FillEnd);}
+function kb4FillMove(e){if(!KB4FILL)return;
+  var td=e.target&&e.target.closest?e.target.closest('td.fillcell'):null,to=KB4FILL.src;
+  if(td&&td.getAttribute('data-fp')===KB4FILL.prefix&&td.getAttribute('data-fm')===KB4FILL.metric){var mm=+td.getAttribute('data-fmonth');if(mm>KB4FILL.src)to=mm;}
+  KB4FILL.to=to;
+  document.querySelectorAll('#kb4Host td.fillhi').forEach(function(x){x.classList.remove('fillhi');});
+  if(to>KB4FILL.src)document.querySelectorAll('#kb4Host td.fillcell[data-fp="'+KB4FILL.prefix+'"][data-fm="'+KB4FILL.metric+'"]').forEach(function(x){var mm=+x.getAttribute('data-fmonth');if(mm>KB4FILL.src&&mm<=to)x.classList.add('fillhi');});}
+function kb4FillEnd(){document.removeEventListener('mousemove',kb4FillMove);document.removeEventListener('mouseup',kb4FillEnd);document.body.style.userSelect='';
+  var f=KB4FILL;KB4FILL=null;document.querySelectorAll('#kb4Host td.fillhi').forEach(function(x){x.classList.remove('fillhi');});
+  if(!f||f.to<=f.src)return;
+  var s=_kb4store(),sp=String(window.CUR_DEPT||'集团');s[sp]=s[sp]||{};var k=f.prefix+'_'+f.metric;var arr=(s[sp][k]||nb()).slice();
+  var v=isNaN(+f.val)?'':+f.val;for(var m=f.src;m<=f.to;m++)arr[m]=v;  // 含起始格一并落定
+  s[sp][k]=arr;try{localStorage.setItem('hcfb_kb4',JSON.stringify(s));}catch(e){}renderKb4();}
 function kb4EditRow(name,prefix,metric,arr){
   var h='<tr class="key"><td>'+name+' <span class="badge bp">BP·手填</span></td>';
   for(var m=0;m<12;m++){var v=(arr[m]!=null&&arr[m]!=='')?arr[m]:'';
     if(RO){h+='<td'+(m<LOCK?' class="lock"':'')+' style="text-align:right">'+v+'</td>';}
-    else{h+='<td style="padding:0"><input type="number" step="1" value="'+v+'" onchange="kb4CellSave(\''+prefix+'\',\''+metric+'\','+m+',this.value)" style="width:100%;min-width:42px;border:1px solid transparent;padding:3px 4px;font:inherit;text-align:right;background:transparent;border-radius:4px" onfocus="this.style.borderColor=\'var(--blue-l)\';this.style.background=\'#fff\'" onblur="this.style.borderColor=\'transparent\';this.style.background=\'transparent\'"></td>';}}
+    else{h+='<td class="fillcell" data-fp="'+prefix+'" data-fm="'+metric+'" data-fmonth="'+m+'" style="padding:0"><input type="number" step="1" value="'+v+'" onchange="kb4CellSave(\''+prefix+'\',\''+metric+'\','+m+',this.value)" style="width:100%;min-width:42px;border:1px solid transparent;padding:3px 4px;font:inherit;text-align:right;background:transparent;border-radius:4px" onfocus="this.style.borderColor=\'var(--blue-l)\';this.style.background=\'#fff\'" onblur="this.style.borderColor=\'transparent\';this.style.background=\'transparent\'"><span class="fillh" title="按住向右拖拉填充" onmousedown="kb4FillStart(event,\''+prefix+'\',\''+metric+'\','+m+')"></span></td>';}}
   h+='<td class="rc" style="text-align:right;font-weight:600">'+(typeof f2==='function'?f2(avg12(arr)):'')+'</td><td></td></tr>';
   return h;
 }
