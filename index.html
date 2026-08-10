@@ -1478,7 +1478,7 @@ function tr(cls,label,arr,opt){
     var anchorMonth=opt.editMonths&&opt.editMonths.indexOf(m)>=0;  // editMonths=硬约束:只放开指定月(如法定HC锚定月),并豁免已发生月锁定；即便整行编辑态也不放开其他月
     var monthOK=opt.editMonths?anchorMonth:true;
     var _deptAnchorOK=opt.deptAnchor&&anchorMonth&&(window.CUR_DEPT||'集团')!=='集团';  // 期初锚定(如看板2法定HC·1月)属部门级BP录入：含中心的部也放开，仅集团(各部门加总)保持只读
-    var editable=opt.edit&&monthOK&&(anchorMonth||(opt.pastOnly?m<lock:(m>=lock||(rowEdit&&!opt.editMonths&&!opt.futureOnly))))&&!RO&&(!isDeptAgg()||_deptAnchorOK);  // pastOnly=仅实际月(m<lock)可编；否则未发生月/行编辑态放宽；部级汇总只读唯期初锚定豁免
+    var editable=opt.edit&&monthOK&&(anchorMonth||(opt.pastOnly?m<lock:(m>=lock||(rowEdit&&!opt.editMonths&&!opt.futureOnly))))&&!RO&&(!isDeptAgg()||_deptAnchorOK||opt.aggEdit);  // pastOnly=仅实际月(m<lock)可编；否则未发生月/行编辑态放宽；部级汇总只读唯期初锚定豁免；aggEdit=看板4云智/外包手填·无中心拆分·汇总空间也可填
     var mut=(opt.mute==='past'&&m<lock)||(opt.mute==='future'&&m>=lock);  // 估/实双轨标灰
     var cl=(m<lock&&opt.lockShade?'lock ':'')+(editable?'edit adj ':'')+(opt.neg&&v<0?'neg ':'')+(mut?'mut ':'');
     var disp=(v===''||(v===0&&opt.hideZero))?'':(opt.negRow&&v!==0?'−'+v:(opt.plus&&v>0?'+'+v:v));
@@ -1567,7 +1567,7 @@ function customRows(sec,extra){
         +'<span class="rowtool del" title="删除" onclick="delRow(\''+key+'\')"><t-icon name="delete" size="12"></t-icon></span>';
     }
     var avgV=extra.avgMode==='dash'?'—':(extra.avgMode==='calc'?f2(avg12(r.vals)):undefined);
-    out+=tr('sub'+(extra.deep?'2':''),label,r.vals,{src:'custom',key:key,edit:true,hideZero:true,lock:extra.lock,avg:avgV,tot:(extra.noTot?undefined:tot),noTot:extra.noTot});
+    out+=tr('sub'+(extra.deep?'2':''),label,r.vals,{src:'custom',key:key,edit:true,aggEdit:extra.aggEdit,hideZero:true,lock:extra.lock,avg:avgV,tot:(extra.noTot?undefined:tot),noTot:extra.noTot});
   });
   return out;
 }
@@ -1820,10 +1820,10 @@ function kb4Table(prefix,label){
   h+=tr('key','实际/预估期末在岗 <span class="badge calc">链</span>',nb(),{avg:'',lockShade:true,tot:''});
   // 总流入（＋）：仅手填分支
   h+=tr('subtot','总流入（＋） <span class="rowtool" onclick="tg(\''+innSec+'\')"><t-icon name="'+(open_[innSec]?'chevron-down':'chevron-right')+'" size="12"></t-icon></span> <span class="badge bp">BP·手填</span>',inT,{tot:sum(inT),lockShade:true});
-  if(open_[innSec]){h+=customRows(innSec);if(!RO)h+=addRowTr(innSec);}
+  if(open_[innSec]){h+=customRows(innSec,{aggEdit:true});if(!RO)h+=addRowTr(innSec);}
   // 总流出（−）：仅手填分支
   h+=tr('subtot','总流出（−） <span class="rowtool" onclick="tg(\''+outSec+'\')"><t-icon name="'+(open_[outSec]?'chevron-down':'chevron-right')+'" size="12"></t-icon></span> <span class="badge bp">BP·手填</span>',outT,{tot:sum(outT),lockShade:true});
-  if(open_[outSec]){h+=customRows(outSec);if(!RO)h+=addRowTr(outSec);}
+  if(open_[outSec]){h+=customRows(outSec,{aggEdit:true});if(!RO)h+=addRowTr(outSec);}
   h+='</table></div>';
   return h;
 }
