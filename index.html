@@ -307,9 +307,14 @@ td.drillcell:hover{outline:1px solid var(--blue-l);outline-offset:-1px;backgroun
 table.lineeq{min-width:1600px;border-collapse:collapse;font-size:12.5px;}
 table.lineeq th,table.lineeq td{border:1px solid var(--b100);padding:5px 8px;text-align:right;white-space:nowrap;}
 table.lineeq th{background:var(--b50);color:var(--ink2);font-weight:600;text-align:right;position:sticky;top:0;z-index:2;}
-table.lineeq th.c1,table.lineeq td.c1{text-align:left;min-width:110px;}
-table.lineeq th.c2,table.lineeq td.c2{text-align:left;min-width:96px;}
-table.lineeq th.c3,table.lineeq td.c3{text-align:right;min-width:56px;color:var(--ink3);}
+/* 冻结左侧三列（线级/部门 · 主体 · 系数），横向滚动时始终能看出集团/云智/外包 */
+table.lineeq th.c1,table.lineeq td.c1{text-align:left;width:130px;min-width:130px;max-width:130px;position:sticky;left:0;z-index:3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+table.lineeq th.c2,table.lineeq td.c2{text-align:left;width:130px;min-width:130px;max-width:130px;position:sticky;left:130px;z-index:3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+table.lineeq th.c3,table.lineeq td.c3{text-align:right;width:56px;min-width:56px;max-width:56px;position:sticky;left:260px;z-index:3;color:var(--ink3);border-right:2px solid var(--b100);}
+table.lineeq td.c1,table.lineeq td.c2,table.lineeq td.c3{background:#fff;}
+table.lineeq th.c1,table.lineeq th.c2,table.lineeq th.c3{background:var(--b50);z-index:6;}
+table.lineeq tr.eqgrp>td.c1,table.lineeq tr.eqgrp>td.c2,table.lineeq tr.eqgrp>td.c3{background:#E8F1FF;}
+table.lineeq tr.eqgrp.dept>td.c1,table.lineeq tr.eqgrp.dept>td.c2,table.lineeq tr.eqgrp.dept>td.c3{background:#FEF6E0;}
 table.lineeq td.mut{color:var(--ink3);background:#FbFcFe;}
 table.lineeq td.hccol{color:var(--ink3);font-size:11px;}
 table.lineeq tr.eqgrp>td{background:#E8F1FF;font-weight:600;}
