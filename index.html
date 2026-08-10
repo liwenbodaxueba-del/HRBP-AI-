@@ -1230,8 +1230,8 @@ function _f2s(v){return (v==null||v==='')?'':(typeof f2==='function'?f2(v):v);}
 function _hcOver(dec12,hc){  // HC超编＝12月在岗−HC；负=不超(绿)、正=超编(红)
   if(hc===''||hc==null||dec12==null||dec12==='')return '';
   var v=(+dec12)-(+hc);return '<span style="font-weight:600;color:'+(v>0?'#DC2626':'#16A34A')+'">'+(v>0?'+'+v:v)+'</span>';}
-function _lineEqBlock(name,isDept,chain,chainAvg,budget,budgetAvg,yz,wb){
-  chain=chain||[];
+function _lineEqBlock(name,isDept,chain,chainAvg,budget,budgetAvg,yz,wb,hcMap){
+  chain=chain||[];hcMap=hcMap||{};
   var dq=String(name).replace(/'/g,'');  // 部门名（做跳转链接用）
   var POST={'集团':chain,'云智':yz||[],'外包':wb||[]};  // 各主体·实际/预估期末在岗（集团=本板；云智/外包=看板4 期末在岗）
   function post(k,m){var a=POST[k]||[];return (a[m]!=null&&a[m]!=='')?+a[m]:null;}
@@ -1259,7 +1259,8 @@ function _lineEqBlock(name,isDept,chain,chainAvg,budget,budgetAvg,yz,wb){
     g+='<tr class="eqsub"><td class="c1"></td><td class="c2 sub">'+slbl+'</td><td class="c3">'+s.c+'</td>';
     for(var m=0;m<12;m++)g+='<td'+(m<LOCK?' class="mut"':'')+'>'+_f2s(post(s.k,m))+'</td>';
     var subAvg=isG?chainAvg:((typeof avg12==='function')?avg12(POST[s.k]):null);  // 各主体·全年平均在岗
-    g+='<td class="hccol"></td><td class="rc">'+(sd12!=null?_hcOver(sd12,''):'')+'</td>'
+    var subHC=(hcMap[s.k]==null?'':hcMap[s.k]);  // 该主体·HC（云智/外包取自看板4手填；集团待接入）
+    g+='<td class="hccol rc">'+_f2s(subHC)+'</td><td class="rc">'+_hcOver(sd12,subHC)+'</td>'
       +'<td class="rc">'+_f2s(subAvg)+'</td><td class="rc">'+(isG?_f2s(budgetAvg):'')+'</td><td class="rc">'+(isG?_f2s(vsAvg):'')+'</td>'
       +'<td class="rc">'+(isG?_f2s(bud12):'')+'</td><td class="rc">'+(isG?_f2s(vs12):'')+'</td></tr>';
   });
@@ -1277,15 +1278,19 @@ function renderLineBoard(){
     +'<th class="c1">线级 / 部门</th><th class="c2">实际/预估期末在岗</th><th class="c3">系数</th>';
   for(var m=0;m<12;m++)h+='<th'+(m<LOCK?'':' class="fut"')+'>'+(m+1)+'月</th>';
   h+='<th>HC</th><th>HC超编</th><th>全年平均在岗</th><th>预算平均在岗</th><th>vs.预算平均在岗</th><th>预算12月底在岗</th><th>vs.预算12月在岗</th></tr>';
-  // 云智/外包 期末在岗 取自看板4（每部门=看板4该主体期末在岗；线小计=各部门求和）
+  // 云智/外包 期末在岗 取自看板4（每部门=看板4该主体期末在岗；线小计=各部门求和）；HC 取各部门看板4手填 HC
   var mem=d.members||[];
   var yzD=(KB4DEMO.yz&&KB4DEMO.yz.chain)||nb(),wbD=(KB4DEMO.wb&&KB4DEMO.wb.chain)||nb();
   var n=mem.length||1,yzSum=[],wbSum=[];
   for(var mm=0;mm<12;mm++){yzSum[mm]=(yzD[mm]!=null&&yzD[mm]!=='')?yzD[mm]*n:'';wbSum[mm]=(wbD[mm]!=null&&wbD[mm]!=='')?wbD[mm]*n:'';}
-  h+=_lineEqBlock(L.name+'线小计',false,d.chain,d.chainAvg,d.budget,d.budgetAvg,yzSum,wbSum);   // 线小计：集团=本板求和；云智/外包=各部门看板4求和
-  mem.forEach(function(mb){h+=_lineEqBlock(mb.name,true,mb.chain,mb.chainAvg,null,null,yzD,wbD);});  // 各部门：云智/外包=该部门看板4期末在岗
+  function deptHc(dept){return {'集团':'','云智':_kb4hc(kb4GetFor(dept,'yz','hc')),'外包':_kb4hc(kb4GetFor(dept,'wb','hc'))};}  // 部门HC=该部门看板4手填HC(集团待接入)
+  var yzHcS=0,wbHcS=0,anyY=false,anyW=false;  // 线小计HC=各部门HC求和
+  mem.forEach(function(mb){var yh=_kb4hc(kb4GetFor(mb.name,'yz','hc'));if(yh!==''){yzHcS+=+yh;anyY=true;}var wh=_kb4hc(kb4GetFor(mb.name,'wb','hc'));if(wh!==''){wbHcS+=+wh;anyW=true;}});
+  var lineHc={'集团':'','云智':anyY?yzHcS:'','外包':anyW?wbHcS:''};
+  h+=_lineEqBlock(L.name+'线小计',false,d.chain,d.chainAvg,d.budget,d.budgetAvg,yzSum,wbSum,lineHc);   // 线小计：集团=本板求和；云智/外包=各部门看板4求和；HC=各部门HC求和
+  mem.forEach(function(mb){h+=_lineEqBlock(mb.name,true,mb.chain,mb.chainAvg,null,null,yzD,wbD,deptHc(mb.name));});  // 各部门：云智/外包在岗+HC 取自该部门看板4
   h+='</table></div>';
-  h+='<div class="hint" style="margin-top:8px;line-height:1.7">集团 / 云智 / 外包 行 ＝ 各主体<b>实际·预估期末在岗</b>（原值·未乘系数）；<b>人力当量 ＝ 集团×1 ＋ 云智×0.4 ＋ 外包×0.21</b>（各主体在岗 × 系数之和·随明细自动运算）。<b>HC</b> 没有当量（—）；<b>HC超编 ＝ 12月在岗 − HC</b>，负数不超（<span style="color:#16A34A">绿</span>）、正数超编（<span style="color:#DC2626">红</span>）。<b>集团</b>在岗取自本看板；<b>云智 / 外包</b> 在岗取自<b>看板4</b>（部门＝看板4该主体期末在岗、线小计＝各部门求和）；<span style="color:#92400E">示例</span>。</div>';
+  h+='<div class="hint" style="margin-top:8px;line-height:1.7">集团 / 云智 / 外包 行 ＝ 各主体<b>实际·预估期末在岗</b>（原值·未乘系数）；<b>人力当量 ＝ 集团×1 ＋ 云智×0.4 ＋ 外包×0.21</b>（各主体在岗 × 系数之和·随明细自动运算）。<b>HC</b> 没有当量（—）；<b>HC超编 ＝ 12月在岗 − HC</b>，负数不超（<span style="color:#16A34A">绿</span>）、正数超编（<span style="color:#DC2626">红</span>）。<b>集团</b>在岗取自本看板；<b>云智 / 外包</b> 在岗与 <b>HC</b> 取自<b>看板4</b>（部门＝看板4该主体值、线小计＝各部门求和；HC 为各部门看板4 手填）；集团 HC 待接入；<span style="color:#92400E">示例</span>。</div>';
   host.innerHTML=h;
 }
 function toggleLineDetail(){if(LINEBRD){LINEBRD.openDetail=!LINEBRD.openDetail;renderLineBoard();}}
@@ -1832,6 +1837,8 @@ var KB4DEMO={  // 期末在岗·系统示例（真实系统接入后覆盖）
 var _kb4dm='<span style="background:#FEF3C7;color:#92400E;font-size:10px;font-weight:600;border-radius:6px;padding:0 6px;margin-left:4px">示例</span>';
 function _kb4store(){try{return JSON.parse(localStorage.getItem('hcfb_kb4')||'{}')||{};}catch(e){return {};}}
 function kb4Get(prefix,metric){var s=_kb4store(),sp=String(window.CUR_DEPT||'集团');return (s[sp]&&s[sp][prefix+'_'+metric])||nb();}
+function kb4GetFor(dept,prefix,metric){var s=_kb4store(),sp=String(dept);return (s[sp]&&s[sp][prefix+'_'+metric])||nb();}  // 读指定部门空间的看板4手填值
+function _kb4hc(arr){for(var m=11;m>=0;m--){if(arr&&arr[m]!=null&&arr[m]!=='')return +arr[m];}return '';}  // 代表性HC=最后一个非空月(编制通常逐月一致)
 function kb4CellSave(prefix,metric,m,val){var s=_kb4store(),sp=String(window.CUR_DEPT||'集团');s[sp]=s[sp]||{};var k=prefix+'_'+metric;var arr=(s[sp][k]||nb()).slice();var v=(val===''||val==null)?'':(isNaN(+val)?'':+val);arr[m]=v;s[sp][k]=arr;try{localStorage.setItem('hcfb_kb4',JSON.stringify(s));}catch(e){}renderKb4();}
 /* 看板4 手填格·右拉填充（Excel 式：从起始格向右拖到目标月，用起始值填充中间各月） */
 var KB4FILL=null;
