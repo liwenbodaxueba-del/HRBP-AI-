@@ -1235,6 +1235,10 @@ function _f2s(v){return (v==null||v==='')?'':(typeof f2==='function'?f2(v):v);}
 function _hcOver(dec12,hc){  // HC超编＝12月在岗−HC；负=不超(绿)、正=超编(红)
   if(hc===''||hc==null||dec12==null||dec12==='')return '';
   var v=(+dec12)-(+hc);return '<span style="font-weight:600;color:'+(v>0?'#DC2626':'#16A34A')+'">'+(v>0?'+'+v:v)+'</span>';}
+function _vsCol(v){  // vs.预算：正=超出预算(超标·红)、负=未超(绿)
+  if(v===''||v==null)return '';var n=+v;if(isNaN(n))return _f2s(v);
+  if(n===0)return _f2s(0);
+  return '<span style="font-weight:600;color:'+(n>0?'#DC2626':'#16A34A')+'">'+(n>0?'+':'')+(typeof f2==='function'?f2(n):n)+'</span>';}
 function _lineEqBlock(name,isDept,chain,chainAvg,budget,budgetAvg,yz,wb,hcMap,yzBud,wbBud){
   chain=chain||[];hcMap=hcMap||{};
   var dq=String(name).replace(/'/g,'');  // 部门名（做跳转链接用）
@@ -1253,8 +1257,8 @@ function _lineEqBlock(name,isDept,chain,chainAvg,budget,budgetAvg,yz,wb,hcMap,yz
   g+='<tr class="eqgrp'+(isDept?' dept':'')+'"><td class="c1">'+c1name+'</td><td class="c2">人力当量</td><td class="c3"></td>';
   for(var m=0;m<12;m++)g+='<td'+(m<LOCK?' class="mut"':'')+'>'+_f2s(EQ[m])+'</td>';
   g+='<td class="hccol" title="HC 没有当量">—</td><td></td>'
-    +'<td class="rc">'+_f2s(eqAvg)+'</td><td class="rc">'+_f2s(eqBudAvg)+'</td><td class="rc">'+_f2s(eqVsAvg)+'</td>'
-    +'<td class="rc">'+_f2s(eqBud12)+'</td><td class="rc">'+_f2s(eqVs12)+'</td></tr>';
+    +'<td class="rc">'+_f2s(eqAvg)+'</td><td class="rc">'+_f2s(eqBudAvg)+'</td><td class="rc">'+_vsCol(eqVsAvg)+'</td>'
+    +'<td class="rc">'+_f2s(eqBud12)+'</td><td class="rc">'+_vsCol(eqVs12)+'</td></tr>';
   // 主体子行：各主体·期末在岗（原值）+ 该主体预算当量
   LINE_SUBJ.forEach(function(s){
     var isG=(s.k==='集团'),sd12=post(s.k,11);
@@ -1269,8 +1273,8 @@ function _lineEqBlock(name,isDept,chain,chainAvg,budget,budgetAvg,yz,wb,hcMap,yz
     var subBud12=bud(s.k,11),subVs12=(sd12!=null&&subBud12!=null)?(sd12-subBud12):'';
     var subHC=(hcMap[s.k]==null?'':hcMap[s.k]);
     g+='<td class="hccol rc">'+_f2s(subHC)+'</td><td class="rc">'+_hcOver(sd12,subHC)+'</td>'
-      +'<td class="rc">'+_f2s(subAvg)+'</td><td class="rc">'+_f2s(subBudAvg)+'</td><td class="rc">'+_f2s(subVsAvg)+'</td>'
-      +'<td class="rc">'+_f2s(subBud12)+'</td><td class="rc">'+_f2s(subVs12)+'</td></tr>';
+      +'<td class="rc">'+_f2s(subAvg)+'</td><td class="rc">'+_f2s(subBudAvg)+'</td><td class="rc">'+_vsCol(subVsAvg)+'</td>'
+      +'<td class="rc">'+_f2s(subBud12)+'</td><td class="rc">'+_vsCol(subVs12)+'</td></tr>';
   });
   return g;
 }
