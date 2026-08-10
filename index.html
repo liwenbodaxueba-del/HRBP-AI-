@@ -1854,7 +1854,10 @@ function _kb4store(){try{return JSON.parse(localStorage.getItem('hcfb_kb4')||'{}
 function kb4Get(prefix,metric){var s=_kb4store(),sp=String(window.CUR_DEPT||'集团');return (s[sp]&&s[sp][prefix+'_'+metric])||nb();}
 function kb4GetFor(dept,prefix,metric){var s=_kb4store(),sp=String(dept);return (s[sp]&&s[sp][prefix+'_'+metric])||nb();}  // 读指定部门空间的看板4手填值
 function _kb4hc(arr){for(var m=11;m>=0;m--){if(arr&&arr[m]!=null&&arr[m]!=='')return +arr[m];}return '';}  // 代表性HC=最后一个非空月(编制通常逐月一致)
-function kb4CellSave(prefix,metric,m,val){var s=_kb4store(),sp=String(window.CUR_DEPT||'集团');s[sp]=s[sp]||{};var k=prefix+'_'+metric;var arr=(s[sp][k]||nb()).slice();var v=(val===''||val==null)?'':(isNaN(+val)?'':+val);arr[m]=v;s[sp][k]=arr;try{localStorage.setItem('hcfb_kb4',JSON.stringify(s));}catch(e){}renderKb4();}
+function kb4CellSave(prefix,metric,m,val){var s=_kb4store(),sp=String(window.CUR_DEPT||'集团');s[sp]=s[sp]||{};var k=prefix+'_'+metric;var arr=(s[sp][k]||nb()).slice();var v=(val===''||val==null)?'':(isNaN(+val)?'':+val);
+  arr[m]=v;
+  if(metric==='hc')for(var j=m+1;j<12;j++)arr[j]=v;  // HC 结转：改某月只影响本月及之后，前面月不动
+  s[sp][k]=arr;try{localStorage.setItem('hcfb_kb4',JSON.stringify(s));}catch(e){}renderKb4();}
 /* 看板4 手填格·右拉填充（Excel 式：从起始格向右拖到目标月，用起始值填充中间各月） */
 var KB4FILL=null;
 function kb4FillStart(e,prefix,metric,m){e.preventDefault();e.stopPropagation();
