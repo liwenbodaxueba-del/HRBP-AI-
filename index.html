@@ -1804,6 +1804,12 @@ function renderKb2(){
   document.getElementById('kb2Tbl').innerHTML=h;
 }
 /* ===== 看板4 · 云智&外包（两张表，结构同看板1；预算当量/期末在岗留空待接入；总流入/总流出仅手填分支） ===== */
+/* 示例（假数·仅演示，标【示例】）：真实数仓/预算系统接入后由后端下发覆盖 */
+var KB4DEMO={
+  yz:{bud:[60,60,62,62,64,64,66,66,68,68,70,70], chain:[58,59,61,60,63,62,65,64,67,66,69,68]},
+  wb:{bud:[30,30,31,31,32,32,33,33,34,34,35,35], chain:[28,29,30,29,31,30,32,31,33,32,34,33]}
+};
+var _kb4dm='<span style="background:#FEF3C7;color:#92400E;font-size:10px;font-weight:600;border-radius:6px;padding:0 6px;margin-left:4px">示例</span>';
 function renderKb4(){
   var host=document.getElementById('kb4Host');if(!host)return;
   host.innerHTML=kb4Table('yz','云智')+kb4Table('wb','外包');
@@ -1811,13 +1817,14 @@ function renderKb4(){
 function kb4Table(prefix,label){
   var yy=String(YEAR).slice(2),innSec=prefix+'_inn',outSec=prefix+'_out';
   var inT=[],outT=[];for(var m=0;m<12;m++){inT[m]=cSum(innSec,m);outT[m]=cSum(outSec,m);}
+  var dm=KB4DEMO[prefix]||{bud:nb(),chain:nb()};
   var h='<div style="font-size:14px;font-weight:700;color:var(--navy);margin:16px 0 6px">'+label+'</div>';
   h+='<div class="tblwrap"><table class="bsc kb4tbl"><tr><th>项目</th>';
   for(var mm=0;mm<12;mm++)h+='<th class="'+(mm<LOCK?'':'fut')+'">'+M[mm]+(mm<LOCK?'<span class="lockic"></span>':'')+'</th>';
   h+='<th>'+yy+'年均</th><th>总数</th></tr>';
-  // 数据两行：留空·待接入（无分主体数据源，不编造）
-  h+=tr('key','预算当量 <span class="badge calc">看板2</span>',nb(),{avg:'',lockShade:true,tot:''});
-  h+=tr('key','实际/预估期末在岗 <span class="badge calc">链</span>',nb(),{avg:'',lockShade:true,tot:''});
+  // 数据两行：示例假数（真实数仓/预算系统待接入后覆盖）
+  h+=tr('key','预算当量 <span class="badge calc">看板2</span>'+_kb4dm,dm.bud,{avg:(typeof f2==='function'?f2(avg12(dm.bud)):''),lockShade:true,tot:''});
+  h+=tr('key','实际/预估期末在岗 <span class="badge calc">链</span>'+_kb4dm,dm.chain,{avg:(typeof f2==='function'?f2(avg12(dm.chain)):''),lockShade:true,tot:''});
   // 总流入（＋）：仅手填分支
   h+=tr('subtot','总流入（＋） <span class="rowtool" onclick="tg(\''+innSec+'\')"><t-icon name="'+(open_[innSec]?'chevron-down':'chevron-right')+'" size="12"></t-icon></span> <span class="badge bp">BP·手填</span>',inT,{tot:sum(inT),lockShade:true});
   if(open_[innSec]){h+=customRows(innSec,{aggEdit:true});if(!RO)h+=addRowTr(innSec);}
