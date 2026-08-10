@@ -1235,27 +1235,27 @@ function _f2s(v){return (v==null||v==='')?'':(typeof f2==='function'?f2(v):v);}
 function _hcOver(dec12,hc){  // HC超编＝12月在岗−HC；负=不超(绿)、正=超编(红)
   if(hc===''||hc==null||dec12==null||dec12==='')return '';
   var v=(+dec12)-(+hc);return '<span style="font-weight:600;color:'+(v>0?'#DC2626':'#16A34A')+'">'+(v>0?'+'+v:v)+'</span>';}
-function _lineEqBlock(name,isDept,chain,chainAvg,budget,budgetAvg,yz,wb,hcMap){
+function _lineEqBlock(name,isDept,chain,chainAvg,budget,budgetAvg,yz,wb,hcMap,yzBud,wbBud){
   chain=chain||[];hcMap=hcMap||{};
   var dq=String(name).replace(/'/g,'');  // 部门名（做跳转链接用）
-  var POST={'集团':chain,'云智':yz||[],'外包':wb||[]};  // 各主体·实际/预估期末在岗（集团=本板；云智/外包=看板4 期末在岗）
+  var POST={'集团':chain,'云智':yz||[],'外包':wb||[]};                    // 各主体·实际/预估期末在岗
+  var BUD={'集团':budget||[],'云智':yzBud||[],'外包':wbBud||[]};          // 各主体·预算当量（集团=看板2预算当量；云智/外包=看板4手填）
   function post(k,m){var a=POST[k]||[];return (a[m]!=null&&a[m]!=='')?+a[m]:null;}
-  function eqAt(m){var s=0,any=false;LINE_SUBJ.forEach(function(x){var p=post(x.k,m);if(p!=null){s+=p*x.c;any=true;}});return any?s:null;}  // 人力当量＝集团×1＋云智×0.4＋外包×0.21
-  var EQ=[];for(var m=0;m<12;m++)EQ[m]=eqAt(m);
-  var eqAvg=(typeof avg12==='function')?avg12(EQ):chainAvg;
-  var dec12=post('集团',11);  // 12月集团在岗（HC超编用）
-  var vsAvg=(chainAvg!=null&&budgetAvg!=null)?(chainAvg-budgetAvg):'';
-  var bud12=(budget&&budget[11]!=null&&budget[11]!=='')?+budget[11]:'';
-  var vs12=(dec12!=null&&bud12!=='')?(dec12-bud12):'';
+  function bud(k,m){var a=BUD[k]||[];return (a[m]!=null&&a[m]!=='')?+a[m]:null;}
+  function _wsum(fn,m){var s=0,any=false;LINE_SUBJ.forEach(function(x){var p=fn(x.k,m);if(p!=null){s+=p*x.c;any=true;}});return any?s:null;}
+  var EQ=[],EQB=[];for(var m=0;m<12;m++){EQ[m]=_wsum(post,m);EQB[m]=_wsum(bud,m);}  // 人力当量/预算人力当量＝各主体×系数之和
+  var eqAvg=avg12(EQ),eqBudAvg=avg12(EQB);
+  var eqVsAvg=(eqAvg!=null&&eqBudAvg!=null)?(eqAvg-eqBudAvg):'';
+  var eqBud12=(EQB[11]!=null)?EQB[11]:'',eqVs12=(EQ[11]!=null&&eqBud12!=='')?(EQ[11]-eqBud12):'';
   var g='';
-  // 人力当量 父行（＝各主体期末在岗×系数之和）
+  // 人力当量 父行（在岗/预算 均＝各主体×系数之和）
   var c1name=isDept?('<a class="linelink" onclick="lineGotoKb1(\''+dq+'\')" title="进看板1 · '+esc(name)+'（集团数）">'+esc(name)+'</a>'):esc(name);
   g+='<tr class="eqgrp'+(isDept?' dept':'')+'"><td class="c1">'+c1name+'</td><td class="c2">人力当量</td><td class="c3"></td>';
   for(var m=0;m<12;m++)g+='<td'+(m<LOCK?' class="mut"':'')+'>'+_f2s(EQ[m])+'</td>';
   g+='<td class="hccol" title="HC 没有当量">—</td><td></td>'
-    +'<td class="rc">'+_f2s(eqAvg)+'</td><td class="rc"></td><td class="rc"></td>'
-    +'<td class="rc"></td><td class="rc"></td></tr>';  // 预算对比在集团行（预算 vs 期末在岗人数·非当量）
-  // 主体子行：各主体·实际/预估期末在岗（原值·未乘系数）
+    +'<td class="rc">'+_f2s(eqAvg)+'</td><td class="rc">'+_f2s(eqBudAvg)+'</td><td class="rc">'+_f2s(eqVsAvg)+'</td>'
+    +'<td class="rc">'+_f2s(eqBud12)+'</td><td class="rc">'+_f2s(eqVs12)+'</td></tr>';
+  // 主体子行：各主体·期末在岗（原值）+ 该主体预算当量
   LINE_SUBJ.forEach(function(s){
     var isG=(s.k==='集团'),sd12=post(s.k,11);
     var slbl=s.k;
@@ -1263,11 +1263,14 @@ function _lineEqBlock(name,isDept,chain,chainAvg,budget,budgetAvg,yz,wb,hcMap){
                       :('<a class="linelink" onclick="lineGotoKb4(\''+dq+'\')" title="进看板4 · '+s.k+'">'+s.k+'</a>');
     g+='<tr class="eqsub"><td class="c1"></td><td class="c2 sub">'+slbl+'</td><td class="c3">'+s.c+'</td>';
     for(var m=0;m<12;m++)g+='<td'+(m<LOCK?' class="mut"':'')+'>'+_f2s(post(s.k,m))+'</td>';
-    var subAvg=isG?chainAvg:((typeof avg12==='function')?avg12(POST[s.k]):null);  // 各主体·全年平均在岗
-    var subHC=(hcMap[s.k]==null?'':hcMap[s.k]);  // 该主体·HC（云智/外包取自看板4手填；集团待接入）
+    var subAvg=isG?chainAvg:avg12(POST[s.k]);                                  // 全年平均在岗
+    var subBudAvg=isG?budgetAvg:avg12(BUD[s.k]);                               // 预算平均当量
+    var subVsAvg=(subAvg!=null&&subBudAvg!=null)?(subAvg-subBudAvg):'';
+    var subBud12=bud(s.k,11),subVs12=(sd12!=null&&subBud12!=null)?(sd12-subBud12):'';
+    var subHC=(hcMap[s.k]==null?'':hcMap[s.k]);
     g+='<td class="hccol rc">'+_f2s(subHC)+'</td><td class="rc">'+_hcOver(sd12,subHC)+'</td>'
-      +'<td class="rc">'+_f2s(subAvg)+'</td><td class="rc">'+(isG?_f2s(budgetAvg):'')+'</td><td class="rc">'+(isG?_f2s(vsAvg):'')+'</td>'
-      +'<td class="rc">'+(isG?_f2s(bud12):'')+'</td><td class="rc">'+(isG?_f2s(vs12):'')+'</td></tr>';
+      +'<td class="rc">'+_f2s(subAvg)+'</td><td class="rc">'+_f2s(subBudAvg)+'</td><td class="rc">'+_f2s(subVsAvg)+'</td>'
+      +'<td class="rc">'+_f2s(subBud12)+'</td><td class="rc">'+_f2s(subVs12)+'</td></tr>';
   });
   return g;
 }
@@ -1292,10 +1295,13 @@ function renderLineBoard(){
   var yzHcS=0,wbHcS=0,anyY=false,anyW=false;  // 线小计 云智/外包 HC=各部门HC求和
   mem.forEach(function(mb){var yh=_kb4hc(kb4GetFor(mb.name,'yz','hc'));if(yh!==''){yzHcS+=+yh;anyY=true;}var wh=_kb4hc(kb4GetFor(mb.name,'wb','hc'));if(wh!==''){wbHcS+=+wh;anyW=true;}});
   var lineHc={'集团':(d.faHC==null?'':d.faHC),'云智':anyY?yzHcS:'','外包':anyW?wbHcS:''};  // 线小计 集团HC=看板2各部门法定HC求和(后端下发)
-  h+=_lineEqBlock(L.name+'线小计',false,d.chain,d.chainAvg,d.budget,d.budgetAvg,yzSum,wbSum,lineHc);   // 线小计：集团在岗/HC=各部门求和；云智/外包=各部门看板4求和
-  mem.forEach(function(mb){h+=_lineEqBlock(mb.name,true,mb.chain,mb.chainAvg,mb.budget,mb.budgetAvg,yzD,wbD,deptHc(mb));});  // 各部门：集团在岗/预算/HC 取本部门；云智/外包=看板4
+  // 云智/外包 预算当量 取自各部门看板4 手填；线小计=各部门求和
+  var yzBudS=[],wbBudS=[];for(var b0=0;b0<12;b0++){yzBudS[b0]='';wbBudS[b0]='';}
+  mem.forEach(function(mb){var yb=kb4GetFor(mb.name,'yz','bud'),wbb=kb4GetFor(mb.name,'wb','bud');for(var bm=0;bm<12;bm++){if(yb[bm]!=null&&yb[bm]!==''){yzBudS[bm]=(yzBudS[bm]===''?0:yzBudS[bm])+ +yb[bm];}if(wbb[bm]!=null&&wbb[bm]!==''){wbBudS[bm]=(wbBudS[bm]===''?0:wbBudS[bm])+ +wbb[bm];}}});
+  h+=_lineEqBlock(L.name+'线小计',false,d.chain,d.chainAvg,d.budget,d.budgetAvg,yzSum,wbSum,lineHc,yzBudS,wbBudS);   // 线小计：各主体在岗/预算/HC=各部门求和
+  mem.forEach(function(mb){h+=_lineEqBlock(mb.name,true,mb.chain,mb.chainAvg,mb.budget,mb.budgetAvg,yzD,wbD,deptHc(mb),kb4GetFor(mb.name,'yz','bud'),kb4GetFor(mb.name,'wb','bud'));});  // 各部门：集团在岗/预算/HC取本部门；云智/外包在岗+预算+HC=看板4
   h+='</table></div>';
-  h+='<div class="hint" style="margin-top:8px;line-height:1.7">集团 / 云智 / 外包 行 ＝ 各主体<b>实际·预估期末在岗</b>（原值·未乘系数）；<b>人力当量 ＝ 集团×1 ＋ 云智×0.4 ＋ 外包×0.21</b>（各主体在岗 × 系数之和·随明细自动运算）。<b>HC</b> 没有当量（—）；<b>HC超编 ＝ 12月在岗 − HC</b>，负数不超（<span style="color:#16A34A">绿</span>）、正数超编（<span style="color:#DC2626">红</span>）。<b>集团</b>在岗取自本看板；<b>云智 / 外包</b> 在岗与 <b>HC</b> 取自<b>看板4</b>（部门＝看板4该主体值、线小计＝各部门求和；HC 为各部门看板4 手填）；集团 HC 取自<b>看板2 法定HC</b>（部门维度·线小计求和）。<b>预算平均在岗 / 预算12月底在岗</b> 及其 vs 落在<b>集团行</b>：预算（预算当量）与<b>集团期末在岗人数</b>对比——vs.预算平均＝集团全年平均在岗−预算平均；vs.预算12月＝集团12月在岗−预算12月。<span style="color:#92400E">示例</span>。</div>';
+  h+='<div class="hint" style="margin-top:8px;line-height:1.7">集团 / 云智 / 外包 行 ＝ 各主体<b>实际·预估期末在岗</b>（原值·未乘系数）；<b>人力当量 ＝ 集团×1 ＋ 云智×0.4 ＋ 外包×0.21</b>（各主体在岗 × 系数之和·随明细自动运算）。<b>HC</b> 没有当量（—）；<b>HC超编 ＝ 12月在岗 − HC</b>，负数不超（<span style="color:#16A34A">绿</span>）、正数超编（<span style="color:#DC2626">红</span>）。<b>集团</b>在岗取自本看板；<b>云智 / 外包</b> 在岗与 <b>HC</b> 取自<b>看板4</b>（部门＝看板4该主体值、线小计＝各部门求和；HC 为各部门看板4 手填）；集团 HC 取自<b>看板2 法定HC</b>（部门维度·线小计求和）。<b>预算平均在岗＝预算平均当量</b>，每个主体都有：集团＝看板2 预算当量、云智/外包＝看板4 手填预算当量；人力当量父行＝各主体预算×系数之和。vs.预算平均＝全年平均在岗−预算平均；vs.预算12月＝12月在岗−预算12月底。<span style="color:#92400E">示例</span>。</div>';
   host.innerHTML=h;
 }
 function toggleLineDetail(){if(LINEBRD){LINEBRD.openDetail=!LINEBRD.openDetail;renderLineBoard();}}
