@@ -304,6 +304,19 @@ td.drillcell:hover{outline:1px solid var(--blue-l);outline-offset:-1px;backgroun
 #cellDrill .drilltbl th{background:var(--b50);color:var(--ink2);font-weight:600;position:sticky;top:35px;}
 #cellDrill .drillempty{padding:18px 20px;text-align:center;color:var(--ink2);line-height:1.8;}
 #cellDrill .drill-src{padding:7px 12px;color:var(--ink3);border-top:1px solid var(--b100);background:var(--b50);}
+table.lineeq{min-width:1600px;border-collapse:collapse;font-size:12.5px;}
+table.lineeq th,table.lineeq td{border:1px solid var(--b100);padding:5px 8px;text-align:right;white-space:nowrap;}
+table.lineeq th{background:var(--b50);color:var(--ink2);font-weight:600;text-align:right;position:sticky;top:0;z-index:2;}
+table.lineeq th.c1,table.lineeq td.c1{text-align:left;min-width:110px;}
+table.lineeq th.c2,table.lineeq td.c2{text-align:left;min-width:96px;}
+table.lineeq th.c3,table.lineeq td.c3{text-align:right;min-width:56px;color:var(--ink3);}
+table.lineeq td.mut{color:var(--ink3);background:#FbFcFe;}
+table.lineeq td.hccol{color:var(--ink3);font-size:11px;}
+table.lineeq tr.eqgrp>td{background:#E8F1FF;font-weight:600;}
+table.lineeq tr.eqgrp.dept>td{background:#FEF6E0;}
+table.lineeq tr.eqgrp td.c2{color:var(--navy);}
+table.lineeq tr.eqsub td.c2.sub{color:var(--ink2);padding-left:16px;}
+table.lineeq tr.eqsub:hover>td{background:var(--b50);}
 .bsc td.neg{color:var(--gray);}
 .bsc tr[data-drill]{cursor:pointer;}
 .bsc tr[data-drill]:hover td:first-child{color:var(--blue);}
@@ -1204,43 +1217,55 @@ function loadLineBoard(lineName){
   var url='/api/pmgroup/'+YEAR+'?centers='+encodeURIComponent(depts.join(','))+'&key='+encodeURIComponent(LINEBRD.key);
   fetch(url,{headers:{'X-User':'bonniewbli'}}).then(function(r){return r.json();}).then(function(j){LINEBRD.data=j;renderLineBoard();}).catch(function(){renderLineBoard();});
 }
+/* 线级看板 = 人力当量表（集团/云智/外包·当量系数）。集团在岗取本板真实数据；云智/外包、HC编制 数仓/预算系统待接入=空态·不编造 */
+var LINE_SUBJ=[{k:'集团',c:1},{k:'云智',c:0.4},{k:'外包',c:0.21}];
+function _f2s(v){return (v==null||v==='')?'':(typeof f2==='function'?f2(v):v);}
+function _hcOver(dec12,hc){  // HC超编＝12月在岗−HC；负=不超(绿)、正=超编(红)
+  if(hc===''||hc==null||dec12==null||dec12==='')return '';
+  var v=(+dec12)-(+hc);return '<span style="font-weight:600;color:'+(v>0?'#DC2626':'#16A34A')+'">'+(v>0?'+'+v:v)+'</span>';}
+function _lineEqBlock(name,isDept,chain,chainAvg,budget,budgetAvg){
+  chain=chain||[];
+  function md(m){return (chain[m]!=null&&chain[m]!=='')?+chain[m]:null;}   // 该月集团在岗（本板唯一真实主体）
+  function eq(m,coef){var v=(coef===1)?md(m):null;return v!=null?v*coef:null;}  // 云智/外包无在岗数据→空
+  var dec12=md(11);
+  var vsAvg=(chainAvg!=null&&budgetAvg!=null)?(chainAvg-budgetAvg):'';
+  var bud12=(budget&&budget[11]!=null&&budget[11]!=='')?+budget[11]:'';
+  var vs12=(dec12!=null&&bud12!=='')?(dec12-bud12):'';
+  var g='';
+  // 人力当量 父行（总当量＝各主体在岗×系数之和，本板=集团值）
+  g+='<tr class="eqgrp'+(isDept?' dept':'')+'"><td class="c1">'+esc(name)+'</td><td class="c2">人力当量</td><td class="c3"></td>';
+  for(var m=0;m<12;m++)g+='<td'+(m<LOCK?' class="mut"':'')+'>'+_f2s(eq(m,1))+'</td>';
+  g+='<td class="hccol" title="HC 没有当量">—</td><td></td>'
+    +'<td class="rc">'+_f2s(chainAvg)+'</td><td class="rc">'+_f2s(budgetAvg)+'</td><td class="rc">'+_f2s(vsAvg)+'</td>'
+    +'<td class="rc">'+_f2s(bud12)+'</td><td class="rc">'+_f2s(vs12)+'</td></tr>';
+  // 三主体子行
+  LINE_SUBJ.forEach(function(s){
+    var isG=(s.k==='集团');
+    g+='<tr class="eqsub"><td class="c1"></td><td class="c2 sub">'+s.k+'</td><td class="c3">'+s.c+'</td>';
+    for(var m=0;m<12;m++)g+='<td'+(m<LOCK?' class="mut"':'')+'>'+_f2s(eq(m,s.c))+'</td>';
+    // HC/HC超编：编制数据待接入=空态；集团行给出 HC超编 计算位（HC空→暂空，接入后按 12月在岗−HC 标红绿）
+    g+='<td class="hccol"></td><td class="rc">'+(isG?_hcOver(dec12,''):'')+'</td>'
+      +'<td class="rc">'+(isG?_f2s(chainAvg):'')+'</td><td class="rc">'+(isG?_f2s(budgetAvg):'')+'</td><td class="rc">'+(isG?_f2s(vsAvg):'')+'</td>'
+      +'<td class="rc">'+(isG?_f2s(bud12):'')+'</td><td class="rc">'+(isG?_f2s(vs12):'')+'</td></tr>';
+  });
+  return g;
+}
 function renderLineBoard(){
   var host=document.getElementById('lineHost'),L=LINEBRD;if(!host||!L)return;
-  var d=L.data,yy=String(YEAR).slice(2);
-  function nv(v){return (v===null||v===undefined||v==='')?'':v;}
+  var d=L.data;
   var h='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:2px 0 12px">'
     +'<b style="font-size:19px;color:var(--navy)">'+esc(L.name)+'</b>'
     +'<span style="font-size:12px;font-weight:700;color:var(--blue);background:var(--b100);padding:2px 10px;border-radius:12px">CVP · '+esc(L.head||'—')+'</span>'
-    +'<span style="font-size:12.5px;color:var(--ink3)">业务线汇总 · 共 '+L.depts.length+' 个部门 · 预算当量/期末在岗=各部门求和（只读）· 调节项本线可手调</span></div>';
+    +'<span style="font-size:12.5px;color:var(--ink3)">人力当量表 · 共 '+L.depts.length+' 个部门 · 当量系数 集团1 / 云智0.4 / 外包0.21</span></div>';
   if(!d){host.innerHTML=h+'<div class="hint" style="padding:12px">无数据</div>';return;}
-  h+='<div class="tblwrap"><table class="bsc kb0tbl"><tr><th>项目</th>';
-  for(var m=0;m<12;m++)h+='<th class="'+(m<LOCK?'':'fut')+'">'+M[m]+(m<LOCK?'<span class="lockic"></span>':'')+'</th>';
-  h+='<th>'+yy+'年均</th></tr>';
-  h+=tr('key','预算当量 <span class="badge calc">看板2</span>',(d.budget||[]).map(nv),{avg:(typeof f2==='function'?f2(d.budgetAvg):d.budgetAvg),lockShade:true,noTot:true});
-  h+=tr('key','实际/预估期末在岗 <span class="badge calc">链·各部门求和</span>',(d.chain||[]).map(nv),{avg:(typeof f2==='function'?f2(d.chainAvg):d.chainAvg),lockShade:true,noTot:true});
-  var adj=d.adjust||[];
-  h+='<tr class="sub"><td style="color:var(--navy);font-weight:600">➕ 调节项 <span style="color:var(--ink3);font-weight:400;font-size:11px">（本线·可手调）</span></td>';
-  for(var mj=0;mj<12;mj++){var av=nv(adj[mj]);
-    if(mj<LOCK){h+='<td class="mut" style="text-align:right">'+av+'</td>';}
-    else{h+='<td style="padding:0"><input type="number" step="1" value="'+av+'" onchange="lineAdjSave('+(mj+1)+',this.value)" style="width:100%;min-width:42px;border:1px solid transparent;padding:3px 4px;font:inherit;text-align:right;background:transparent;border-radius:4px" onfocus="this.style.borderColor=\'var(--blue-l)\';this.style.background=\'#fff\'" onblur="this.style.borderColor=\'transparent\';this.style.background=\'transparent\'"></td>';}}
-  h+='<td></td></tr>';
-  h+=tr('key','调整后期末在岗 <span class="badge calc">＝链＋调节</span>',(d.chainAdj||[]).map(nv),{avg:(typeof f2==='function'?f2(d.chainAdjAvg):d.chainAdjAvg),lockShade:true,noTot:true});
+  h+='<div class="tblwrap"><table class="bsc lineeq"><tr>'
+    +'<th class="c1">线级 / 部门</th><th class="c2">人力当量</th><th class="c3">系数</th>';
+  for(var m=0;m<12;m++)h+='<th'+(m<LOCK?'':' class="fut"')+'>'+(m+1)+'月</th>';
+  h+='<th>HC</th><th>HC超编</th><th>全年平均在岗</th><th>预算平均在岗</th><th>vs.预算平均在岗</th><th>预算12月底在岗</th><th>vs.预算12月在岗</th></tr>';
+  h+=_lineEqBlock(L.name+'线小计',false,d.chain,d.chainAvg,d.budget,d.budgetAvg);   // 线小计（本板真实：集团在岗/预算）
+  (d.members||[]).forEach(function(mb){h+=_lineEqBlock(mb.name,true,mb.chain,mb.chainAvg,null,null);});  // 各部门（部门级预算暂无→空）
   h+='</table></div>';
-  // 明细（各部门·可展开）：每个部门期末在岗一行，点部门名进看板1
-  var mem=d.members||[];
-  h+='<div style="margin-top:14px"><a onclick="toggleLineDetail()" style="cursor:pointer;font-size:13px;font-weight:600;color:var(--navy)">'+(L.openDetail?'▾':'▸')+' 明细（各部门 '+mem.length+'）</a>';
-  if(L.openDetail){
-    h+='<div class="tblwrap" style="margin-top:8px"><table class="bsc kb0tbl"><tr><th>部门 · 期末在岗</th>';
-    for(var m2=0;m2<12;m2++)h+='<th class="'+(m2<LOCK?'':'fut')+'">'+M[m2]+'</th>';
-    h+='<th>'+yy+'年均</th></tr>';
-    mem.forEach(function(mb){
-      h+='<tr><td><a onclick="pickLineDept(\''+String(mb.name).replace(/'/g,"")+'\')" style="color:var(--blue);cursor:pointer" title="进看板1 · '+esc(mb.name)+'">'+esc(mb.name)+'</a></td>';
-      for(var k=0;k<12;k++){var v=(mb.chain&&mb.chain[k]!=null)?mb.chain[k]:'';h+='<td class="'+(k<LOCK?'mut':'')+'" style="text-align:right">'+v+'</td>';}
-      h+='<td style="text-align:right;font-weight:600">'+(mb.chainAvg!=null?(typeof f2==='function'?f2(mb.chainAvg):mb.chainAvg):'')+'</td></tr>';
-    });
-    h+='</table></div>';
-  }
-  h+='</div>';
+  h+='<div class="hint" style="margin-top:8px;line-height:1.7">人力当量 ＝ 各主体在岗 × 系数（集团1 / 云智0.4 / 外包0.21）。<b>HC</b> 没有当量（空）；<b>HC超编 ＝ 12月在岗 − HC</b>，负数为不超（<span style="color:#16A34A">绿</span>）、正数为超编（<span style="color:#DC2626">红</span>）。<b>集团</b>在岗/预算取自本看板；<b>云智 / 外包</b> 各一个 HC 数、以及各主体 HC 编制 由 数仓 / 预算系统提供（待接入·当前空态·不编造）。</div>';
   host.innerHTML=h;
 }
 function toggleLineDetail(){if(LINEBRD){LINEBRD.openDetail=!LINEBRD.openDetail;renderLineBoard();}}
