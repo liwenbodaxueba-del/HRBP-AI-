@@ -1622,7 +1622,7 @@ function customRows(sec,extra){
     var tot=sum(r.vals)*(r.sign==='-'?-1:1);  // 260723 起新分支一律 '+'（纯计人头，负数=调减）；兼容历史 '−'
     var label;
     if(r.agg){  // 汇总来的中心手动分支：只读·名字已含中心标注（点部门时表多出这几项，计入运算）
-      label=(extra.prefix||'')+esc(r.name)+' <span class="badge calc" title="来自中心的手动分支·已计入部门运算·请在该中心录入">中心汇总</span>';
+      label=(extra.prefix||'')+esc(r.name)+' <span class="badge calc" title="这是某中心手动加的分支行·只读（本表所有行都已是各中心求和；此徽标只标明它来自哪个中心·请在该中心录入）">中心分支</span>';
       var avgA=extra.avgMode==='dash'?'—':(extra.avgMode==='calc'?f2(avg12(r.vals)):undefined);
       out+=tr('sub'+(extra.deep?'2':''),label,r.vals,{src:'custom',hideZero:true,lock:extra.lock,avg:avgA,tot:(extra.noTot?undefined:tot),noTot:extra.noTot});
       return;
@@ -2210,7 +2210,7 @@ function inlineCell(td){
 }
 /* 行级编辑（260723晚）：BP行/分支行点 ✎ 整行可编辑→保存/取消；平时格子不可直接点 */
 var ROWEDIT=null;
-function pen(key){return RO?'':' <span class="rowtool" title="编辑此行（整行填写后保存）" onclick="rowEditStart(\''+key+'\')"><t-icon name="edit-1" size="12"></t-icon></span>';}
+function pen(key){return (RO||(typeof isDeptAgg==='function'&&isDeptAgg()))?'':' <span class="rowtool" title="编辑此行（整行填写后保存）" onclick="rowEditStart(\''+key+'\')"><t-icon name="edit-1" size="12"></t-icon></span>';}  // 汇总/子PM组/线级=各中心求和·只读，不给编辑铅笔
 function rowEditDirty(key){
   var dirty=false;
   document.querySelectorAll('input.rowed[data-rk="'+key+'"]').forEach(function(inp){
