@@ -3004,7 +3004,13 @@ window.loadMe=function(){return api('GET','/api/me').then(function(m){window.MY=
   if(window.renderKb1Nav)renderKb1Nav();return m;}).catch(function(){});};
 function api(m,p,b){if(p.indexOf('/api/board/')===0){p+=(p.indexOf('?')<0?'?':'&')+'dept='+encodeURIComponent(DEPT);
   // 子PM组是虚拟空间：组织表里没有这一层，成员中心清单（管理后台配置）必须随请求带上，后端才知道求和范围
-  if(isPmgSpace(DEPT)&&PMG&&PMG.key===DEPT)p+='&centers='+encodeURIComponent(PMG.centers.join(','));}
+  if(isPmgSpace(DEPT)&&PMG&&PMG.key===DEPT){p+='&centers='+encodeURIComponent(PMG.centers.join(','));}
+  else if(typeof isDeptAgg==='function'&&isDeptAgg(DEPT)&&typeof PM_GROUPS!=='undefined'){
+    // 部门/集团：把子PM组结构带上，后端才能「分组中心并入其组、组有覆盖用覆盖」把组级覆盖卷进部门/集团合计
+    var _gl=[],_addG=function(dp){(PM_GROUPS[dp]||[]).forEach(function(g){_gl.push({key:'PM:'+dp+':'+g.name,dept:dp,centers:(g.centers||[]).map(function(cc){return dp+'/'+cc;})});});};
+    if(DEPT==='集团'){Object.keys(PM_GROUPS).forEach(_addG);}else{_addG(DEPT);}
+    if(_gl.length)p+='&groups='+encodeURIComponent(JSON.stringify(_gl));
+  }}
   return fetch(p,{method:m,headers:{'Content-Type':'application/json','X-User':API_USER},body:b?JSON.stringify(b):undefined}).then(function(r){return r.json().then(function(j){if(!r.ok)throw j;return j;});});}
 var SEC2FRONT={'总流出（−）':'out','总流入（＋）':'inn','社招∇ 分列':'soc','校招∇ 分列':'camp','法定HC·其中':'hc','预算当量·其中':'quota','云智·总流入（＋）':'yz_inn','云智·总流出（−）':'yz_out','外包·总流入（＋）':'wb_inn','外包·总流出（−）':'wb_out'};
 var FRONT2SEC={out:'总流出（−）',inn:'总流入（＋）',soc:'社招∇ 分列',camp:'校招∇ 分列',hc:'法定HC·其中',quota:'预算当量·其中',yz_inn:'云智·总流入（＋）',yz_out:'云智·总流出（−）',wb_inn:'外包·总流入（＋）',wb_out:'外包·总流出（−）'};

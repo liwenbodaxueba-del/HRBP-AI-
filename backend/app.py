@@ -493,8 +493,42 @@ def _prev_dec_ending_members(c, year, members):
     return out
 
 
+def _apply_group_overrides(c, year, vals, groups_json, dept):
+    """把子PM组的组级覆盖(o_bp/o_act)折进部门/集团合计：分组中心并入其组、组有覆盖用覆盖。
+    vals 原为各中心直接加总；对每个组、每个有覆盖的月：合计 −= 组内中心之和，＋= 组覆盖值
+    （没覆盖的月不动＝仍用组内中心之和，等价于直接加总，故只需处理有覆盖的月）。
+    groups_json：前端传来的组结构 [{key:'PM:部:组', dept:'部', centers:['部/中心',...]}]。"""
+    try:
+        groups = json.loads(groups_json)
+    except Exception:
+        return
+    for g in (groups or []):
+        gkey, members = g.get("key"), (g.get("centers") or [])
+        if not gkey or not members:
+            continue
+        if dept != "集团" and g.get("dept") != dept:  # 部门视图只折本部门的组；集团视图全折
+            continue
+        ov = {"o_bp": {}, "o_act": {}}
+        for r in c.execute("SELECT metric,month,value FROM cells WHERE year=? AND dept=? AND metric IN ('o_bp','o_act')", (year, gkey)):
+            if 1 <= r["month"] <= 12 and r["value"] is not None:
+                ov[r["metric"]][r["month"]] = r["value"]
+        for metric in ("o_bp", "o_act"):
+            if not ov[metric]:
+                continue
+            msum = [0] * 12
+            ph = ",".join("?" * len(members))
+            for r in c.execute(f"SELECT month,SUM(value) s FROM cells WHERE year=? AND metric=? AND dept IN ({ph}) GROUP BY month", (year, metric, *members)):
+                if 1 <= r["month"] <= 12 and r["s"] is not None:
+                    msum[r["month"] - 1] = r["s"]
+            arr = vals.setdefault(metric, [None] * 12)
+            for mo, val in ov[metric].items():
+                idx = mo - 1
+                cur = arr[idx] if isinstance(arr[idx], (int, float)) else 0
+                arr[idx] = cur - msum[idx] + val
+
+
 @app.get("/api/board/{year}")
-def get_board(year: int, dept: str = "集团", centers: str = ""):
+def get_board(year: int, dept: str = "集团", centers: str = "", groups: str = ""):
     """看板1 取数。dept 可以是：集团 / 部门 / 「部门/中心」/ 【虚拟空间】。
 
     虚拟空间（子PM组 PM:部:组名、业务线 LINE:线名）：组织表里没有这一层，成员清单由
@@ -525,6 +559,9 @@ def get_board(year: int, dept: str = "集团", centers: str = ""):
             vals, notes = _grid(c, year, dept)
             brs = _branches(c, year, dept)
             prev_er = _grid(c, year - 1, dept)[0].get("er_out")
+            # 部门/集团：把子PM组的组级覆盖折进「待流出BP项」——分组中心并入其组、组有覆盖用覆盖
+            if groups and (dept == "集团" or dept in DEPT_CENTERS):
+                _apply_group_overrides(c, year, vals, groups, dept)
         nat_n = yr["nat_n"] if "nat_n" in yr.keys() else NAT_N_DEFAULT
         if yr["lock_month"] == 0:
             seed = _prev_dec_ending_members(c, year, members) if vspace else _prev_dec_ending(c, year, dept)
