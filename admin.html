@@ -892,7 +892,8 @@ function _openAcctModal(){_aPickedId='';_aPickedName='';
   var _pr=document.querySelector('#aRoleBox .aPri[value="HRBP"]');if(_pr)_pr.checked=true;
   aSearchRender('');
   var el=document.getElementById('aDeptShow');if(el)el.textContent=_addDept||'（未分配部门）';
-  document.getElementById('maskAcct').classList.add('on');}
+  document.getElementById('maskAcct').classList.add('on');
+  setTimeout(function(){var si=document.getElementById('aSearch');if(si)si.focus();},30);}  // 打开即聚焦搜索框，直接搜账号
 function openAcct(){_addDept='';_openAcctModal();}
 function openAcctInDept(dept){_addDept=dept||'';_openAcctModal();}  // ＋加人：加到指定看板1部门
 function closeAcct(){document.getElementById('maskAcct').classList.remove('on');}
