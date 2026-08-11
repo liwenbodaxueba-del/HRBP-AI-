@@ -1284,7 +1284,7 @@ function renderLineBoard(){
   var d=L.data;
   var h='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:2px 0 12px">'
     +'<b style="font-size:19px;color:var(--navy)">'+esc(L.name)+'</b>'
-    +'<span style="font-size:12.5px;color:var(--ink3)">人力当量表 · 共 '+L.depts.length+' 个部门 · 当量系数 集团1 / 云智0.4 / 外包0.21</span></div>';
+    +'<span style="font-size:12.5px;color:var(--ink3)">共 '+L.depts.length+' 个部门</span></div>';
   if(!d){host.innerHTML=h+'<div class="hint" style="padding:12px">无数据</div>';return;}
   h+='<div class="tblwrap"><table class="bsc lineeq"><tr>'
     +'<th class="c1">线级 / 部门</th><th class="c2">实际/预估期末在岗</th><th class="c3">系数</th>';
