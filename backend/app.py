@@ -508,8 +508,17 @@ def get_board(year: int, dept: str = "集团", centers: str = ""):
         yr = c.execute("SELECT * FROM years WHERE year=?", (year,)).fetchone()
         if not yr:
             raise HTTPException(404, "年份不存在")
+        vsp_center_sum, vsp_override = None, None
         if vspace:
             vals, notes = _grid_members(c, year, members)   # 虚拟空间无自己的看板2 → 预算基线也求和
+            # 子PM组可对「待流出·已明确非系统(BP)/主动动作(BP)」预估月做组级覆盖（落自己虚拟键的 cells·不改中心源数据）
+            # 覆盖前先留一份中心合计，供前端对比/标色/冲突弹窗
+            vsp_center_sum = {k: list(vals.get(k, [None] * 12)) for k in ("o_bp", "o_act")}
+            vsp_override = {"o_bp": {}, "o_act": {}}
+            for r in c.execute("SELECT metric,month,value FROM cells WHERE year=? AND dept=? AND metric IN ('o_bp','o_act')", (year, dept)):
+                if 1 <= r["month"] <= 12 and r["value"] is not None:
+                    vsp_override[r["metric"]][str(r["month"])] = r["value"]
+                    vals.setdefault(r["metric"], [None] * 12)[r["month"] - 1] = r["value"]  # 覆盖值进运算（期末在岗按覆盖后算）
             brs = _branches_members(c, year, members)
             prev_er = _grid_members(c, year - 1, members)[0].get("er_out")
         else:
@@ -564,7 +573,8 @@ def get_board(year: int, dept: str = "集团", centers: str = ""):
             "metrics": metrics, "branches": brs, "computed": comp, "nat": comp["nat"],
             "budget_centers_sum": budget_centers_sum, "demo": demo, "ts": int(time.time() * 1000),
             "vspace": vspace, "vspace_members": members if vspace else [],
-            "vspace_adjust": vspace_adjust, "vspace_adjust_note": vspace_adjust_note}
+            "vspace_adjust": vspace_adjust, "vspace_adjust_note": vspace_adjust_note,
+            "vspace_center_sum": vsp_center_sum, "vspace_override": vsp_override}
 
 
 def _all_spaces():
@@ -706,13 +716,23 @@ class CellEdit(BaseModel):
 
 
 @app.post("/api/board/{year}/cell")
-def edit_cell(year: int, e: CellEdit, dept: str = "集团", x_user: str = Header("bonniewbli")):
+def edit_cell(year: int, e: CellEdit, dept: str = "集团", centers: str = "", x_user: str = Header("bonniewbli")):
     with db() as c:
         require_writer(c, x_user)
-        # 虚拟空间（子PM组/业务线）是纯求和视图，不落自己的 cells：若允许写会产生谁都读不到的孤儿数据。
-        # 它唯一可写的是「本组调节项」，走 POST /api/kb0/{year}/adjust（dept 传虚拟键）。
+        # 虚拟空间（子PM组/业务线）是纯求和视图，一般只读、不落自己的 cells。
+        # 唯一例外：子PM组可对「待流出·已明确非系统(BP)/主动动作(BP)」的【预估月】做组级覆盖——
+        # 落自己虚拟键的 cells（不改任何中心源数据），期末在岗按覆盖后算；与中心合计不一致时前端标色+进组弹窗。
         if is_vspace(dept):
-            raise HTTPException(403, f"「{dept}」为求和视图（只读），请在具体中心/部门录入；本组仅调节项可手调")
+            _yv = c.execute("SELECT lock_month FROM years WHERE year=?", (year,)).fetchone()
+            if _yv is None:
+                raise HTTPException(404, "年份不存在")
+            if e.metric in ("o_bp", "o_act") and 1 <= e.month <= 12 and e.month > _yv["lock_month"]:
+                if e.value is not None and abs(e.value) > VALUE_ABS_MAX:
+                    raise HTTPException(422, "量级异常，拒绝入库")
+                _write_cell(c, year, e.metric, e.month, e.value, (e.note or "").strip(), "bp", x_user, dept)
+                _audit(c, x_user, "子PM组覆盖", f"[{dept}] {year}「{e.metric}」{e.month}月 → {e.value}（组级覆盖·不改中心源数据）")
+                return get_board(year, dept, centers)
+            raise HTTPException(403, f"「{dept}」为求和视图：仅『待流出·已明确非系统/主动动作』的预估月可在组级手改，其余请在具体中心录入")
         if is_agg_dept(dept):
             # 期初法定HC(fa_hc) 是部门级 BP 录入·期初锚定（落部门自身 cells，_grid 按部门维度直取、不上卷）：
             # 含中心的部放开，仅集团（各部门加总）保持只读。其余项在含中心部仍只读（=各中心之和）。

@@ -285,6 +285,7 @@ th.sortable:hover{filter:brightness(1.08);}
 .bsc tr.addr td,.bsc tr.addr td:first-child{background:#FAFCFF;padding-left:26px;}
 /* 260724：格子不再直点编辑（走行首✎），外观与普通格一致，不再画虚线框 */
 .bsc td.edit{cursor:cell;}
+.bsc td.vspconf{background:#FFF4E5;color:#B45309;font-weight:600;box-shadow:inset 0 0 0 1px #F4B980;}  /* 子PM组级覆盖值≠中心加总：冲突标色 */
 .bsc td.bsc-selected{background:#E8F0FB!important;box-shadow:inset 0 0 0 1px var(--td-brand-color-4);}
 .bsc td.bsc-active{box-shadow:inset 0 0 0 2px var(--td-brand-color)!important;}
 .bsc td.bsc-selected input.rowed{background:#E8F0FB!important;}
@@ -1055,6 +1056,36 @@ function showOrgChangePopup(changes){
   document.getElementById('orgChgOk').onclick=function(){mask.remove();};
   mask.addEventListener('click',function(e){if(e.target===mask)mask.remove();});
 }
+/* ===== 子PM组：组级覆盖值 vs 中心加总 冲突检测（进入/刷新子PM看板时弹） =====
+   子PM可对「待流出·已明确非系统(BP)/主动动作(BP)」预估月做组级覆盖；若同一项中心那边也改了、
+   两个口径不一致，就在进组时汇总列出，子PM酌情核对。当前表按组级值参与运算。 */
+function vspaceConflicts(){
+  var D=DATA[YEAR];if(!D||!D.vspaceOverride||!D.vspaceCenterSum)return [];
+  var nm={o_bp:'待流出 · 已明确非系统（BP）',o_act:'待流出 · 主动动作（BP）'},out=[];
+  ['o_bp','o_act'].forEach(function(k){var ov=D.vspaceOverride[k]||{},cs=D.vspaceCenterSum[k]||[];
+    Object.keys(ov).forEach(function(ms){var m=+ms-1,g=ov[ms],ce=(cs[m]==null?0:cs[m]);
+      if(Number(g)!==Number(ce))out.push({name:nm[k],m:m,grp:g,center:ce});});});
+  out.sort(function(a,b){return a.m-b.m;});return out;
+}
+function vspaceConflictCheck(){if(typeof isPmgSpace==='function'&&!isPmgSpace())return;var list=vspaceConflicts();if(list.length)showVspaceConflictPopup(list);}
+function showVspaceConflictPopup(list){
+  var old=document.getElementById('vspConfMask');if(old)old.remove();
+  var mask=document.createElement('div');mask.id='vspConfMask';
+  mask.style.cssText='position:fixed;inset:0;background:rgba(10,46,110,.38);z-index:99999;display:flex;align-items:center;justify-content:center;';
+  var box=document.createElement('div');
+  box.style.cssText='background:#fff;border-radius:14px;max-width:560px;width:90%;max-height:72vh;overflow:auto;box-shadow:0 20px 60px rgba(10,46,110,.35);';
+  var rows=list.map(function(x){return '<tr><td style="padding:5px 10px">'+esc(x.name)+'</td><td style="padding:5px 10px;text-align:center">'+M[x.m]+'</td><td style="padding:5px 10px;text-align:right;color:#DC2626;font-weight:600">'+x.grp+'</td><td style="padding:5px 10px;text-align:right;color:#16A34A;font-weight:600">'+x.center+'</td></tr>';}).join('');
+  box.innerHTML='<div style="background:#B45309;color:#fff;padding:14px 20px;border-radius:14px 14px 0 0;font-weight:700;font-size:15px">⚠ 子PM看板与中心维度数据有冲突</div>'
+    +'<div style="padding:16px 20px;font-size:13px;line-height:1.7;color:#333">以下「待流出」预估项，<b>子PM看板的组级值</b>与<b>各中心加总</b>不一致（同一项两个看板都改过）。本表当前<b>按组级值参与运算</b>，请酌情核对调整：'
+    +'<table style="margin-top:10px;width:100%;border-collapse:collapse;background:#F6F9FF;border:1px solid #E1E9F7;border-radius:8px;overflow:hidden;font-size:12.5px">'
+    +'<tr style="background:#EAF0FB;font-weight:600"><td style="padding:6px 10px">项目</td><td style="padding:6px 10px;text-align:center">月份</td><td style="padding:6px 10px;text-align:right">子PM看板</td><td style="padding:6px 10px;text-align:right">中心加总</td></tr>'
+    +rows+'</table>'
+    +'<div style="margin-top:10px;color:#8794a8;font-size:12px">红=子PM组级值（当前生效）· 绿=各中心加总。想回到中心口径，把该格清空即可恢复取中心加总。</div></div>'
+    +'<div style="padding:0 20px 16px;text-align:right"><button id="vspConfOk" style="background:#2563EB;color:#fff;border:none;border-radius:8px;padding:8px 22px;font-size:13px;cursor:pointer;font-weight:600">知道了</button></div>';
+  mask.appendChild(box);document.body.appendChild(mask);
+  document.getElementById('vspConfOk').onclick=function(){mask.remove();};
+  mask.addEventListener('click',function(e){if(e.target===mask)mask.remove();});
+}
 function orgOrphanCheck(){
   /* 线维(hcfb_lines)/子PM组(hcfb_pm_groups) 里存的是部门【名字】，组织调整后可能残留失效引用。
      这里只【显式报出】、绝不静默删除，避免用户以为自己的配置无声消失了。 */
@@ -1132,7 +1163,7 @@ function pickPmGroup(dept,name){
   PMG={dept:dept,name:name,key:pmgKey(dept,name),centers:centers,sumOff:!g.sum};PMG_ON=true;
   goView('kb1');
   if(window.renderKb1Nav)renderKb1Nav();  // 刷新侧栏→当前子PM组整块高亮
-  if(window.setDept)window.setDept(PMG.key);  // → loadYear 拉 /api/board?dept=PM:…&centers=…
+  if(window.setDept){var _p=window.setDept(PMG.key);if(_p&&_p.then)_p.then(function(){if(typeof vspaceConflictCheck==='function')vspaceConflictCheck();});}  // → loadYear 拉 /api/board?dept=PM:…&centers=… ；加载完检测组级覆盖 vs 中心加总冲突
 }
 /* 看板名点击：看板2/3/4 只有部门维度 → 由 goView 统一回落到组所属部门（与「中心」同理） */
 function boardTab(v){goView(v);}
@@ -1549,9 +1580,10 @@ function tr(cls,label,arr,opt){
     var anchorMonth=opt.editMonths&&opt.editMonths.indexOf(m)>=0;  // editMonths=硬约束:只放开指定月(如法定HC锚定月),并豁免已发生月锁定；即便整行编辑态也不放开其他月
     var monthOK=opt.editMonths?anchorMonth:true;
     var _deptAnchorOK=opt.deptAnchor&&anchorMonth&&(window.CUR_DEPT||'集团')!=='集团';  // 期初锚定(如看板2法定HC·1月)属部门级BP录入：含中心的部也放开，仅集团(各部门加总)保持只读
-    var editable=opt.edit&&monthOK&&(anchorMonth||(opt.pastOnly?m<lock:(m>=lock||(rowEdit&&!opt.editMonths&&!opt.futureOnly))))&&!RO&&(!isDeptAgg()||_deptAnchorOK||opt.aggEdit);  // pastOnly=仅实际月(m<lock)可编；否则未发生月/行编辑态放宽；部级汇总只读唯期初锚定豁免；aggEdit=看板4云智/外包手填·无中心拆分·汇总空间也可填
+    var editable=opt.edit&&monthOK&&(anchorMonth||(opt.pastOnly?m<lock:(m>=lock||(rowEdit&&!opt.editMonths&&!opt.futureOnly))))&&!RO&&(!isDeptAgg()||_deptAnchorOK||opt.aggEdit||opt.vspEdit);  // pastOnly=仅实际月(m<lock)可编；否则未发生月/行编辑态放宽；部级汇总只读唯期初锚定豁免；aggEdit=看板4云智/外包手填·无中心拆分·汇总空间也可填；vspEdit=子PM组待流出BP项预估月可组级覆盖
     var mut=(opt.mute==='past'&&m<lock)||(opt.mute==='future'&&m>=lock);  // 估/实双轨标灰
-    var cl=(m<lock&&opt.lockShade?'lock ':'')+(editable?'edit adj ':'')+(opt.neg&&v<0?'neg ':'')+(mut?'mut ':'');
+    var vspConf=opt.vspCmp&&v!==''&&v!==null&&(Number(v)!==Number(opt.vspCmp[m]==null?0:opt.vspCmp[m]));  // 子PM组级覆盖值≠中心合计→冲突标色
+    var cl=(m<lock&&opt.lockShade?'lock ':'')+(editable?'edit adj ':'')+(opt.neg&&v<0?'neg ':'')+(mut?'mut ':'')+(vspConf?'vspconf ':'');
     var disp=(v===''||(v===0&&opt.hideZero))?'':(opt.negRow&&v!==0?'−'+v:(opt.plus&&v>0?'+'+v:v));
     if(rowEdit&&editable){disp='<input type="number" step="1" class="rowed" data-rk="'+opt.key+'" data-m="'+m+'" value="'+(v===''?'':v)+'" onkeydown="if(event.key===\'Enter\'){event.preventDefault();rowEditSave(\''+opt.key+'\');}else if(event.key===\'Escape\'){event.preventDefault();rowEditEnter(\''+opt.key+'\');}" style="width:100%;min-width:44px;border:1px solid var(--blue-l);padding:2px 4px;font:inherit;text-align:right;background:#fff">';}
     var noteTxt=(opt.notes&&opt.notes[m])?opt.notes[m]:memos[(opt.key||'')+'_'+m];  // opt.notes：外部注入的逐月一句话备注（如看板3.2 简历面试中）优先
@@ -1687,8 +1719,8 @@ function render(){
     // 预估口径
     if(cfgOn('o_sys'))h+=tr('sub',cfgName('o_sys','待流出 · 系统明确'),D.o_sys,{src:'o_sys',hideZero:true,tot:sum(D.o_sys),lockShade:true,mute:'past'});
     if(cfgOn('o_nat'))h+=tr('sub',cfgName('o_nat','待流出 · 自然流失预估')+natBadge(),D.o_nat,{src:'o_nat',hideZero:true,tot:sum(D.o_nat),lockShade:true,mute:'past'});
-    if(cfgOn('o_bp')){var eObp=cfgEdit('o_bp','all');h+=tr('sub',cfgName('o_bp','待流出 · 已明确非系统（BP）')+(eObp!=='no'?pen('o_bp'):''),D.o_bp,{src:'o_bp',key:'o_bp',edit:eObp!=='no',futureOnly:eObp==='future',pastOnly:eObp==='past',hideZero:true,tot:sum(D.o_bp),lockShade:true,mute:'past'});}
-    if(cfgOn('o_act')){var eOact=cfgEdit('o_act','all');h+=tr('sub',cfgName('o_act','待流出 · 主动动作（BP）（调节项）')+(eOact!=='no'?pen('o_act'):''),D.o_act,{src:'o_act',key:'o_act',edit:eOact!=='no',futureOnly:eOact==='future',pastOnly:eOact==='past',hideZero:true,tot:sum(D.o_act),lockShade:true,mute:'past'});}
+    if(cfgOn('o_bp')){var eObp=cfgEdit('o_bp','all');var _vpBp=(typeof isPmgSpace==='function'&&isPmgSpace());h+=tr('sub',cfgName('o_bp','待流出 · 已明确非系统（BP）')+(_vpBp?' <span class="badge calc" title="子PM组可对本行预估月做组级覆盖（不改中心源数据）；与中心合计不一致会标色">组可改</span>':(eObp!=='no'?pen('o_bp'):'')),D.o_bp,{src:'o_bp',key:'o_bp',edit:eObp!=='no',futureOnly:eObp==='future',pastOnly:eObp==='past',hideZero:true,tot:sum(D.o_bp),lockShade:true,mute:'past',vspEdit:_vpBp,vspCmp:(_vpBp&&D.vspaceCenterSum?D.vspaceCenterSum.o_bp:null)});}
+    if(cfgOn('o_act')){var eOact=cfgEdit('o_act','all');var _vpAct=(typeof isPmgSpace==='function'&&isPmgSpace());h+=tr('sub',cfgName('o_act','待流出 · 主动动作（BP）（调节项）')+(_vpAct?' <span class="badge calc" title="子PM组可对本行预估月做组级覆盖（不改中心源数据）；与中心合计不一致会标色">组可改</span>':(eOact!=='no'?pen('o_act'):'')),D.o_act,{src:'o_act',key:'o_act',edit:eOact!=='no',futureOnly:eOact==='future',pastOnly:eOact==='past',hideZero:true,tot:sum(D.o_act),lockShade:true,mute:'past',vspEdit:_vpAct,vspCmp:(_vpAct&&D.vspaceCenterSum?D.vspaceCenterSum.o_act:null)});}
     h+=customRows('out');
     h+=extraRows('总流出（−）');
     if(!RO&&!isDeptAgg()&&secAllow('总流出（−）'))h+=addRowTr('out');  // 汇总部门只读·不可加分支(请在中心录入)
@@ -2991,6 +3023,8 @@ function applyBoard(b){
   d.q_init=((b.metrics.q_init||{}).vals||[]).map(nn);while(d.q_init.length<12)d.q_init.push('');
   d.budgetCentersSum=b.budget_centers_sum||null;  // 含中心的部：各中心预算当量之和（对比用·纯看）
   d.vspaceAdjust=b.vspace_adjust||null;           // 子PM组/线级本组独有调节项（不碰成员源数据）
+  d.vspaceCenterSum=b.vspace_center_sum||null;    // 子PM组：o_bp/o_act 覆盖前的中心合计（对比/标色/冲突弹窗用）
+  d.vspaceOverride=b.vspace_override||null;        // 子PM组：本组对 o_bp/o_act 预估月的组级覆盖值
   MEMOS[y]={};
   Object.keys(b.metrics).forEach(function(k){var ns=b.metrics[k].notes||{};Object.keys(ns).forEach(function(m){MEMOS[y][k+'_'+(m-1)]=ns[m];});});
   var cu=emptyCustom();
