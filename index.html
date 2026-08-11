@@ -1284,7 +1284,6 @@ function renderLineBoard(){
   var d=L.data;
   var h='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:2px 0 12px">'
     +'<b style="font-size:19px;color:var(--navy)">'+esc(L.name)+'</b>'
-    +'<span style="font-size:12px;font-weight:700;color:var(--blue);background:var(--b100);padding:2px 10px;border-radius:12px">CVP · '+esc(L.head||'—')+'</span>'
     +'<span style="font-size:12.5px;color:var(--ink3)">人力当量表 · 共 '+L.depts.length+' 个部门 · 当量系数 集团1 / 云智0.4 / 外包0.21</span></div>';
   if(!d){host.innerHTML=h+'<div class="hint" style="padding:12px">无数据</div>';return;}
   h+='<div class="tblwrap"><table class="bsc lineeq"><tr>'
