@@ -224,11 +224,11 @@ body.navfold .navtg{left:8px;}
 <!-- 添加账号 modal -->
 <div class="mask" id="maskAcct"><div class="modal">
   <h3>添加账号</h3>
-  <div class="meta">搜索并选择账号即可添加（iOA 账号自动带出姓名）；也可直接输入新账号。<b>可不归属部门直接添加</b>。选一个主角色定其默认看板权限。</div>
-  <label>搜索账号</label>
-  <input type="text" id="aSearch" placeholder="搜索 / 输入 iOA 账号或姓名…" autocomplete="off" oninput="aSearchRender(this.value)">
-  <div id="aSearchList" class="pmlist" style="max-height:170px;margin-top:6px"></div>
-  <div id="aNameRow" style="display:none;margin-top:8px"><label>姓名 <span style="font-weight:400;color:var(--ink3);font-size:12px">iOA 未接时手填；接了自动带出</span></label><input type="text" id="aNewName" placeholder="如：王小艺"></div>
+  <div class="meta"><b>接了 iOA：</b>搜账号自动带出姓名。<b>未接 iOA（当前）：</b>库里搜不到你要的账号——<b>直接在下面填「iOA 账号 + 姓名」即可添加</b>。可不归属部门；选一个主角色定其默认看板权限。</div>
+  <label>iOA 账号 <span style="font-weight:400;color:var(--ink3);font-size:12px">搜已注册账号 / 直接输入新账号</span></label>
+  <input type="text" id="aSearch" placeholder="搜索或直接输入 iOA 账号…" autocomplete="off" oninput="aSearchRender(this.value)">
+  <div id="aSearchList" class="pmlist" style="max-height:150px;margin-top:6px"></div>
+  <div id="aNameRow" style="margin-top:10px"><label>姓名 <span style="font-weight:400;color:var(--ink3);font-size:12px">选中已注册账号会自动带出；新账号请手填（iOA 接入后自动）</span></label><input type="text" id="aNewName" placeholder="如：王小艺"></div>
   <label style="margin-top:10px;display:block">角色（主角色·定默认看板权限）</label>
   <div id="aRoleBox" style="display:flex;gap:16px;flex-wrap:wrap;padding:4px 2px">
     <label style="font-weight:400;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="radio" name="aPrimary" class="aPri" value="HRBP" checked>HRBP <span style="color:var(--ink3);font-size:12px">看板1/2/3/4 编辑</span></label>
@@ -881,9 +881,8 @@ function aSearchRender(q){q=(q||'').trim();var ql=q.toLowerCase(),box=document.g
   var cand=accts.filter(function(a){return !a.is_sysadmin;});  // 已注册账号可搜（正式版接 iOA 通讯录）
   if(ql)cand=cand.filter(function(a){return (a.id+' '+(a.name||'')+' '+acctDepts(a).join(' ')).toLowerCase().indexOf(ql)>=0;});
   var h='',isNew=(q&&!accts.some(function(a){return a.id===q;}));
-  var nr=document.getElementById('aNameRow');if(nr)nr.style.display=isNew?'block':'none';  // 新账号(系统里没有·未接iOA)→显示姓名手填
   if(isNew){
-    h+='<label style="cursor:pointer" onclick="aPick(\''+q.replace(/'/g,'')+'\',\'\')"><b style="color:var(--blue)">＋ 直接添加账号「'+esc(q)+'」</b> <span class="lvl">新账号 · 姓名在下方手填(iOA 接入后自动带出)</span></label>';
+    h+='<label style="cursor:pointer" onclick="aPick(\''+q.replace(/'/g,'')+'\',\'\')"><b style="color:var(--blue)">＋ 直接添加账号「'+esc(q)+'」</b> <span class="lvl">系统里没有 · 姓名在下方手填</span></label>';
   }
   h+=cand.slice(0,40).map(function(a){var picked=(_aPickedId===a.id),ds=acctDepts(a);
     return '<label style="cursor:pointer'+(picked?';background:var(--b50)':'')+'" onclick="aPick(\''+a.id.replace(/'/g,'')+'\',\''+String(a.name||'').replace(/'/g,'')+'\')">'+(picked?'✓ ':'')+'<b>'+esc(a.name||a.id)+'</b> <span class="lvl">'+esc(a.id)+(ds.length?' · '+esc(ds.join('、')):' · 未分组')+'</span></label>';
@@ -892,12 +891,13 @@ function aSearchRender(q){q=(q||'').trim();var ql=q.toLowerCase(),box=document.g
 function aPick(id,name){_aPickedId=id;_aPickedName=name||'';document.getElementById('aErr').style.display='none';
   document.getElementById('aSearch').value=id;  // 反映所选账号
   aSearchRender(id);
-  var ni=document.getElementById('aNewName');
-  if(!accts.some(function(a){return a.id===id;})){if(ni){ni.value=name||'';setTimeout(function(){ni.focus();},20);}}  // 新账号→聚焦姓名手填
-  else if(ni)ni.value='';}
+  var ni=document.getElementById('aNewName');if(!ni)return;
+  var exist=accts.some(function(a){return a.id===id;});
+  ni.value=name||'';                                  // 已注册→带出姓名；新账号→清空待手填
+  if(!exist)setTimeout(function(){ni.focus();},20);}  // 新账号→聚焦姓名手填
 function _openAcctModal(){_aPickedId='';_aPickedName='';
   document.getElementById('aSearch').value='';document.getElementById('aErr').style.display='none';
-  var _nn=document.getElementById('aNewName');if(_nn)_nn.value='';var _nr=document.getElementById('aNameRow');if(_nr)_nr.style.display='none';
+  var _nn=document.getElementById('aNewName');if(_nn)_nn.value='';
   var _pr=document.querySelector('#aRoleBox .aPri[value="HRBP"]');if(_pr)_pr.checked=true;
   aSearchRender('');
   var el=document.getElementById('aDeptShow');if(el)el.textContent=_addDept||'（未分配部门）';
