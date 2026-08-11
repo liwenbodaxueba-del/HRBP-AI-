@@ -1590,7 +1590,7 @@ function tr(cls,label,arr,opt){
     var noteTxt=(opt.notes&&opt.notes[m])?opt.notes[m]:memos[(opt.key||'')+'_'+m];  // opt.notes：外部注入的逐月一句话备注（如看板3.2 简历面试中）优先
     var noteAttr=noteTxt?' data-note="'+esc(noteTxt).replace(/"/g,'&quot;')+'"':'';
     var memo=noteTxt?'<span class="memo"></span>':'';
-    var vspIcon=vspConf?'<span class="vspi" title="'+esc('中心加总 '+(opt.vspCmp[m]==null?0:opt.vspCmp[m])+'　部门加总 '+v).replace(/"/g,'&quot;')+'">i</span>':'';  // 冲突格小 i：只报两个数——中心加总 vs 部门加总
+    var vspIcon=vspConf?'<span class="vspi" title="'+esc('中心加总 '+(opt.vspCmp[m]==null?0:opt.vspCmp[m])+'　子PM加总 '+v).replace(/"/g,'&quot;')+'">i</span>':'';  // 冲突格小 i：只报两个数——中心加总 vs 子PM加总
     var drill=(disp!==''&&!editable&&typeof drillInfo==='function'&&drillInfo(opt.src));  // 数仓/系统取数·有值·非编辑格→可点开看明细
     t+='<td class="'+cl+(noteTxt?' hasnote':'')+(drill?' drillcell':'')+'"'+noteAttr+' data-src="'+(opt.src||'')+'" data-m="'+m+'"'+(opt.key?' data-k="'+opt.key+'"':'')+(editable?' data-edit="'+opt.key+'"':'')+'>'+disp+memo+vspIcon+'</td>';
   }
