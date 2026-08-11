@@ -1630,7 +1630,7 @@ function customRows(sec,extra){
     if(r._new){  // 260724 待命名新行：行名直接内联编辑（不弹窗），回车/失焦校验必填
       label=(extra.prefix||'')+'<input class="rowname-inp" id="ninp_'+key+'" type="text" placeholder="填缘由后回车（必填）" value="'+esc(r.name||'')+'" '
         +'onkeydown="if(event.key===\'Enter\'){commitNewRow(\''+key+'\',this.value);rowEditSave(\''+key+'\');}else if(event.key===\'Escape\'){cancelNewRow(\''+key+'\');}" '
-        +'onblur="commitNewRow(\''+key+'\',this.value)">'
+        +'onblur="commitNewRow(\''+key+'\',this.value);if(this.value.trim())rowEditSave(\''+key+'\')">'
         +'<span class="rowtool del" title="取消" onclick="cancelNewRow(\''+key+'\')"><t-icon name="close" size="12"></t-icon></span>';
     }else{
       label=(extra.prefix||'')+'<span style="cursor:pointer" title="点击改名" onclick="openRowDef(\''+sec+'\',\''+key+'\')">'+esc(r.name)+'</span>'
@@ -2246,7 +2246,9 @@ function rowEditCancel(){
   }
   ROWEDIT=null;renderAll();
 }
+var _brSaving={};  // 防重入：失焦保存 + 保存按钮 可能对同一新分支双触发
 function rowEditSave(key){
+  if(_brSaving[key])return;  // 该分支正在落库中，忽略重复触发
   var m=cmap[key]||null;
   var r=m?m.row:null,sec=m?m.sec:null,isNew=!!(r&&r._new);
   // 新建行必须先填行名；固定 BP 行(o_bp/o_act/i_cbp/i_incr)没有 cmap，也可正常保存
@@ -2264,17 +2266,27 @@ function rowEditSave(key){
   // 新建行：先通过 API 创建分支，再逐格写数据
   if(isNew){
     r.name=nameVal;delete r._new;
-    var frontSec=FRONT2SEC[sec];
+    var _f2s={out:'总流出（−）',inn:'总流入（＋）',soc:'社招∇ 分列',camp:'校招∇ 分列',hc:'法定HC·其中',quota:'预算当量·其中',yz_inn:'云智·总流入（＋）',yz_out:'云智·总流出（−）',wb_inn:'外包·总流入（＋）',wb_out:'外包·总流出（−）'};
+    var frontSec=_f2s[sec];
     if(USE_API&&frontSec){
-      api('POST','/api/board/'+YEAR+'/branch',{sec:frontSec,name:nameVal,sign:'+'})
-        .then(function(b){
+      // 注意：api()/applyBoard()/apiErr()/API_USER 都在 IIFE 内，rowEditSave 在其外层作用域取不到
+      // → 直接 fetch（照抄 kb3PutField 的写法），刷新走全局 setDept 重新拉取当前部门
+      _brSaving[key]=true;
+      var _dept=window.CUR_DEPT||'集团';
+      fetch('/api/board/'+YEAR+'/branch?dept='+encodeURIComponent(_dept),{method:'POST',headers:{'Content-Type':'application/json','X-User':'bonniewbli'},body:JSON.stringify({sec:frontSec,name:nameVal,sign:'+'})})
+        .then(function(r2){return r2.json().then(function(j){if(!r2.ok)throw j;return j;});})
+        .then(function(b){delete _brSaving[key];
           var created=null;(b.branches||[]).forEach(function(br){if(br.sec===frontSec&&br.name===nameVal&&br.sign==='+'&&(!created||br.id>created.id))created=br;});
-          ROWEDIT=null;if(!open_[sec])open_[sec]=true;applyBoard(b);
-          if(!created){if(typeof toast==='function')toast('分支已创建，但未定位到新行，请刷新后填写');return;}
-          if(!chg.length){if(typeof toast==='function')toast('分支已创建（审计留痕）');return;}
-          var nk='C'+created.id,changes=chg.map(function(x){return {key:nk,m:x[0],value:x[1]};});
-          bscCommit(changes,function(){if(typeof toast==='function')toast('分支已创建并保存 '+changes.length+' 格（审计留痕）');});
-        }).catch(apiErr);
+          ROWEDIT=null;if(!open_[sec])open_[sec]=true;
+          var after=function(){
+            if(!created){if(typeof toast==='function')toast('分支已创建，请刷新后填写');return;}
+            if(!chg.length){if(typeof toast==='function')toast('分支已创建（审计留痕）');return;}
+            var nk='C'+created.id,changes=chg.map(function(x){return {key:nk,m:x[0],value:x[1]};});
+            bscCommit(changes,function(){if(typeof toast==='function')toast('分支已创建并保存 '+changes.length+' 格（审计留痕）');});
+          };
+          var p=(typeof setDept==='function')?setDept(_dept):null;
+          if(p&&p.then)p.then(after);else{if(typeof renderAll==='function')renderAll();after();}
+        }).catch(function(e){delete _brSaving[key];alert('后端拒绝：'+(e&&e.detail?(typeof e.detail==='string'?e.detail:JSON.stringify(e.detail)):JSON.stringify(e)));});
       return;
     }
     // 无后端：本地暂存
