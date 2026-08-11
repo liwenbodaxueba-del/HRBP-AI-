@@ -1676,17 +1676,6 @@ function render(){
     var mgA=[];for(var mA=0;mA<12;mA++)mgA[mA]=(mA<LOCK)?D.actual[mA]:c[mA];
     var caA=avg(c),ovA=isN(caA)&&isN(qa)&&caA>qa+0.005;
     h+=tr('key',cfgName('actual','实际/预估期末在岗')+' <span class="badge calc">链</span>',mgA,{src:'chain',avg:f2(caA),avgCls:ovA?'neg':'',lockShade:true});
-    // 子PM组独有：本组调节项（存独立表·不改任何中心源数据）+ 调整后期末在岗。组内中心各自的调节仍在其看板1里。
-    if(isPmgSpace()){
-      var ADJ=(D.vspaceAdjust||[]).map(function(v){return isN(v)?v:'';});
-      h+='<tr class="sub"><td style="color:var(--navy);font-weight:600">➕ 调节项 <span style="color:var(--ink3);font-weight:400;font-size:11px">（本组·可手调·不影响各中心源数据）</span></td>';
-      for(var mj=0;mj<12;mj++){var av=ADJ[mj]===undefined?'':ADJ[mj];
-        if(mj<LOCK||RO){h+='<td class="mut" style="text-align:right">'+av+'</td>';}
-        else{h+='<td style="padding:0"><input type="number" step="1" value="'+av+'" onchange="pmgAdjSave('+(mj+1)+',this.value)" style="width:100%;min-width:42px;border:1px solid transparent;padding:3px 4px;font:inherit;text-align:right;background:transparent;border-radius:4px" onfocus="this.style.borderColor=\'var(--blue-l)\';this.style.background=\'#fff\'" onblur="this.style.borderColor=\'transparent\';this.style.background=\'transparent\'"></td>';}}
-      h+='<td></td><td></td></tr>';
-      var CADJ=[];for(var mc=0;mc<12;mc++)CADJ[mc]=agg([mgA[mc],ADJ[mc]]);
-      h+=tr('key','调整后期末在岗 <span class="badge calc">＝链＋调节</span>',CADJ,{avg:f2(avg(CADJ)),lockShade:true});
-    }
   }
   // 总流出（−）——260730 换回：待流出在待流入上面
   var outT=[];for(var m2=0;m2<12;m2++)outT[m2]=outflow(m2);

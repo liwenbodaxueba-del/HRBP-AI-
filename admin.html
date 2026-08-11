@@ -228,6 +228,7 @@ body.navfold .navtg{left:8px;}
   <label>搜索账号</label>
   <input type="text" id="aSearch" placeholder="搜索 / 输入 iOA 账号或姓名…" autocomplete="off" oninput="aSearchRender(this.value)">
   <div id="aSearchList" class="pmlist" style="max-height:170px;margin-top:6px"></div>
+  <div id="aNameRow" style="display:none;margin-top:8px"><label>姓名 <span style="font-weight:400;color:var(--ink3);font-size:12px">iOA 未接时手填；接了自动带出</span></label><input type="text" id="aNewName" placeholder="如：王小艺"></div>
   <label style="margin-top:10px;display:block">角色（主角色·定默认看板权限）</label>
   <div id="aRoleBox" style="display:flex;gap:16px;flex-wrap:wrap;padding:4px 2px">
     <label style="font-weight:400;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="radio" name="aPrimary" class="aPri" value="HRBP" checked>HRBP <span style="color:var(--ink3);font-size:12px">看板1/2/3/4 编辑</span></label>
@@ -876,19 +877,27 @@ function accOn(i,v){if(accts[i].id==='bonniewbli'){renderAccts();return;}accts[i
 function accDel(i){var a=accts[i];accts.splice(i,1);log('移除账号',a.id+'（'+a.name+'）');renderAccts();}
 var _addDept='',_aPickedId='',_aPickedName='';
 function aSearchRender(q){q=(q||'').trim();var ql=q.toLowerCase(),box=document.getElementById('aSearchList');
+  if(_aPickedId&&q!==_aPickedId)_aPickedId='';  // 改了搜索词→取消之前选择
   var cand=accts.filter(function(a){return !a.is_sysadmin;});  // 已注册账号可搜（正式版接 iOA 通讯录）
   if(ql)cand=cand.filter(function(a){return (a.id+' '+(a.name||'')+' '+acctDepts(a).join(' ')).toLowerCase().indexOf(ql)>=0;});
-  var h='';
-  if(q&&!accts.some(function(a){return a.id===q;})){  // 输入的账号系统里没有→可直接新建
-    h+='<label style="cursor:pointer" onclick="aPick(\''+q.replace(/'/g,'')+'\',\'\')"><b style="color:var(--blue)">＋ 直接添加账号「'+esc(q)+'」</b> <span class="lvl">新账号 · 姓名待 iOA 带出</span></label>';
+  var h='',isNew=(q&&!accts.some(function(a){return a.id===q;}));
+  var nr=document.getElementById('aNameRow');if(nr)nr.style.display=isNew?'block':'none';  // 新账号(系统里没有·未接iOA)→显示姓名手填
+  if(isNew){
+    h+='<label style="cursor:pointer" onclick="aPick(\''+q.replace(/'/g,'')+'\',\'\')"><b style="color:var(--blue)">＋ 直接添加账号「'+esc(q)+'」</b> <span class="lvl">新账号 · 姓名在下方手填(iOA 接入后自动带出)</span></label>';
   }
   h+=cand.slice(0,40).map(function(a){var picked=(_aPickedId===a.id),ds=acctDepts(a);
     return '<label style="cursor:pointer'+(picked?';background:var(--b50)':'')+'" onclick="aPick(\''+a.id.replace(/'/g,'')+'\',\''+String(a.name||'').replace(/'/g,'')+'\')">'+(picked?'✓ ':'')+'<b>'+esc(a.name||a.id)+'</b> <span class="lvl">'+esc(a.id)+(ds.length?' · '+esc(ds.join('、')):' · 未分组')+'</span></label>';
   }).join('');
   box.innerHTML=h||'<div class="hint" style="padding:8px 6px;margin:0">输入 iOA 账号或姓名搜索；也可直接输入新账号添加。</div>';}
-function aPick(id,name){_aPickedId=id;_aPickedName=name||'';document.getElementById('aErr').style.display='none';aSearchRender(document.getElementById('aSearch').value);}
+function aPick(id,name){_aPickedId=id;_aPickedName=name||'';document.getElementById('aErr').style.display='none';
+  document.getElementById('aSearch').value=id;  // 反映所选账号
+  aSearchRender(id);
+  var ni=document.getElementById('aNewName');
+  if(!accts.some(function(a){return a.id===id;})){if(ni){ni.value=name||'';setTimeout(function(){ni.focus();},20);}}  // 新账号→聚焦姓名手填
+  else if(ni)ni.value='';}
 function _openAcctModal(){_aPickedId='';_aPickedName='';
   document.getElementById('aSearch').value='';document.getElementById('aErr').style.display='none';
+  var _nn=document.getElementById('aNewName');if(_nn)_nn.value='';var _nr=document.getElementById('aNameRow');if(_nr)_nr.style.display='none';
   var _pr=document.querySelector('#aRoleBox .aPri[value="HRBP"]');if(_pr)_pr.checked=true;
   aSearchRender('');
   var el=document.getElementById('aDeptShow');if(el)el.textContent=_addDept||'（未分配部门）';
@@ -914,11 +923,12 @@ function saveAcct(){
     closeAcct();renderAccts();return;
   }
   var _pri=(document.querySelector('#aRoleBox .aPri:checked')||{}).value||'HRBP';
-  accts.push({id:id,name:name,role:_pri,dept:dept,is_head:false,
+  var newName=((document.getElementById('aNewName')||{}).value||'').trim()||name;  // iOA未接=手填姓名；接了自动带出
+  accts.push({id:id,name:newName,role:_pri,dept:dept,is_head:false,
     kb1_depts:dept?[dept]:['集团'],kb0_depts:dept?[dept]:['集团'],
     org_path:'',level:'',manager_id:'',
     kb:[1,1,1,1],on:true,demo:false});
-  log('添加账号',id+(name?'（'+name+'）':'')+' · '+_pri+' · 部门 '+(dept||'未分配'));
+  log('添加账号',id+(newName?'（'+newName+'）':'')+' · '+_pri+' · 部门 '+(dept||'未分配'));
   if(typeof saveCfg==='function')saveCfg();  // 立即落库
   closeAcct();renderAccts();
 }
