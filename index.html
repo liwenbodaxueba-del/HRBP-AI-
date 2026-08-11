@@ -1164,7 +1164,7 @@ function pickPmGroup(dept,name){
   PMG={dept:dept,name:name,key:pmgKey(dept,name),centers:centers,sumOff:!g.sum};PMG_ON=true;
   goView('kb1');
   if(window.renderKb1Nav)renderKb1Nav();  // 刷新侧栏→当前子PM组整块高亮
-  if(window.setDept){var _p=window.setDept(PMG.key);if(_p&&_p.then)_p.then(function(){if(typeof vspaceConflictCheck==='function')vspaceConflictCheck();});}  // → loadYear 拉 /api/board?dept=PM:…&centers=… ；加载完检测组级覆盖 vs 中心加总冲突
+  if(window.setDept)window.setDept(PMG.key);  // → loadYear 拉 /api/board?dept=PM:…&centers=… （冲突提醒改在「修改当下」弹一次，不再进组每次弹）
 }
 /* 看板名点击：看板2/3/4 只有部门维度 → 由 goView 统一回落到组所属部门（与「中心」同理） */
 function boardTab(v){goView(v);}
@@ -3062,7 +3062,15 @@ cellWrite=function(key,m,v,note,cb){  // Excel式直填/右键备注 → 走同�
   var metric=(key&&key[0]==='C'&&cmap[key])?('branch:'+cmap[key].row.id):key;
   var body={metric:metric,month:m+1,value:v,note:(note!==undefined?note:(memos[key+'_'+m]||''))};
   api('POST','/api/board/'+YEAR+'/cell',body)
-    .then(function(b){applyBoard(b);renderAuditApi();syncTick();if(typeof toast==='function')toast('已保存 · '+labOf(key)+' '+M[m]+' = '+(v===null||v===''?'清空':v)+'（已写入服务端）');if(cb)cb();})
+    .then(function(b){applyBoard(b);renderAuditApi();syncTick();if(typeof toast==='function')toast('已保存 · '+labOf(key)+' '+M[m]+' = '+(v===null||v===''?'清空':v)+'（已写入服务端）');
+      // 子PM组：改了「待流出·已明确非系统/主动动作」的某格、且与中心加总不一致→当场弹一次冲突提醒（只报这一格）
+      if(typeof isPmgSpace==='function'&&isPmgSpace()&&(key==='o_bp'||key==='o_act')){
+        var _D2=DATA[YEAR],_cs=(_D2.vspaceCenterSum&&_D2.vspaceCenterSum[key])||[],_gv=(_D2[key]||[])[m],_ce=(_cs[m]==null?0:_cs[m]);
+        if(_gv!==''&&_gv!=null&&Number(_gv)!==Number(_ce)&&typeof showVspaceConflictPopup==='function'){
+          showVspaceConflictPopup([{name:(key==='o_bp'?'待流出 · 已明确非系统（BP）':'待流出 · 主动动作（BP）'),m:m,grp:_gv,center:_ce}]);
+        }
+      }
+      if(cb)cb();})
     .catch(function(e){apiErr(e);renderAll();});
 };
 saveCell=function(){
