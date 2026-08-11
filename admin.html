@@ -762,9 +762,42 @@ function applyDeptTree(d){
   for(var j=0;j<arr.length;j++)DEPT_TREE.push(arr[j]);
   ORG_META={source:d.source||'',is_demo_org:!!d.is_demo_org,updated_at:d.updated_at||'',from_api:true};
   orgOrphanCheck();
+  orgChangeCheck();   // 部门结构变化检测：变了就弹窗告知（并说明哪变了）
   if(typeof renderAccts==='function')renderAccts();   // 权限勾选树依赖部门树，拉到新树后重渲染
   if(typeof lnRender==='function')lnRender();         // 线维设置同理
   return true;
+}
+/* ===== 部门结构变化检测：对比上次快照，变了就弹窗（部门树已由 applyDeptTree 自动跟随） ===== */
+function _orgSnap(){var o={};for(var i=0;i<DEPT_TREE.length;i++){var n=DEPT_TREE[i];if(n.name==='集团')continue;o[n.name]=((n.children||[]).slice()).sort();}return o;}
+function _orgDiff(prev,cur){var ch=[],ck=Object.keys(cur),pk=Object.keys(prev);
+  ck.forEach(function(d){if(!prev[d])ch.push('＋ 新增部门：'+d);});
+  pk.forEach(function(d){if(!cur[d])ch.push('－ 移除部门：'+d);});
+  ck.forEach(function(d){if(prev[d]){var pc=prev[d],cc=cur[d];
+    cc.forEach(function(c){if(pc.indexOf(c)<0)ch.push('　'+d+' · ＋中心 '+c);});
+    pc.forEach(function(c){if(cc.indexOf(c)<0)ch.push('　'+d+' · －中心 '+c);});}});
+  return ch;}
+function orgChangeCheck(){try{
+  var cur=_orgSnap(),prevRaw=localStorage.getItem('hcfb_org_snap');
+  localStorage.setItem('hcfb_org_snap',JSON.stringify(cur));   // 更新快照
+  if(!prevRaw)return;                                          // 首次：不弹
+  var changes=_orgDiff(JSON.parse(prevRaw),cur);
+  if(changes.length)showOrgChangePopup(changes);
+}catch(e){}}
+function showOrgChangePopup(changes){
+  var old=document.getElementById('orgChgMask');if(old)old.remove();
+  var mask=document.createElement('div');mask.id='orgChgMask';
+  mask.style.cssText='position:fixed;inset:0;background:rgba(10,46,110,.38);z-index:99999;display:flex;align-items:center;justify-content:center;';
+  var box=document.createElement('div');
+  box.style.cssText='background:#fff;border-radius:14px;max-width:520px;width:90%;max-height:72vh;overflow:auto;box-shadow:0 20px 60px rgba(10,46,110,.35);';
+  box.innerHTML='<div style="background:#0A2E6E;color:#fff;padding:14px 20px;border-radius:14px 14px 0 0;font-weight:700;font-size:15px">⚠ 部门结构已发生变化</div>'
+    +'<div style="padding:16px 20px;font-size:13px;line-height:1.9;color:#333">组织架构（iOA 同步）已更新，<b>后台与看板端的部门结构已自动跟随</b>。本次变化：'
+    +'<div style="margin-top:8px;background:#F6F9FF;border:1px solid #E1E9F7;border-radius:8px;padding:10px 14px;white-space:pre-line">'
+    +changes.map(function(c){return esc(c);}).join('\n')+'</div>'
+    +'<div style="margin-top:10px;color:#8794a8;font-size:12px">若线级/子PM组引用了被移除的部门，请在下方权限设置里核对（不会被静默删除）。</div></div>'
+    +'<div style="padding:0 20px 16px;text-align:right"><button id="orgChgOk" style="background:#2563EB;color:#fff;border:none;border-radius:8px;padding:8px 22px;font-size:13px;cursor:pointer;font-weight:600">知道了</button></div>';
+  mask.appendChild(box);document.body.appendChild(mask);
+  document.getElementById('orgChgOk').onclick=function(){mask.remove();};
+  mask.addEventListener('click',function(e){if(e.target===mask)mask.remove();});
 }
 function orgOrphanCheck(){
   /* 线维/子PM组里存的是部门【名字】，组织调整后可能残留失效引用。只显式报出，绝不静默删除。*/
