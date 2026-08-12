@@ -268,6 +268,15 @@ def init_db():
             except sqlite3.OperationalError:
                 pass  # 列已存在
         c.execute("UPDATE accounts SET is_sysadmin=1 WHERE id='bonniewbli'")  # 内置系统管理员（幂等）
+        # ---- 系统管理员自锁自愈：启动时把被停用的系统管理员强制恢复启用 ----
+        # 为什么必须有这一层：系统管理员一旦 on_ok=0，切库/存数/改权限全部 403，连"去后台改回来"都做不到
+        # （改权限本身就要管理员权限）→ 只能直连 SQLite 抢救。2608-04、2608-12 各发生过一次。
+        # 有了这条，遇到自锁只要重启服务即可自动恢复。仅当确有账号被停用时才写审计，避免每次启动刷日志。
+        _locked = [r["id"] for r in c.execute("SELECT id FROM accounts WHERE is_sysadmin=1 AND on_ok=0")]
+        if _locked:
+            c.execute("UPDATE accounts SET on_ok=1 WHERE is_sysadmin=1 AND on_ok=0")
+            _audit(c, "system", "重新启用账号",
+                   "系统管理员自锁自愈：" + "、".join(_locked) + " on_ok 0→1（仅改启用状态，角色与权限未动）")
         try:
             c.execute("ALTER TABLE accounts ADD COLUMN kbperm TEXT DEFAULT ''")  # 4个看板(看板1/2/3/4)编辑查阅权限 [0无/1查阅/2编辑]*4；空=按角色默认
         except sqlite3.OperationalError:

@@ -877,7 +877,11 @@ function doTransfer(){var to=document.getElementById('trTarget').value;if(!to)re
   }).catch(function(e){alert('转移失败：'+JSON.stringify((e&&e.detail)||e));});}
 function accRole(i,v){var o=accts[i].role;accts[i].role=v;log('改角色',accts[i].id+'：'+o+' → '+v);renderAccts();}
 function accKb(i,j,v){accts[i].kb[j]=v?1:0;log('改看板权限',accts[i].id+'：'+KB[j]+' → '+(v?'允许':'禁止'));}
-function accOn(i,v){if(accts[i].id==='bonniewbli'){renderAccts();return;}accts[i].on=v;log(v?'启用账号':'停用账号',accts[i].id);}
+/* 系统管理员不可停用（防自锁）：原先硬编码 id==='bonniewbli'，一旦「转移管理员」给别人就失效了，
+   改为按 is_sysadmin 判断；同时本人也不可停用。后端 PUT /api/config 另有同样的强制启用兜底。*/
+function accOn(i,v){var a=accts[i];
+  if(a.is_sysadmin||a.id===API_USER){if(typeof alert==='function'&&!v)alert('系统管理员不可停用（停用后将无法切库/保存/改权限，只能直连数据库抢救）');renderAccts();return;}
+  a.on=v;log(v?'启用账号':'停用账号',a.id);}
 function accDel(i){var a=accts[i];accts.splice(i,1);log('移除账号',a.id+'（'+a.name+'）');renderAccts();}
 var _addDept='',_aPickedId='',_aPickedName='';
 function aSearchRender(q){q=(q||'').trim();var ql=q.toLowerCase(),box=document.getElementById('aSearchList');

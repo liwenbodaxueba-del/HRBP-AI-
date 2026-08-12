@@ -123,11 +123,16 @@ def put_config(doc: ConfigDoc, x_user: str = Header("bonniewbli")):
                      int(me_old["is_head"] or 0), keep_sys, (me_old.get("kbperm") or "")),
                 )
                 continue
-            # 其他账号 / 系统管理员本人：用下发值（本人 on 强制启用防自锁；is_sysadmin 保原值）
+            # 其他账号 / 系统管理员本人：用下发值（is_sysadmin 保原值）
+            # 防自锁（硬约束）：本人、以及【任何系统管理员】一律强制 on_ok=1。
+            #   系统管理员是系统的最后一把钥匙——一旦被停用，切库/存数/改权限全部 403，
+            #   只能直连 SQLite 改库才能救回（2608-04、2608-12 各发生过一次）。
+            #   原先只护住「本人」，转移管理员或多管理员场景下 A 仍可把 B 停用而锁死系统，故扩到系统管理员整体。
+            no_lock = (a["id"] == x_user) or bool(keep_sys)
             c.execute(
                 "INSERT INTO accounts(id,name,role,dept,kb,on_ok,demo,level,manager_id,org_path,kb1_depts,kb0_depts,is_head,is_sysadmin,kbperm) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (a["id"], a.get("name", ""), a.get("role", "HRBP·可编辑"), a.get("dept", ""),
-                 json.dumps(a.get("kb", [1, 1, 1, 1])), (1 if a["id"] == x_user else int(a.get("on", True))), int(bool(a.get("demo"))),
+                 json.dumps(a.get("kb", [1, 1, 1, 1])), (1 if no_lock else int(a.get("on", True))), int(bool(a.get("demo"))),
                  a.get("level", ""), a.get("manager_id", ""), a.get("org_path", ""),
                  json.dumps(a.get("kb1_depts", ["集团"]), ensure_ascii=False),
                  json.dumps(a.get("kb0_depts", ["集团"]), ensure_ascii=False),
