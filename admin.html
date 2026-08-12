@@ -538,7 +538,11 @@ function readBpRelations(){
   });
 }
 /* ===== 中心清单 / 设置子PM看板（组=二级、组内中心=三级；与看板 index.html DEPT_TREE 中心一致） ===== */
-var PM_GROUPS={};try{PM_GROUPS=JSON.parse(localStorage.getItem('hcfb_pm_groups')||'{}')||{};}catch(e){PM_GROUPS={};}  // 部门→子PM组，与看板端(index.html)共用同一份(同源 localStorage)
+// 部门→子PM组，与看板端(index.html)共用同一份(同源 localStorage)；首次无该键时种入示例组(与 index.html PMG_DEFAULT 一致)
+var PMG_DEFAULT={'云产品一部':[{name:'bonnie',sum:true,centers:['存储产品中心','高性能网络产品中心','国产数据库产品中心','计算产品中心','可用性架构组']}]};
+var PM_GROUPS={},_pgRaw=null;try{_pgRaw=localStorage.getItem('hcfb_pm_groups');}catch(e){_pgRaw=null;}
+if(_pgRaw==null){PM_GROUPS=JSON.parse(JSON.stringify(PMG_DEFAULT));try{localStorage.setItem('hcfb_pm_groups',JSON.stringify(PM_GROUPS));}catch(e){}}
+else{try{PM_GROUPS=JSON.parse(_pgRaw)||{};}catch(e){PM_GROUPS={};}}
 function savePmGroups(){try{localStorage.setItem('hcfb_pm_groups',JSON.stringify(PM_GROUPS));}catch(e){}}
 (function(){var ch=false;Object.keys(PM_GROUPS).forEach(function(d){(PM_GROUPS[d]||[]).forEach(function(g){if(g.sum!==true){g.sum=true;ch=true;}});});if(ch)savePmGroups();})();  // 全部子PM组默认求和
 /* ===== 清单选择框通用交互（子PM/线级两个架构框统一）：搜索过滤 + 全选/全不选 ===== */

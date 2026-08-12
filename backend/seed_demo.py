@@ -149,6 +149,12 @@ def main():
                 setcell(dept, "q_init", m, round(B * 3 * (1 + 0.015 * m)))
             setcell(dept, "camp_off_tot", 0, rng.randint(8, 20))
 
+    # —— 示例·子PM组组级覆盖（演示「组覆盖 + 卷入部门/集团」）——
+    # 组键=PM:部门:组名，与前端 PMG_DEFAULT(云产品一部·bonnie) 对应；仅覆盖「待流出·已明确非系统/主动动作(BP)」预估月，
+    # 故意与各成员中心加总(0)不一致 → 组看板标橙 + 卷进云产品一部/集团合计。
+    setcell("PM:云产品一部:bonnie", "o_bp", 7, 2)   # 8月·已明确离职（组级）
+    setcell("PM:云产品一部:bonnie", "o_act", 8, 3)  # 9月·主动汰换计划（组级）
+
     dc.commit()
     nc = dc.execute("SELECT COUNT(*) FROM cells").fetchone()[0]
     nl = dc.execute("SELECT COUNT(*) FROM ledger_rows").fetchone()[0]

@@ -1127,7 +1127,13 @@ window.kb3DeptOpts=kb3DeptOpts;window.kb3CenterOptsOf=kb3CenterOptsOf;
 var KB1_OPEN={};
 /* 子PM分组（部门→[{name,centers}]）：管理后台「设置子PM看板」配置，同源 localStorage 共享。部门展开时按 部→子PM组→中心 渲染 */
 function _pmgSumAll(){Object.keys(PM_GROUPS).forEach(function(d){(PM_GROUPS[d]||[]).forEach(function(g){g.sum=true;});});}  // 全部子PM组默认求和
-var PM_GROUPS={};try{PM_GROUPS=JSON.parse(localStorage.getItem('hcfb_pm_groups')||'{}')||{};}catch(e){PM_GROUPS={};}_pmgSumAll();
+/* 示例子PM组（演示用）：localStorage 首次无该键时种入，便于开箱演示「组覆盖 + 卷入部门/集团」；
+   用户在管理后台配置过（哪怕清成空）后就尊重其配置、不再回种。与业务线 LINES_DEFAULT 同思路。 */
+var PMG_DEFAULT={'云产品一部':[{name:'bonnie',sum:true,centers:['存储产品中心','高性能网络产品中心','国产数据库产品中心','计算产品中心','可用性架构组']}]};
+var PM_GROUPS={},_pgRaw=null;try{_pgRaw=localStorage.getItem('hcfb_pm_groups');}catch(e){_pgRaw=null;}
+if(_pgRaw==null){PM_GROUPS=JSON.parse(JSON.stringify(PMG_DEFAULT));try{localStorage.setItem('hcfb_pm_groups',JSON.stringify(PM_GROUPS));}catch(e){}}
+else{try{PM_GROUPS=JSON.parse(_pgRaw)||{};}catch(e){PM_GROUPS={};}}
+_pmgSumAll();
 window.addEventListener('storage',function(e){if(e.key==='hcfb_pm_groups'){try{PM_GROUPS=JSON.parse(e.newValue||'{}')||{};}catch(_){PM_GROUPS={};}_pmgSumAll();if(window.renderKb1Nav)renderKb1Nav();}});
 function _pmGroupHead(g,padLeft,dept){
   // 勾了「展示求和」→ 目录项可点击进求和看板；未勾时【管理员仍可点】（系统管理员要能看到所有信息），并标注状态
