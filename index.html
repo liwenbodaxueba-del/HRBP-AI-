@@ -1354,7 +1354,15 @@ function renderLineBoard(){
   var h='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:2px 0 12px">'
     +'<b style="font-size:19px;color:var(--navy)">'+esc(L.name)+'</b>'
     +'<span style="font-size:12.5px;color:var(--ink3)">共 '+L.depts.length+' 个部门</span></div>';
-  if(!d){host.innerHTML=h+'<div class="hint" style="padding:12px">无数据</div>';return;}
+  // 空态（未接后端 / 该线本年暂无数据）：仍渲染【完整表格骨架】，单元格留空。
+  // 原先这里直接 return 一句「无数据」，与看板1/2/4 的行为不一致——那几个板都是无条件渲染骨架，
+  // 缺数据只让单元格留空（识空引擎）。只吐一句「无数据」会让人以为页面坏了/前端没写。
+  // _lineEqBlock 已全面容错（chain=chain||[]、_f2s(null)→''），传空数组即可得到骨架+空格。
+  var emptyState=!d;
+  if(emptyState)d={members:(L.depts||[]).map(function(nm){return {name:nm};}),chain:[],budget:[]};
+  if(emptyState)h+='<div class="hint" style="padding:8px 10px;margin-bottom:8px;background:#FFF7ED;border:1px solid #FED7AA;border-radius:8px;color:#92400E">'
+    +'本线暂无数据：'+(window.USE_API?'该线本年尚无已接入的源数据':'当前未连接后端（直接用浏览器打开的静态页只有框架，没有数据）')
+    +'。下方为<b>完整表格框架</b>，单元格按识空规则留空——不编造、不补零。</div>';
   h+='<div class="tblwrap"><table class="bsc lineeq"><tr>'
     +'<th class="c1">线级 / 部门</th><th class="c2">实际/预估期末在岗</th><th class="c3">系数</th>';
   for(var m=0;m<12;m++)h+='<th'+(m<LOCK?'':' class="fut"')+'>'+M[m]+(m<LOCK?'<span class="lockic"></span>':'')+'</th>';
