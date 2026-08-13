@@ -438,15 +438,15 @@ function saveKbPerm(){var i=acctIdx(_kpId);if(i<0){closeKbPerm();return;}
   closeKbPerm();renderAccts();  // log()→saveCfg()→PUT /api/config 落库
 }
 function closeKbPerm(){document.getElementById('maskKbPerm').classList.remove('on');_kpId=null;}
-var ROLE_OPTS=['HRBP','招聘经理','业务','部门BP','PM'];  // 主角色(看板权限档)：HRBP=全编辑 / 招聘经理=看板3编辑其余查阅 / 业务=全查阅；附加角色：部门BP部门管理员 / PM线级权限
+// 角色 = 单选一个主角色（看板权限档），没有「附加角色」这一层。
 var ROLE_KB={'HRBP':[2,2,2,2],'招聘经理':[1,1,2,1],'业务':[1,1,1,1]};  // 主角色→默认看板1/2/3/4权限(0无/1查/2编)
 function primaryRole(a){var rs=acctRoles(a);for(var i=0;i<rs.length;i++)if(ROLE_KB[rs[i]])return rs[i];return 'HRBP';}
 function acctRoles(a){var parts=String(a.role||'').split(',');
-  var set=Object.keys(ROLE_KB).filter(function(x){return parts.indexOf(x)>=0;});  // 只认三主角色 HRBP/招聘经理/业务（部门BP/PM 已废弃·不再显示为 tag）
+  var set=Object.keys(ROLE_KB).filter(function(x){return parts.indexOf(x)>=0;});  // 只认三主角色 HRBP/招聘经理/业务
   if(!set.length)set=['HRBP'];  // 兜底主角色
   return set;}
 function roleTagHtml(a,i){if(a.is_sysadmin)return '';  // 系统管理员单独徽标，不出角色tag
-  var bg={'HRBP':'#F1F5F9','招聘经理':'#FEF3C7','业务':'#E0E7FF','部门BP':'#E7F6EF','PM':'#F3E8FF'},fg={'HRBP':'#475569','招聘经理':'#92400E','业务':'#3730A3','部门BP':'#127A50','PM':'#7C3AED'};
+  var bg={'HRBP':'#F1F5F9','招聘经理':'#FEF3C7','业务':'#E0E7FF'},fg={'HRBP':'#475569','招聘经理':'#92400E','业务':'#3730A3'};
   var t=acctRoles(a).map(function(rn){return ' <span class="chip" style="cursor:pointer;background:'+(bg[rn]||'#F1F5F9')+';color:'+(fg[rn]||'#475569')+'" onclick="editRoles('+i+')" title="点击改角色">'+rn+'</span>';}).join('');
   return t+' <span class="chip" style="cursor:pointer;background:#EEF2F8;color:var(--ink3);padding:1px 6px" onclick="editRoles('+i+')" title="编辑角色">✎</span>';}
 var _roleEditIdx=-1;
@@ -459,7 +459,7 @@ function closeRole(){document.getElementById('maskRole').classList.remove('on');
 function roleSave(){var a=accts[_roleEditIdx];if(!a)return;
   var oldPri=primaryRole(a);
   var pri=(document.querySelector('#reBox .rePri:checked')||{}).value||'HRBP';
-  a.role=pri;a.is_head=false;  // 只保留主角色（部门BP/PM 已不在此设置）
+  a.role=pri;a.is_head=false;  // 角色单选，直接覆盖
   if(pri!==oldPri)a.kbperm='';  // 主角色变更→采用新角色默认看板权限（清自定义，改由派生）
   if(typeof saveCfg==='function')saveCfg();
   if(typeof log==='function')log('账号角色',a.id+'（'+a.name+'）→ '+pri);
